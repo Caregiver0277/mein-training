@@ -13,12 +13,16 @@ interface TrainingDayDao {
     @Query("SELECT * FROM TrainingDay ORDER BY id ASC")
     fun observeAll(): Flow<List<TrainingDay>>
 
-    @Query("SELECT COUNT(*) FROM TrainingDay")
-    suspend fun count(): Int
+    @Query("SELECT * FROM TrainingDay ORDER BY id ASC")
+    suspend fun listAll(): List<TrainingDay>
 
     @Query("UPDATE TrainingDay SET name = :name WHERE id = :id")
     suspend fun updateName(id: Int, name: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(days: List<TrainingDay>)
+
+    /** Nur für das vollständige Zurücksetzen der App. */
+    @Query("DELETE FROM TrainingDay")
+    suspend fun deleteAll()
 }

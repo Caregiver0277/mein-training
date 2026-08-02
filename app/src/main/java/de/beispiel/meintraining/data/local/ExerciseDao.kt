@@ -65,6 +65,10 @@ interface ExerciseDao {
     @Query("SELECT * FROM Exercise WHERE id = :id")
     suspend fun findEntityById(id: Long): Exercise?
 
+    /** Alle Übungen als Rohdaten – für die Sicherung. */
+    @Query("SELECT * FROM Exercise ORDER BY dayId ASC, position ASC, id ASC")
+    suspend fun listAll(): List<Exercise>
+
     /** Die Übungen eines Tages in Anzeigereihenfolge – Grundlage fürs Sortieren und Gruppieren. */
     @Query("SELECT * FROM Exercise WHERE dayId = :dayId ORDER BY position ASC, id ASC")
     suspend fun listByDay(dayId: Int): List<Exercise>
@@ -86,6 +90,7 @@ interface ExerciseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(exercise: Exercise): Long
 
+    /** Der ganze Bestand auf einmal – für das Einspielen einer Sicherung. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(exercises: List<Exercise>)
 
@@ -95,14 +100,14 @@ interface ExerciseDao {
     @Query("DELETE FROM Exercise WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
 
-    /** Leert einen Trainingstag – für den Import, der den Tag komplett ersetzt. */
-    @Query("DELETE FROM Exercise WHERE dayId = :dayId")
-    suspend fun deleteByDay(dayId: Int)
-
     @Query("SELECT DISTINCT dayId FROM Exercise WHERE name = :name")
     suspend fun listDayIdsForName(name: String): List<Int>
 
     /** Entfernt die Übung von allen Trainingstagen. */
     @Query("DELETE FROM Exercise WHERE name = :name")
     suspend fun deleteByName(name: String)
+
+    /** Nur für das vollständige Zurücksetzen der App. */
+    @Query("DELETE FROM Exercise")
+    suspend fun deleteAll()
 }

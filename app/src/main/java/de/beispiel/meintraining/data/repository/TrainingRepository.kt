@@ -10,7 +10,6 @@ import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.local.TrainingDayDao
 import de.beispiel.meintraining.data.local.WeightLogDao
 import de.beispiel.meintraining.data.local.WorkoutSessionDao
-import de.beispiel.meintraining.data.model.DAY_COUNT
 import de.beispiel.meintraining.data.model.Exercise
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.ExerciseItem
@@ -18,8 +17,8 @@ import de.beispiel.meintraining.data.model.FIRST_DAY_ID
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
-import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
+import de.beispiel.meintraining.util.effectiveWeightKg
 import de.beispiel.meintraining.util.nextDayId
 import de.beispiel.meintraining.util.survivingSupersetMembers
 import de.beispiel.meintraining.util.toLocalDate
@@ -75,9 +74,40 @@ class TrainingRepository(
     val deloadCycleWeeks: Flow<Int> = settingsStore.deloadCycleWeeks
     val appTitle: Flow<String> = settingsStore.appTitle
 
+    /** Anzahl der Trainingstage in einer Runde. */
+    val dayCount: Flow<Int> = settingsStore.dayCount
+
     suspend fun setDeloadCycleWeeks(weeks: Int) = settingsStore.setDeloadCycleWeeks(weeks)
 
     suspend fun setAppTitle(title: String) = settingsStore.setAppTitle(title)
+
+    /**
+     * Ändert die Anzahl der Trainingstage.
+     *
+     * Beim Verkleinern werden die überzähligen Tage nur ausgeblendet, nicht gelöscht – ihre
+     * Übungen stehen unverändert wieder da, sobald die Runde wieder länger wird. Wer sie
+     * wirklich loswerden will, leert sie von Hand.
+     *
+     * Zeigt die Auswahl auf einen Tag, den es nicht mehr gibt, springt sie auf den ersten.
+     */
+    suspend fun setDayCount(count: Int) {
+        settingsStore.setDayCount(count)
+        val effective = settingsStore.dayCount.first()
+        ensureDaysExist(effective)
+        if (settingsStore.selectedDayId.first() > effective) {
+            settingsStore.setSelectedDayId(FIRST_DAY_ID)
+        }
+    }
+
+    /** Legt fehlende Trainingstage an; vorhandene bleiben samt Namen unangetastet. */
+    private suspend fun ensureDaysExist(count: Int) {
+        val existing = dayDao.listAll().map { it.id }.toSet()
+        val missing = (FIRST_DAY_ID..count).filterNot { it in existing }
+        if (missing.isEmpty()) return
+        dayDao.insertAll(
+            missing.map { id -> TrainingDay(id = id, name = appContext.getString(R.string.day_name, id)) }
+        )
+    }
 
     suspend fun renameDay(dayId: Int, name: String) = dayDao.updateName(dayId, name)
 
@@ -104,18 +134,29 @@ class TrainingRepository(
      * Löscht eine Übung restlos: aus allen Trainingstagen, aus der Übungsdatenbank und
      * samt Gewichtsverlauf. Das lässt sich nicht rückgängig machen.
      */
-    suspend fun deleteExerciseEverywhere(name: String) {
+    suspend fun deleteExerciseEverywhere(name: String) = deleteExercisesEverywhere(listOf(name))
+
+    /**
+     * Dasselbe für mehrere Übungen auf einmal – alles in einer Transaktion, damit nicht die
+     * halbe Auswahl verschwindet, wenn etwas dazwischenkommt.
+     */
+    suspend fun deleteExercisesEverywhere(names: Collection<String>) {
+        if (names.isEmpty()) return
         database.withTransaction {
-            val affectedDays = exerciseDao.listDayIdsForName(name)
-            exerciseDao.deleteByName(name)
-            definitionDao.deleteByName(name)
-            weightLogDao.deleteByName(name)
+            val affectedDays = mutableSetOf<Int>()
+            names.forEach { name ->
+                affectedDays += exerciseDao.listDayIdsForName(name)
+                exerciseDao.deleteByName(name)
+                definitionDao.deleteByName(name)
+                weightLogDao.deleteByName(name)
+            }
             affectedDays.forEach { normalizeSupersets(it) }
         }
-        // Sonst bliebe der Name im Tracking ausgeblendet und eine später neu angelegte
-        // Übung gleichen Namens wäre von Anfang an unsichtbar.
+        // Sonst blieben die Namen im Tracking ausgeblendet und später neu angelegte
+        // Übungen gleichen Namens wären von Anfang an unsichtbar.
         val hidden = settingsStore.hiddenTrackingNames.first()
-        if (name in hidden) settingsStore.setHiddenTrackingNames(hidden - name)
+        val remaining = hidden - names.toSet()
+        if (remaining.size != hidden.size) settingsStore.setHiddenTrackingNames(remaining)
     }
 
     /**
@@ -132,7 +173,7 @@ class TrainingRepository(
         val latest = sessionDao.latest() ?: return
         // Am Tag des Trainings selbst bleibt die Ansicht stehen.
         if (!latest.completedAt.toLocalDate().isBefore(today)) return
-        settingsStore.setSelectedDayId(nextDayId(latest.dayId, DAY_COUNT))
+        settingsStore.setSelectedDayId(nextDayId(latest.dayId, settingsStore.dayCount.first()))
     }
 
     suspend fun selectDay(dayId: Int) = settingsStore.setSelectedDayId(dayId)
@@ -178,9 +219,9 @@ class TrainingRepository(
                 )
             )
             // Auch das Umschalten auf Körpergewicht ändert die tatsächliche Last.
-            val newEffective = effectiveWeight(weightKg, usesBodyweight, bodyweight)
+            val newEffective = effectiveWeightKg(weightKg, usesBodyweight, bodyweight)
             val oldEffective = previous?.let {
-                effectiveWeight(it.weightKg, it.usesBodyweight, bodyweight)
+                effectiveWeightKg(it.weightKg, it.usesBodyweight, bodyweight)
             }
             if (newEffective != null && newEffective != oldEffective) logWeight(name, newEffective)
 
@@ -221,23 +262,13 @@ class TrainingRepository(
         database.withTransaction {
             definitionDao.updateWeight(name, weightKg)
             val definition = definitionDao.find(name)
-            val effective = effectiveWeight(
+            val effective = effectiveWeightKg(
                 weightKg = weightKg,
                 usesBodyweight = definition?.usesBodyweight == true,
                 bodyweightKg = bodyweight
             )
             if (effective != null) logWeight(name, effective)
         }
-    }
-
-    private fun effectiveWeight(
-        weightKg: Double?,
-        usesBodyweight: Boolean,
-        bodyweightKg: Double?
-    ): Double? = when {
-        !usesBodyweight -> weightKg
-        bodyweightKg == null -> weightKg
-        else -> bodyweightKg + (weightKg ?: 0.0)
     }
 
     /**
@@ -333,77 +364,35 @@ class TrainingRepository(
         )
     }
 
-    /** Legt beim ersten Start die vier Tage an und spielt den Trainingsplan ein. */
-    suspend fun ensureSeeded() {
-        if (dayDao.count() == 0) {
-            dayDao.insertAll(
-                (FIRST_DAY_ID..DAY_COUNT).map { id ->
-                    TrainingDay(id = id, name = appContext.getString(R.string.day_name, id))
-                }
-            )
+    /**
+     * Setzt die App auf den Zustand direkt nach der Installation zurück.
+     *
+     * Weg sind: der Verlauf abgehakter Trainings, der komplette Gewichtsverlauf, alle Übungen
+     * samt ihrer geteilten Werte, die Namen der Trainingstage und sämtliche Einstellungen –
+     * also alles, was die App je über das Training gesammelt hat.
+     *
+     * Übrig bleiben die leeren Trainingstage, genau wie nach der Installation. Das lässt sich
+     * nicht rückgängig machen.
+     */
+    suspend fun deleteAllData() {
+        database.withTransaction {
+            weightLogDao.deleteAll()
+            sessionDao.deleteAll()
+            exerciseDao.deleteAll()
+            definitionDao.deleteAll()
+            dayDao.deleteAll()
         }
-        if (!settingsStore.isPlanImported()) {
-            importPlan(DEFAULT_PLAN)
-            settingsStore.setPlanImported()
-        }
+        settingsStore.clear()
+        ensureSeeded()
     }
 
     /**
-     * Spielt einen Trainingsplan ein und ersetzt dabei den Inhalt der betroffenen Tage.
+     * Legt die Trainingstage an, falls sie fehlen.
      *
-     * Gewichte hängen am Namen: Kommt eine Übung an mehreren Tagen vor, gilt das erste
-     * angegebene Gewicht für alle. Der Progressionsschritt bleibt auf dem Standardwert.
+     * Mehr passiert beim ersten Start bewusst nicht: Die App beginnt leer. Ein mitgelieferter
+     * Plan wäre fremdes Training – die Übungen trägt jeder selbst ein.
      */
-    suspend fun importPlan(plan: List<PlanDay>) = database.withTransaction {
-        val dayIds = plan.map { it.dayId }
-        dayIds.forEach { dayId -> exerciseDao.deleteByDay(dayId) }
-
-        val weightsByName = plan.flatMap { it.exercises }
-            .filter { it.weightKg != null }
-            .associate { it.name to it.weightKg }
-        val allNames = plan.flatMap { day -> day.exercises.map { it.name } }.distinct()
-        // Vor dem Überschreiben merken, damit ein erneuter Import den Verlauf nicht
-        // mit unveränderten Werten vollschreibt.
-        val previousWeights = allNames.associateWith { definitionDao.find(it)?.weightKg }
-        definitionDao.upsertAll(
-            allNames.map { name ->
-                ExerciseDefinition(
-                    name = name,
-                    weightKg = weightsByName[name],
-                    progressionStepKg = DEFAULT_PROGRESSION_STEP_KG
-                )
-            }
-        )
-
-        var nextSupersetId = exerciseDao.nextSupersetId()
-        plan.forEach { day ->
-            // Jede Superset-Gruppe eines Tages bekommt eine eigene, tagesübergreifend
-            // eindeutige Kennung.
-            val supersetIds = day.exercises.mapNotNull { it.supersetGroup }.distinct()
-                .associateWith { nextSupersetId++ }
-
-            exerciseDao.insertAll(
-                day.exercises.mapIndexed { index, planned ->
-                    Exercise(
-                        dayId = day.dayId,
-                        name = planned.name,
-                        variation = planned.variation,
-                        sets = planned.sets,
-                        repsMin = planned.repsMin,
-                        repsMax = planned.repsMax,
-                        position = index,
-                        supersetId = supersetIds[planned.supersetGroup]
-                    )
-                }
-            )
-        }
-
-        definitionDao.deleteOrphans()
-        // Startpunkte für den Verlauf, damit der Graph nicht bei null anfängt.
-        allNames.forEach { name ->
-            val weight = weightsByName[name] ?: return@forEach
-            if (previousWeights[name] != weight) logWeight(name, weight)
-        }
-        dayIds.forEach { normalizeSupersets(it) }
+    suspend fun ensureSeeded() {
+        ensureDaysExist(settingsStore.dayCount.first())
     }
 }

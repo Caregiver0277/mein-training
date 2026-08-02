@@ -27,6 +27,10 @@ val OutlineColor = Color(0xFF3A4049)
 val AccentGreen = Color(0xFF3FA96B)
 val AccentGreenSurface = Color(0xFF16301F)
 
+/** Rot für den einen Knopf, der wirklich etwas zerstört: das Zurücksetzen der App. */
+val AccentRed = Color(0xFFE05260)
+val AccentRedSurface = Color(0xFF3A181C)
+
 /** Marineblauer Kasten, der ein Superset zusammenfasst – hebt sich klar vom Rest ab. */
 val SupersetBackground = Color(0xFF17356B)
 

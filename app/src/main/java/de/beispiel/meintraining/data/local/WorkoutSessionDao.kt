@@ -15,9 +15,20 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM WorkoutSession ORDER BY completedAt DESC, id DESC LIMIT 1")
     suspend fun latest(): WorkoutSession?
 
+    /** Alle abgehakten Trainings – für die Sicherung. */
+    @Query("SELECT * FROM WorkoutSession ORDER BY completedAt ASC, id ASC")
+    suspend fun listAll(): List<WorkoutSession>
+
     @Insert
     suspend fun insert(session: WorkoutSession): Long
 
+    @Insert
+    suspend fun insertAll(sessions: List<WorkoutSession>)
+
     @Query("DELETE FROM WorkoutSession WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    /** Nur für das vollständige Zurücksetzen der App. */
+    @Query("DELETE FROM WorkoutSession")
+    suspend fun deleteAll()
 }

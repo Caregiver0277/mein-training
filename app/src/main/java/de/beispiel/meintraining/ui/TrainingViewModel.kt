@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
-import de.beispiel.meintraining.data.model.DAY_COUNT
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
@@ -61,16 +60,16 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
     ) { days, id, sessions -> Triple(days, id, sessions) }
 
     private val preferences = combine(
-        repository.bodyweightKg,
+        repository.dayCount,
         repository.deloadCycleWeeks,
         repository.appTitle,
         today
-    ) { bodyweight, cycleWeeks, title, currentDate ->
-        Preferences(bodyweight, cycleWeeks, title, currentDate)
+    ) { dayCount, cycleWeeks, title, currentDate ->
+        Preferences(dayCount, cycleWeeks, title, currentDate)
     }
 
     private data class Preferences(
-        val bodyweightKg: Double?,
+        val dayCount: Int,
         val cycleWeeks: Int,
         val title: String,
         val today: LocalDate
@@ -86,9 +85,12 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
         exerciseList,
         definitionList,
         (form, selection),
-        (bodyweight, cycleWeeks, title, currentDate) ->
+        (dayCount, cycleWeeks, title, currentDate) ->
+        // Über die eingestellte Anzahl hinausgehende Tage bleiben in der Datenbank stehen,
+        // werden aber nicht angezeigt – so ist eine verkürzte Runde jederzeit umkehrbar.
+        val visibleDays = days.filter { it.id <= dayCount }
         TrainingUiState(
-            days = days,
+            days = visibleDays,
             selectedDayId = selectedDayId,
             exercises = exerciseList,
             knownExerciseNames = definitionList.map { it.name },
@@ -98,14 +100,13 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
             // Die Sitzungen kommen neueste zuerst; die Rotation zählt in Eintragsreihenfolge.
             completedDayIds = completedDaysInRotation(
                 dayIdsOldestFirst = sessions.asReversed().map { it.dayId },
-                dayCount = DAY_COUNT
+                dayCount = dayCount
             ),
             deload = deloadStatus(
                 sessionDates = sessions.map { it.completedAt.toLocalDate() },
                 today = currentDate,
                 cycleWeeks = cycleWeeks
             ),
-            bodyweightKg = bodyweight,
             appTitle = title,
             editorForm = form,
             today = currentDate

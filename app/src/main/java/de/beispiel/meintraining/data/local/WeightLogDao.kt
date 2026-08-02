@@ -12,8 +12,15 @@ interface WeightLogDao {
     @Query("SELECT * FROM WeightLog ORDER BY recordedAt ASC, id ASC")
     fun observeAll(): Flow<List<WeightLog>>
 
+    /** Der komplette Verlauf – für die Sicherung. */
+    @Query("SELECT * FROM WeightLog ORDER BY recordedAt ASC, id ASC")
+    suspend fun listAll(): List<WeightLog>
+
     @Insert
     suspend fun insert(log: WeightLog)
+
+    @Insert
+    suspend fun insertAll(logs: List<WeightLog>)
 
     /** Entfernt den jüngsten Eintrag einer Übung – für „Rückgängig“ nach einer Erhöhung. */
     @Query(
@@ -29,4 +36,8 @@ interface WeightLogDao {
     /** Löscht den kompletten Verlauf einer Übung. */
     @Query("DELETE FROM WeightLog WHERE exerciseName = :name")
     suspend fun deleteByName(name: String)
+
+    /** Nur für das vollständige Zurücksetzen der App. */
+    @Query("DELETE FROM WeightLog")
+    suspend fun deleteAll()
 }

@@ -9,6 +9,7 @@ import de.beispiel.meintraining.MeinTrainingApp
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.currentWeeklyStreak
+import de.beispiel.meintraining.util.effectiveWeightKg
 import de.beispiel.meintraining.util.exerciseGains
 import de.beispiel.meintraining.util.longestWeeklyStreak
 import de.beispiel.meintraining.util.sessionsPerWeek
@@ -68,12 +69,8 @@ class StatsViewModel(repository: TrainingRepository) : ViewModel() {
         // Für „schwerste Übung“ zählt die tatsächliche Last: Bei Körpergewichtsübungen ist
         // der eingetragene Wert nur die Zusatzlast, sonst stünde ein Klimmzug bei 0 kg.
         val effectiveWeights = definitions.mapNotNull { definition ->
-            val effective = when {
-                !definition.usesBodyweight -> definition.weightKg
-                bodyweightKg == null -> definition.weightKg
-                else -> bodyweightKg + (definition.weightKg ?: 0.0)
-            }
-            effective?.let { definition.name to it }
+            effectiveWeightKg(definition.weightKg, definition.usesBodyweight, bodyweightKg)
+                ?.let { definition.name to it }
         }.toMap()
 
         StatsUiState(

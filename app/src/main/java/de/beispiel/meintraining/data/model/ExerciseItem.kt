@@ -18,18 +18,6 @@ data class ExerciseItem(
     val progressionStepKg: Double,
     val usesBodyweight: Boolean = false
 ) {
-    /**
-     * Das Gewicht, mit dem tatsächlich trainiert wird.
-     *
-     * Bei Körpergewichtsübungen kommt [bodyweightKg] zur eingetragenen Zusatzlast dazu; ohne
-     * hinterlegtes Körpergewicht bleibt es beim eingetragenen Wert.
-     */
-    fun effectiveWeightKg(bodyweightKg: Double?): Double? = when {
-        !usesBodyweight -> weightKg
-        bodyweightKg == null -> weightKg
-        else -> bodyweightKg + (weightKg ?: 0.0)
-    }
-
     fun toExercise() = Exercise(
         id = id,
         dayId = dayId,

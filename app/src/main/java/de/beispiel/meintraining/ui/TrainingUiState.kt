@@ -24,8 +24,6 @@ data class TrainingUiState(
     /** Tage, die in der laufenden Runde schon abgehakt sind. */
     val completedDayIds: Set<Int> = emptySet(),
     val deload: DeloadStatus = DeloadStatus(),
-    /** Eigenes Körpergewicht; nötig, um Körpergewichtsübungen zu beziffern. */
-    val bodyweightKg: Double? = null,
     /** Selbst vergebene Überschrift; leer heißt: Vorgabe aus den Textressourcen. */
     val appTitle: String = "",
     val editorForm: ExerciseForm? = null,

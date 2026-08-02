@@ -53,6 +53,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.beispiel.meintraining.R
@@ -330,9 +331,10 @@ private fun TrainingContent(
                     ) {
                         ExerciseRow(
                             name = exerciseTitle(exercise.name, exercise.variation),
-                            // Bei Körpergewichtsübungen die tatsächliche Last, nicht die Zusatzlast.
-                            weightLabel = exercise.effectiveWeightKg(uiState.bodyweightKg)
-                                ?.toWeightLabel(unit),
+                            // Nur die eingetragene Last. Bei Körpergewichtsübungen ist das die
+                            // Zusatzlast – das eigene Körpergewicht gehört ins Tracking, beim
+                            // Trainieren zählt, was auf die Stange kommt.
+                            weightLabel = exercise.weightKg?.toWeightLabel(unit),
                             // In der Deload-Woche zeigt die Liste halbierte Sätze; der
                             // gespeicherte Plan bleibt davon unberührt.
                             setsLabel = exercise.sets
@@ -542,32 +544,40 @@ private fun ScreenHeader(
             .height(Dimens.HeaderHeight),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = title,
-            style = AppTextStyles.Title,
-            color = TextPrimary,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier.weight(1f, fill = false)
-        )
-        if (isDeloadWeek) {
+        // Überschrift und Badge teilen sich den Platz links; der Menüknopf sitzt außerhalb
+        // dieser Gruppe und bleibt dadurch immer am rechten Rand – unabhängig davon, wie
+        // lang oder kurz die Überschrift ist.
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = stringResource(R.string.deload_badge),
-                style = AppTextStyles.ColumnLabel,
-                color = AccentGreen,
+                text = title,
+                style = AppTextStyles.Title,
+                color = TextPrimary,
                 maxLines = 1,
-                modifier = Modifier
-                    .padding(start = Dimens.SectionSpacingSmall)
-                    .clip(Dimens.CornerChip)
-                    .background(AccentGreenSurface)
-                    .border(Dimens.BadgeBorderWidth, AccentGreen, Dimens.CornerChip)
-                    .padding(
-                        horizontal = Dimens.SectionSpacingSmall,
-                        vertical = Dimens.SectionSpacingSmall / 2
-                    )
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
             )
+            if (isDeloadWeek) {
+                Text(
+                    text = stringResource(R.string.deload_badge),
+                    style = AppTextStyles.ColumnLabel,
+                    color = AccentGreen,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .padding(start = Dimens.SectionSpacingSmall)
+                        .clip(Dimens.CornerChip)
+                        .background(AccentGreenSurface)
+                        .border(Dimens.BadgeBorderWidth, AccentGreen, Dimens.CornerChip)
+                        .padding(
+                            horizontal = Dimens.SectionSpacingSmall,
+                            vertical = Dimens.SectionSpacingSmall / 2
+                        )
+                )
+            }
         }
-        Spacer(modifier = Modifier.weight(1f))
         Box {
             Box(
                 modifier = Modifier
