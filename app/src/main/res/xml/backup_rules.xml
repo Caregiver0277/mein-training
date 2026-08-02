@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sicherung für Android 11 und älter.
+
+  Ausdrücklich aufgezählt statt „alles“: Gesichert gehören die Trainingsdaten und die
+  Einstellungen – und zwar vollständig. Die Datenbank läuft dafür ohne WAL (siehe
+  AppDatabase), sonst käme beim Zurückspielen ein veralteter Stand an.
+-->
+<full-backup-content>
+    <include domain="database" path="mein_training.db" />
+    <include domain="file" path="datastore" />
+</full-backup-content>

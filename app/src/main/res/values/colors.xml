@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nur für das Android-Theme und das Launcher-Icon; die Compose-Farben stehen in ui/theme/Color.kt -->
+    <color name="screen_background">#10141A</color>
+    <color name="ic_launcher_background">#10141A</color>
+</resources>

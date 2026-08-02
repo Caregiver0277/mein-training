@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+local.properties
+
+# Kotlin
+.kotlin/
+
+# Android Studio / IntelliJ
+*.iml
+.idea/*
+!.idea/gradle.xml
+!.idea/misc.xml
+.cxx/
+
+# Ausgaben
+*.apk
+*.aab
+captures/
+
+# Betriebssystem
+.DS_Store
+Thumbs.db
+
+# Werkzeuge
+.claude/settings.local.json

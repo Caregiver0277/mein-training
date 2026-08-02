@@ -1,0 +1,264 @@
+package de.beispiel.meintraining.ui.screen
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import de.beispiel.meintraining.R
+import de.beispiel.meintraining.data.model.TrainingDay
+import de.beispiel.meintraining.data.model.WorkoutSession
+import de.beispiel.meintraining.ui.theme.AccentBlue
+import de.beispiel.meintraining.ui.theme.AppTextStyles
+import de.beispiel.meintraining.ui.theme.CardBackground
+import de.beispiel.meintraining.ui.theme.ChipBackground
+import de.beispiel.meintraining.ui.theme.Dimens
+import de.beispiel.meintraining.ui.theme.MeinTrainingTheme
+import de.beispiel.meintraining.ui.theme.TextPrimary
+import de.beispiel.meintraining.ui.theme.TextSecondary
+import de.beispiel.meintraining.util.formatFullDate
+import de.beispiel.meintraining.util.toClockTime
+import de.beispiel.meintraining.util.toLocalDate
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+
+/** Ein Trainingstag im Verlauf mit allen an diesem Tag abgehakten Einheiten. */
+private data class HistoryDay(val date: LocalDate, val sessions: List<WorkoutSession>)
+
+/**
+ * Verlauf: welche Trainings wann abgehakt wurden.
+ *
+ * Oben eine kurze Bilanz – so sieht man auf einen Blick, ob man dran ist –, darunter die
+ * Tage von heute rückwärts.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun HistoryScreen(
+    sessions: List<WorkoutSession>,
+    days: List<TrainingDay>,
+    /** Kommt von außen, damit „heute“ auch nach Mitternacht noch heute ist. */
+    today: LocalDate,
+    onDeleteSession: (Long) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var pendingDeletion by remember { mutableStateOf<WorkoutSession?>(null) }
+    val historyDays = remember(sessions) {
+        sessions.groupBy { it.completedAt.toLocalDate() }
+            .map { (date, entries) -> HistoryDay(date, entries) }
+            .sortedByDescending { it.date }
+    }
+    val dayNames = remember(days) { days.associate { it.id to it.name } }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = Dimens.ScreenPaddingHorizontal)
+    ) {
+        SubScreenHeader(title = stringResource(R.string.drawer_history), onBack = onBack)
+
+        if (historyDays.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = stringResource(R.string.history_empty),
+                    style = AppTextStyles.Body,
+                    color = TextSecondary
+                )
+            }
+            return@Column
+        }
+
+        val last7 = historyDays.count { ChronoUnit.DAYS.between(it.date, today) < 7 }
+        val last30 = historyDays.count { ChronoUnit.DAYS.between(it.date, today) < 30 }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)) {
+            SummaryTile(
+                value = last7.toString(),
+                label = stringResource(R.string.history_last_week),
+                modifier = Modifier.weight(1f)
+            )
+            SummaryTile(
+                value = last30.toString(),
+                label = stringResource(R.string.history_last_month),
+                modifier = Modifier.weight(1f)
+            )
+            SummaryTile(
+                value = historyDays.size.toString(),
+                label = stringResource(R.string.history_total),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(Dimens.SectionSpacingLarge))
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
+        ) {
+            items(items = historyDays, key = { it.date.toEpochDay() }) { day ->
+                HistoryRow(
+                    date = day.date,
+                    today = today,
+                    labels = day.sessions.sortedBy { it.completedAt }.map { session ->
+                        val name = dayNames[session.dayId]
+                            ?: stringResource(R.string.day_name, session.dayId)
+                        stringResource(
+                            R.string.history_entry,
+                            name,
+                            session.completedAt.toClockTime()
+                        )
+                    },
+                    // Langer Druck löscht den jüngsten Eintrag dieses Tages – die Snackbar
+                    // mit „Rückgängig“ ist irgendwann weg, ein Fehlgriff soll bleiben können.
+                    onLongClick = { pendingDeletion = day.sessions.first() }
+                )
+            }
+            item { Spacer(modifier = Modifier.height(Dimens.ListBottomPadding)) }
+        }
+    }
+
+    pendingDeletion?.let { session ->
+        AlertDialog(
+            onDismissRequest = { pendingDeletion = null },
+            containerColor = CardBackground,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text(text = stringResource(R.string.history_delete_title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.history_delete_body,
+                        formatFullDate(session.completedAt.toLocalDate())
+                    )
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeletion = null }) {
+                    Text(text = stringResource(R.string.action_cancel), color = TextSecondary)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingDeletion = null
+                        onDeleteSession(session.id)
+                    }
+                ) {
+                    Text(text = stringResource(R.string.action_delete), color = AccentBlue)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SummaryTile(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(Dimens.CornerCard)
+            .background(CardBackground)
+            .padding(Dimens.SectionSpacingMedium),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = value, style = AppTextStyles.Title, color = TextPrimary)
+        Text(
+            text = label,
+            style = AppTextStyles.ColumnLabel,
+            color = TextSecondary,
+            modifier = Modifier.padding(top = Dimens.SectionSpacingSmall / 2)
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HistoryRow(
+    date: LocalDate,
+    today: LocalDate,
+    labels: List<String>,
+    onLongClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(Dimens.CornerCard)
+            .background(CardBackground)
+            .combinedClickable(onClick = {}, onLongClick = onLongClick)
+            .padding(Dimens.SectionSpacingMedium),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = formatFullDate(date),
+                style = AppTextStyles.ExerciseName,
+                color = TextPrimary
+            )
+            Text(
+                text = labels.joinToString(separator = ", "),
+                style = AppTextStyles.ColumnLabel,
+                color = TextSecondary,
+                modifier = Modifier.padding(top = Dimens.SectionSpacingSmall / 2)
+            )
+        }
+        val daysAgo = ChronoUnit.DAYS.between(date, today).toInt()
+        Text(
+            text = when (daysAgo) {
+                0 -> stringResource(R.string.history_today)
+                1 -> stringResource(R.string.history_yesterday)
+                else -> pluralStringResource(R.plurals.history_days_ago, daysAgo, daysAgo)
+            },
+            style = AppTextStyles.ColumnLabel,
+            color = TextSecondary,
+            modifier = Modifier
+                .clip(Dimens.CornerChip)
+                .background(ChipBackground)
+                .padding(
+                    horizontal = Dimens.SectionSpacingSmall,
+                    vertical = Dimens.SectionSpacingSmall / 2
+                )
+        )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF10141A, widthDp = 360, heightDp = 640)
+@Composable
+private fun HistoryScreenPreview() {
+    val now = System.currentTimeMillis()
+    val oneDay = 24L * 60 * 60 * 1000
+    MeinTrainingTheme {
+        HistoryScreen(
+            sessions = listOf(
+                WorkoutSession(id = 1, dayId = 2, completedAt = now),
+                WorkoutSession(id = 2, dayId = 1, completedAt = now - 2 * oneDay),
+                WorkoutSession(id = 3, dayId = 4, completedAt = now - 5 * oneDay)
+            ),
+            days = (1..4).map { TrainingDay(id = it, name = "Tag $it") },
+            today = LocalDate.now(),
+            onDeleteSession = {},
+            onBack = {}
+        )
+    }
+}

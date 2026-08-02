@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Stilisierte Hantel -->
+    <path
+        android:fillColor="#FFF2F4F7"
+        android:pathData="M36,50h36v8h-36z" />
+    <path
+        android:fillColor="#FFF2F4F7"
+        android:pathData="M28,42h8v24h-8z" />
+    <path
+        android:fillColor="#FFF2F4F7"
+        android:pathData="M72,42h8v24h-8z" />
+    <path
+        android:fillColor="#FF2F80ED"
+        android:pathData="M22,48h6v12h-6z" />
+    <path
+        android:fillColor="#FF2F80ED"
+        android:pathData="M80,48h6v12h-6z" />
+</vector>

@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Theos Trainingsapp</string>
+    <string name="screen_title">MEIN TRAINING</string>
+
+    <!-- Tage -->
+    <string name="day_name">Tag %1$d</string>
+
+    <!-- Spaltenüberschriften -->
+    <string name="column_exercise">Übung</string>
+    <string name="column_weight">Gewicht</string>
+    <string name="column_sets_reps">Sätze &amp; Wiederh.</string>
+
+    <!-- Werte -->
+    <string name="unit_kg">Kg</string>
+
+    <!-- Barrierefreiheit -->
+    <string name="cd_open_menu">Menü öffnen</string>
+    <string name="cd_increase_weight">Gewicht erhöhen</string>
+    <string name="cd_add_exercise">Übung hinzufügen</string>
+
+    <!-- Bearbeiten-Sheet -->
+    <string name="sheet_title_add">Übung hinzufügen</string>
+    <string name="sheet_title_edit">Übung bearbeiten</string>
+    <string name="field_name">Name</string>
+    <string name="field_variation">Variation</string>
+    <string name="cd_add_variation">Variation hinzufügen</string>
+    <string name="cd_remove_variation">Variation entfernen</string>
+    <string name="field_weight">Gewicht (kg)</string>
+    <string name="field_extra_weight">Zusatzgewicht (kg)</string>
+    <string name="field_bodyweight_exercise">Körpergewichtsübung</string>
+    <string name="hint_weight_shared">Gilt an allen Tagen mit dieser Übung.</string>
+    <string name="hint_weight_bodyweight">Kommt zum Körpergewicht dazu. Leer lassen für reines Körpergewicht.</string>
+    <string name="field_sets">Sätze</string>
+    <string name="field_reps_min">Wiederh. von</string>
+    <string name="field_reps_max">Wiederh. bis</string>
+    <string name="field_progression_step">Progressionsschritt (kg)</string>
+    <string name="hint_progression_step">Um diesen Wert erhöht der Pfeil das Gewicht.</string>
+    <string name="quick_select_label">Schnellauswahl</string>
+    <string name="error_name_required">Bitte einen Namen eingeben.</string>
+
+    <!-- Aktionen -->
+    <string name="action_save">Speichern</string>
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_delete">Löschen</string>
+    <string name="action_undo">Rückgängig</string>
+    <string name="action_move_up">Nach oben verschieben</string>
+    <string name="action_move_down">Nach unten verschieben</string>
+    <string name="action_back">Zurück</string>
+
+    <string name="action_done">Fertig</string>
+    <string name="action_superset">Superset</string>
+    <string name="action_superset_dissolve">Superset auflösen</string>
+    <string name="cd_end_selection">Auswahl beenden</string>
+    <string name="cd_selected">Ausgewählt</string>
+    <string name="cd_not_selected">Nicht ausgewählt</string>
+    <plurals name="selection_count">
+        <item quantity="one">%1$d ausgewählt</item>
+        <item quantity="other">%1$d ausgewählt</item>
+    </plurals>
+
+    <!-- Tracking -->
+    <string name="tracking_pick_exercises">Übungen auswählen</string>
+    <string name="tracking_show_all">Alle anzeigen</string>
+    <string name="tracking_hide_all">Alle abwählen</string>
+    <string name="tracking_empty">Noch keine Gewichte aufgezeichnet.</string>
+
+    <!-- Einstellungen -->
+    <string name="settings_general">Allgemein</string>
+    <string name="settings_app_title">Überschrift</string>
+    <string name="settings_app_title_hint">Leer lassen für „MEIN TRAINING“.</string>
+    <string name="settings_bodyweight">Körpergewicht (kg)</string>
+    <string name="settings_bodyweight_hint">Wird bei Körpergewichtsübungen zur Zusatzlast addiert.</string>
+    <string name="settings_deload_weeks">Deload alle … Wochen</string>
+    <string name="settings_deload_weeks_hint">Die letzte Woche des Blocks ist die Deload-Woche (%1$d–%2$d).</string>
+    <string name="settings_days">Trainingstage</string>
+    <string name="settings_day_label">Tag %1$d</string>
+    <plurals name="settings_exercise_count">
+        <item quantity="one">%1$d Übung</item>
+        <item quantity="other">%1$d Übungen</item>
+    </plurals>
+    <string name="settings_exercises_title">Übungen verwalten</string>
+    <string name="settings_exercises_hint">Hier entfernst du eine Übung endgültig – von allen Trainingstagen, aus den Vorschlägen und aus dem Tracking.</string>
+    <string name="settings_no_exercises">Es gibt noch keine Übungen.</string>
+    <string name="settings_delete_everywhere">Überall löschen</string>
+    <string name="settings_delete_title">„%1$s“ überall löschen?</string>
+    <string name="settings_delete_body">Die Übung verschwindet von allen Trainingstagen, aus den Namensvorschlägen und samt Gewichtsverlauf aus dem Tracking. Das lässt sich nicht rückgängig machen.</string>
+    <plurals name="settings_only_history">
+        <item quantity="one">Nur noch im Verlauf (%1$d Eintrag)</item>
+        <item quantity="other">Nur noch im Verlauf (%1$d Einträge)</item>
+    </plurals>
+    <plurals name="settings_day_count">
+        <item quantity="one">An %1$d Trainingstag</item>
+        <item quantity="other">An %1$d Trainingstagen</item>
+    </plurals>
+    <string name="range_total">Gesamt</string>
+    <string name="range_year">1 Jahr</string>
+    <string name="range_months_6">6 Monate</string>
+    <string name="range_months_3">3 Monate</string>
+    <string name="range_month_1">1 Monat</string>
+    <string name="range_manual_year">Jahr</string>
+
+    <!-- Snackbars -->
+    <string name="snackbar_weight_increased">Gewicht auf %1$s erhöht</string>
+    <string name="snackbar_exercise_deleted">„%1$s“ gelöscht</string>
+    <plurals name="snackbar_exercises_deleted">
+        <item quantity="one">%1$d Übung gelöscht</item>
+        <item quantity="other">%1$d Übungen gelöscht</item>
+    </plurals>
+
+    <!-- Training abhaken -->
+    <string name="cd_complete_workout">Training abhaken</string>
+    <string name="cd_workout_completed">Training bereits abgehakt</string>
+    <string name="snackbar_workout_completed">Training eingetragen</string>
+
+    <!-- Verlauf -->
+    <string name="history_empty">Noch kein Training abgehakt. Der grüne Haken unter der Liste trägt es ein.</string>
+    <string name="history_last_week">7 Tage</string>
+    <string name="history_last_month">30 Tage</string>
+    <string name="history_total">Gesamt</string>
+    <string name="history_entry">%1$s · %2$s Uhr</string>
+    <string name="history_today">heute</string>
+    <string name="history_yesterday">gestern</string>
+    <string name="history_delete_title">Eintrag löschen?</string>
+    <string name="history_delete_body">Das Training vom %1$s wird aus dem Verlauf entfernt. Das beeinflusst auch die Deload-Berechnung.</string>
+    <plurals name="history_days_ago">
+        <item quantity="one">vor %1$d Tag</item>
+        <item quantity="other">vor %1$d Tagen</item>
+    </plurals>
+
+    <!-- Statistiken -->
+    <string name="stats_empty">Noch keine Zahlen. Hake dein erstes Training ab, dann füllt sich diese Seite.</string>
+    <string name="stats_total">Trainings</string>
+    <string name="stats_per_week">pro Woche</string>
+    <string name="stats_streak">Wochen&#8209;Serie</string>
+    <string name="stats_weekdays">Wann du trainierst</string>
+    <string name="stats_rhythm">Dein Rhythmus</string>
+    <string name="stats_typical_time">Typische Uhrzeit</string>
+    <string name="stats_time_value">%1$s Uhr</string>
+    <string name="stats_longest_streak">Längste Serie</string>
+    <string name="stats_since">Dabei seit</string>
+    <string name="stats_exercise_count">Übungen im Plan</string>
+    <string name="stats_progress">Fortschritt</string>
+    <string name="stats_total_gain">Gesamtzuwachs</string>
+    <string name="stats_heaviest">Schwerste Übung</string>
+    <string name="stats_no_gains">Noch keine Gewichtssteigerung aufgezeichnet.</string>
+    <string name="stats_kg_value">%1$s kg</string>
+    <string name="stats_stagnation">Festgefahren</string>
+    <string name="stats_stagnation_hint">Seit über %1$d Tagen unverändert – vielleicht Zeit für einen Sprung oder eine Variation.</string>
+    <plurals name="stats_weeks">
+        <item quantity="one">%1$d Woche</item>
+        <item quantity="other">%1$d Wochen</item>
+    </plurals>
+    <plurals name="stats_days">
+        <item quantity="one">%1$d Tag</item>
+        <item quantity="other">%1$d Tage</item>
+    </plurals>
+
+    <!-- Deload -->
+    <string name="deload_badge">Deload-Woche</string>
+    <string name="deload_state_now">Deload-Woche</string>
+    <string name="deload_state_resting">Pause läuft</string>
+    <string name="deload_state_no_data">Noch kein Training</string>
+    <plurals name="deload_state_weeks_left">
+        <item quantity="one">Noch %1$d Woche bis zum Deload</item>
+        <item quantity="other">Noch %1$d Wochen bis zum Deload</item>
+    </plurals>
+    <string name="deload_detail_now">Die Sätze sind in der Liste bereits halbiert. Gewichte bleiben wie sie sind – es geht um weniger Volumen, nicht um weniger Last.</string>
+    <string name="deload_detail_resting">Du hast länger nicht trainiert. Diese Pause erholt genauso wie ein Deload, deshalb startet der Zyklus beim nächsten Training neu.</string>
+    <string name="deload_detail_no_data">Sobald du dein erstes Training abhakst, beginnt der Zyklus.</string>
+    <string name="deload_detail_upcoming">Geplant ab %1$s.</string>
+    <string name="deload_cycle_title">Block über %1$d Wochen</string>
+    <string name="deload_cycle_hint">Die %1$d. Woche ist die Deload-Woche.</string>
+    <string name="deload_fact_cycle_start">Block begonnen am</string>
+    <string name="deload_fact_last_session">Letztes Training</string>
+    <string name="deload_fact_sessions_cycle">Einheiten im Block</string>
+    <string name="deload_fact_sessions_total">Einheiten insgesamt</string>
+    <string name="deload_rules_title">So wird gerechnet</string>
+    <string name="deload_rule_sets">Im Deload werden die Sätze halbiert und aufgerundet: aus 3 werden 2, aus 4 werden 2.</string>
+    <string name="deload_rule_weights">Die Gewichte bleiben unverändert.</string>
+    <string name="deload_rule_cycle">Gezählt wird durchgehendes Training, nicht der Kalender: In der %1$d. Trainingswoche eines Blocks ist Deload.</string>
+    <string name="deload_rule_rest">Ab %1$d Tagen ohne Training zählt die Pause selbst als Deload – der Block beginnt danach von vorn.</string>
+    <string name="deload_rule_display">Der Deload ändert nur die Anzeige. Dein Plan bleibt unangetastet und steht danach wieder vollständig da.</string>
+
+    <!-- Drawer -->
+    <string name="drawer_title">Menü</string>
+    <string name="drawer_tracking">Tracking</string>
+    <string name="drawer_stats">Statistiken</string>
+    <string name="drawer_history">Verlauf</string>
+    <string name="drawer_deload">Deload</string>
+    <string name="drawer_settings">Einstellungen</string>
+    <string name="drawer_about">Über die App</string>
+    <string name="placeholder_body">Dieser Bereich ist noch in Arbeit.</string>
+
+</resources>
