@@ -18,12 +18,21 @@ import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
+import de.beispiel.meintraining.util.increaseWeight
 import de.beispiel.meintraining.util.nextDayId
 import de.beispiel.meintraining.util.survivingSupersetMembers
 import de.beispiel.meintraining.util.toLocalDate
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
+
+/** Ergebnis einer Gewichtserhöhung – [previousKg] erlaubt das Zurücknehmen. */
+data class WeightChange(val previousKg: Double, val newKg: Double)
 
 /**
  * Einzige Datenquelle für die ViewModels; kapselt Room und die Einstellungen.
@@ -44,13 +53,48 @@ class TrainingRepository(
     private val weightLogDao: WeightLogDao = database.weightLogDao()
     private val sessionDao: WorkoutSessionDao = database.workoutSessionDao()
 
-    val selectedDayId: Flow<Int> = settingsStore.selectedDayId
+    /**
+     * Der zuletzt von Hand oder automatisch gesetzte Tag, noch bevor DataStore ihn kennt.
+     * `null` heißt: In dieser Sitzung wurde noch nichts gesetzt, es gilt der gespeicherte Wert.
+     */
+    private val selectedDayOverride = MutableStateFlow<Int?>(null)
+
+    /**
+     * Der ausgewählte Trainingstag.
+     *
+     * Eine Auswahl gilt sofort; nach DataStore geschrieben wird sie nur nebenher. Läge der
+     * gespeicherte Wert auf dem kritischen Pfad, hinge das Umschalten des Tages an einem
+     * Schreibvorgang samt `fsync`: Der angetippte Reiter leuchtete erst auf, wenn die Platte
+     * durch ist, und die Übungsliste käme noch eine Datenbankabfrage später. Bei belegter
+     * Platte – etwa während der automatischen Sicherung – ist das deutlich zu spüren.
+     *
+     * Damit das aufgeht, müssen *alle* Schreibvorgänge über [selectDay] laufen; wer an
+     * [SettingsStore.setSelectedDayId] vorbeischreibt, wird von der Vormerkung überstimmt.
+     */
+    val selectedDayId: Flow<Int> = combine(
+        settingsStore.selectedDayId,
+        selectedDayOverride
+    ) { stored, override -> override ?: stored }.distinctUntilChanged()
+
+    /**
+     * Übernimmt den Tag sofort in der Anzeige, ohne auf das Speichern zu warten.
+     *
+     * Getrennt von [selectDay], damit die Oberfläche den Wechsel noch im selben Frame anstoßen
+     * kann; das Nachschreiben besorgt anschließend [selectDay] in einer Coroutine.
+     */
+    fun selectDayNow(dayId: Int) {
+        selectedDayOverride.value = dayId
+    }
 
     fun observeDays(): Flow<List<TrainingDay>> = dayDao.observeAll()
 
-    fun observeExercises(dayId: Int): Flow<List<ExerciseItem>> = exerciseDao.observeByDay(dayId)
-
-    /** Alle Übungen aller Tage – für die Statistiken. */
+    /**
+     * Alle Übungen aller Tage.
+     *
+     * Es gibt bewusst keine Abfrage je Tag mehr: Der ganze Bestand ist klein genug, dass ein
+     * einziges Abonnement billiger ist als das ständige Auf- und Abbauen einer Abfrage beim
+     * Umschalten – geschnitten wird im ViewModel.
+     */
     fun observeAllExercises(): Flow<List<ExerciseItem>> = exerciseDao.observeAll()
 
     /** Alle bekannten Übungen – Grundlage für die Vorschläge im Namensfeld. */
@@ -97,8 +141,8 @@ class TrainingRepository(
         settingsStore.setDayCount(count)
         val effective = settingsStore.dayCount.first()
         ensureDaysExist(effective)
-        if (settingsStore.selectedDayId.first() > effective) {
-            settingsStore.setSelectedDayId(FIRST_DAY_ID)
+        if (selectedDayId.first() > effective) {
+            selectDay(FIRST_DAY_ID)
         }
     }
 
@@ -155,19 +199,26 @@ class TrainingRepository(
     }
 
     /**
+     * Der Start ruft das Weiterschalten zweimal an: einmal beim Anlegen des ViewModels, einmal
+     * beim ersten `ON_RESUME` unmittelbar danach. Ohne Sperre lesen beide den Vermerk, bevor
+     * einer ihn schreibt – die Prüfung „höchstens einmal pro Kalendertag“ liefe ins Leere.
+     */
+    private val advanceLock = Mutex()
+
+    /**
      * Schaltet beim ersten Start an einem neuen Kalendertag auf den Tag nach dem zuletzt
      * abgehakten weiter – wer gestern Tag 1 gemacht hat, sieht heute Tag 2.
      *
      * Läuft höchstens einmal pro Tag, damit eine Auswahl von Hand nicht wieder umspringt.
      */
-    suspend fun advanceDayIfNewDate(today: LocalDate = LocalDate.now()) {
+    suspend fun advanceDayIfNewDate(today: LocalDate = LocalDate.now()) = advanceLock.withLock {
         val epochDay = today.toEpochDay()
-        if (settingsStore.lastDayAdvance() >= epochDay) return
+        if (settingsStore.lastDayAdvance() >= epochDay) return@withLock
 
         val latest = sessionDao.latest()
         // Am Tag des Trainings selbst bleibt die Ansicht stehen.
         if (latest != null && latest.completedAt.toLocalDate().isBefore(today)) {
-            settingsStore.setSelectedDayId(nextDayId(latest.dayId, settingsStore.dayCount.first()))
+            selectDay(nextDayId(latest.dayId, settingsStore.dayCount.first()))
         }
         // Erst hinterher vermerken: Bricht der Vorgang vorher ab – Prozess beendet, Coroutine
         // abgebrochen –, wäre der Tag sonst als erledigt markiert, ohne dass etwas geschah,
@@ -175,7 +226,20 @@ class TrainingRepository(
         settingsStore.setLastDayAdvance(epochDay)
     }
 
-    suspend fun selectDay(dayId: Int) = settingsStore.setSelectedDayId(dayId)
+    /** Wählt den Tag aus und schreibt ihn nach DataStore. */
+    suspend fun selectDay(dayId: Int) {
+        selectDayNow(dayId)
+        settingsStore.setSelectedDayId(dayId)
+    }
+
+    /**
+     * Der aktuell ausgewählte Tag.
+     *
+     * Für Aktionen, die ihn sofort brauchen – abhaken, sortieren, Superset bilden. Der Umweg
+     * über den angezeigten Zustand wäre falsch: Der wird erst eine Runde später nachgezogen,
+     * und direkt nach einem Tageswechsel steht dort noch der vorige Tag.
+     */
+    suspend fun currentSelectedDay(): Int = selectedDayId.first()
 
     suspend fun findExercise(id: Long): ExerciseItem? = exerciseDao.findById(id)
 
@@ -185,6 +249,12 @@ class TrainingRepository(
      * [weightKg] und [progressionStepKg] landen in der gemeinsamen Definition und gelten damit
      * an *allen* Tagen, an denen [name] vorkommt. Sätze, Wiederholungen und [variation] bleiben
      * bei dieser einen Zeile. Ein geändertes Gewicht wandert zusätzlich in den Verlauf.
+     *
+     * Ein leeres Gewichtsfeld – [weightKg] ist dann `null` – lässt den geteilten Wert stehen,
+     * statt ihn zu löschen: Er gilt an allen Tagen, an denen die Übung vorkommt, und wäre sonst
+     * mit einem versehentlich geleerten Feld überall weg. Der Verlauf erführe davon nicht
+     * einmal etwas, weil sich nur gesetzte Gewichte aufzeichnen lassen – Liste und Graph
+     * zeigten anschließend Verschiedenes. Wer die Übung samt Gewicht loswerden will, löscht sie.
      */
     suspend fun saveExercise(
         id: Long?,
@@ -204,14 +274,17 @@ class TrainingRepository(
             if (id != null && existing == null) return@withTransaction
 
             val previous = definitionDao.find(name)
+            val effectiveWeight = weightKg ?: previous?.weightKg
             definitionDao.upsert(
                 ExerciseDefinition(
                     name = name,
-                    weightKg = weightKg,
+                    weightKg = effectiveWeight,
                     progressionStepKg = progressionStepKg
                 )
             )
-            if (weightKg != null && weightKg != previous?.weightKg) logWeight(name, weightKg)
+            if (effectiveWeight != null && effectiveWeight != previous?.weightKg) {
+                logWeight(name, effectiveWeight)
+            }
 
             if (existing == null) {
                 exerciseDao.insert(
@@ -242,12 +315,25 @@ class TrainingRepository(
     }
 
     /**
-     * Setzt die eingetragene Last der Übung – an jedem Tag, an dem sie vorkommt – und hält
-     * die Änderung im Verlauf fest.
+     * Erhöht die Last der Übung um ihren Progressionsschritt – an jedem Tag, an dem sie
+     * vorkommt – und hält die Änderung im Verlauf fest.
+     *
+     * Gerechnet wird auf dem gespeicherten Stand, nicht auf einem von der Oberfläche
+     * mitgegebenen Wert: Zwei schnelle Drücke auf den Pfeil lesen sonst beide dieselbe noch
+     * nicht nachgezogene Anzeige, erhöhen zweimal auf dasselbe Ergebnis und schreiben zwei
+     * gleiche Punkte in den Verlauf – der zweite Druck bliebe wirkungslos, der Graph bekäme
+     * trotzdem einen Ausreißer. Innerhalb der Transaktion sieht der zweite Druck das Ergebnis
+     * des ersten.
+     *
+     * Liefert `null`, wenn die Übung kein Gewicht hat; dann gibt es nichts zu erhöhen.
      */
-    suspend fun setWeight(name: String, weightKg: Double) = database.withTransaction {
-        definitionDao.updateWeight(name, weightKg)
-        logWeight(name, weightKg)
+    suspend fun progressWeight(name: String): WeightChange? = database.withTransaction {
+        val definition = definitionDao.find(name) ?: return@withTransaction null
+        val current = definition.weightKg ?: return@withTransaction null
+        val next = increaseWeight(current, definition.progressionStepKg)
+        definitionDao.updateWeight(name, next)
+        logWeight(name, next)
+        WeightChange(previousKg = current, newKg = next)
     }
 
     /**
@@ -369,6 +455,9 @@ class TrainingRepository(
             dayDao.deleteAll()
         }
         settingsStore.clear()
+        // Sonst überstimmte die Vormerkung aus dieser Sitzung die geleerten Einstellungen und
+        // die App bliebe auf einem Tag stehen, den das Zurücksetzen gerade verworfen hat.
+        selectedDayOverride.value = null
         ensureSeeded()
     }
 

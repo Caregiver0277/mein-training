@@ -264,8 +264,12 @@ class BackupRepository(
             settingsStore.setHiddenTrackingNames(hiddenTrackingNames.toSet())
             // Ein ausgewählter Tag außerhalb der Runde wäre ein Reiter, den es nicht gibt:
             // Die Liste bliebe leer und keine Auswahl ließe sich mehr treffen.
+            //
+            // Über das Trainings-Repository statt direkt in die Einstellungen: Es führt den
+            // ausgewählten Tag im Speicher und würde einen an ihm vorbei geschriebenen Wert
+            // mit der Auswahl aus der laufenden Sitzung überstimmen.
             val available = settingsStore.dayCount.first()
-            settingsStore.setSelectedDayId(
+            trainingRepository.selectDay(
                 selectedDayId?.takeIf { it in FIRST_DAY_ID..available } ?: FIRST_DAY_ID
             )
         }

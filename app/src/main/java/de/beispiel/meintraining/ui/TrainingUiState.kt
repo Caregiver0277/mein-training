@@ -1,9 +1,9 @@
 package de.beispiel.meintraining.ui
 
+import androidx.compose.runtime.Immutable
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.FIRST_DAY_ID
 import de.beispiel.meintraining.data.model.TrainingDay
-import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
@@ -19,8 +19,6 @@ data class TrainingUiState(
     val knownExerciseNames: List<String> = emptyList(),
     /** Im Auswahlmodus markierte Zeilen; leer heißt: kein Auswahlmodus. */
     val selectedIds: Set<Long> = emptySet(),
-    /** Abgehakte Trainings, das jüngste zuerst. */
-    val sessions: List<WorkoutSession> = emptyList(),
     /** Tage, die in der laufenden Runde schon abgehakt sind. */
     val completedDayIds: Set<Int> = emptySet(),
     val deload: DeloadStatus = DeloadStatus(),
@@ -49,6 +47,38 @@ data class TrainingUiState(
     /** Auflösen geht, sobald mindestens eine markierte Zeile zu einem Superset gehört. */
     val canDissolveSuperset: Boolean get() = selectedExercises.any { it.supersetId != null }
 }
+
+/**
+ * Alle Aktionen des Hauptscreens in einem Bündel.
+ *
+ * Einzeln durchgereicht waren es zwanzig Rückrufe: Jede neue Aktion musste an vier Stellen
+ * nachgetragen werden, und die Vorschauen bestanden zur Hälfte aus leeren Lambdas. Die
+ * Vorgabewerte tun genau das jetzt von allein – eine Vorschau kommt mit `TrainingActions()` aus.
+ *
+ * Gebundene Methodenreferenzen sind untereinander gleich, solange das ViewModel dasselbe ist;
+ * am Aufrufort einmal `remember`-t, bleibt das Bündel damit über Recompositions stabil.
+ */
+@Immutable
+data class TrainingActions(
+    val onDaySelected: (Int) -> Unit = {},
+    val onAddClick: () -> Unit = {},
+    val onCompleteWorkout: () -> Unit = {},
+    val onExerciseClick: (ExerciseItem) -> Unit = {},
+    val onExerciseLongClick: (ExerciseItem) -> Unit = {},
+    val onSelectionToggle: (ExerciseItem) -> Unit = {},
+    val onSelectionClear: () -> Unit = {},
+    val onDeleteSelected: () -> Unit = {},
+    val onCreateSuperset: () -> Unit = {},
+    val onDissolveSuperset: () -> Unit = {},
+    val onProgressClick: (ExerciseItem) -> Unit = {},
+    val onReorder: (List<Long>) -> Unit = {},
+    val onFormChange: (ExerciseForm) -> Unit = {},
+    val onVariationToggle: () -> Unit = {},
+    val onFormSave: () -> Unit = {},
+    val onFormDelete: () -> Unit = {},
+    val onFormDismiss: () -> Unit = {},
+    val onUndo: (TrainingEvent) -> Unit = {}
+)
 
 /**
  * Formularzustand des Bearbeiten-Sheets. Alle Felder sind Text, damit Teileingaben

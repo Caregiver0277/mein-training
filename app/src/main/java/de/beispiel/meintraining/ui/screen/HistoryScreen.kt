@@ -18,6 +18,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WorkoutSession
@@ -47,6 +49,20 @@ import java.time.temporal.ChronoUnit
 
 /** Ein Trainingstag im Verlauf mit allen an diesem Tag abgehakten Einheiten. */
 private data class HistoryDay(val date: LocalDate, val sessions: List<WorkoutSession>)
+
+@Composable
+fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory)
+    val uiState by viewModel.uiState.collectAsState()
+    HistoryScreen(
+        sessions = uiState.sessions,
+        days = uiState.days,
+        today = uiState.today,
+        onDeleteSession = viewModel::onDeleteSession,
+        onBack = onBack,
+        modifier = modifier
+    )
+}
 
 /**
  * Verlauf: welche Trainings wann abgehakt wurden.

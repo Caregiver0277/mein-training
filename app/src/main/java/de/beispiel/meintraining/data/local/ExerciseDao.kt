@@ -29,18 +29,12 @@ private const val ITEM_COLUMNS = """
 @Dao
 interface ExerciseDao {
 
-    @Query(
-        """
-        SELECT $ITEM_COLUMNS
-        FROM Exercise e
-        LEFT JOIN ExerciseDefinition d ON d.name = e.name
-        WHERE e.dayId = :dayId
-        ORDER BY e.position ASC, e.id ASC
-        """
-    )
-    fun observeByDay(dayId: Int): Flow<List<ExerciseItem>>
-
-    /** Alle Übungen aller Tage – Grundlage für die Statistiken. */
+    /**
+     * Alle Übungen aller Tage – Grundlage für Trainingsliste, Statistiken und Einstellungen.
+     *
+     * Die Sortierung nach `dayId` zuerst hält die Reihenfolge auch dann richtig, wenn die
+     * Oberfläche daraus die Übungen eines einzelnen Tages herausfiltert.
+     */
     @Query(
         """
         SELECT $ITEM_COLUMNS

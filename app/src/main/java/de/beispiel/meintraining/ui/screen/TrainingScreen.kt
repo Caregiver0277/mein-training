@@ -60,6 +60,7 @@ import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.ui.ExerciseForm
+import de.beispiel.meintraining.ui.TrainingActions
 import de.beispiel.meintraining.ui.TrainingEvent
 import de.beispiel.meintraining.ui.TrainingUiState
 import de.beispiel.meintraining.ui.components.ListActionButtons
@@ -99,25 +100,7 @@ fun TrainingScreen(
     /** Offenes Bearbeiten-Sheet; steht neben [uiState], weil es bei jedem Tastendruck wechselt. */
     editorForm: ExerciseForm?,
     events: Flow<TrainingEvent>,
-    onDaySelected: (Int) -> Unit,
-    onAddClick: () -> Unit,
-    onCompleteWorkout: () -> Unit,
-    onDeleteSession: (Long) -> Unit,
-    onExerciseClick: (ExerciseItem) -> Unit,
-    onExerciseLongClick: (ExerciseItem) -> Unit,
-    onSelectionToggle: (ExerciseItem) -> Unit,
-    onSelectionClear: () -> Unit,
-    onDeleteSelected: () -> Unit,
-    onCreateSuperset: () -> Unit,
-    onDissolveSuperset: () -> Unit,
-    onProgressClick: (ExerciseItem) -> Unit,
-    onReorder: (List<Long>) -> Unit,
-    onFormChange: (ExerciseForm) -> Unit,
-    onVariationToggle: () -> Unit,
-    onFormSave: () -> Unit,
-    onFormDelete: () -> Unit,
-    onFormDismiss: () -> Unit,
-    onUndo: (TrainingEvent) -> Unit,
+    actions: TrainingActions,
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -128,7 +111,7 @@ fun TrainingScreen(
     val unit = stringResource(R.string.unit_kg)
 
     // „Zurück“ – Taste wie Wischgeste – beendet erst die Auswahl, dann den Menübereich.
-    BackHandler(enabled = uiState.isSelectionMode) { onSelectionClear() }
+    BackHandler(enabled = uiState.isSelectionMode) { actions.onSelectionClear() }
     BackHandler(enabled = menuDestination != null) { menuDestination = null }
 
     // Snackbars für Progression und Löschen, jeweils mit „Rückgängig“.
@@ -159,7 +142,7 @@ fun TrainingScreen(
                 actionLabel = context.getString(R.string.action_undo),
                 duration = SnackbarDuration.Short
             )
-            if (result == SnackbarResult.ActionPerformed) onUndo(event)
+            if (result == SnackbarResult.ActionPerformed) actions.onUndo(event)
         }
     }
 
@@ -169,43 +152,29 @@ fun TrainingScreen(
         modifier = modifier
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
+            // Vollständig aufgezählt statt mit `else`: Ein neuer Menüpunkt landete sonst
+            // stillschweigend im Platzhalter, statt den Übersetzer zu beschäftigen.
             when (menuDestination) {
                 null -> TrainingContent(
                     uiState = uiState,
                     unit = unit,
-                    onDestinationClick = { menuDestination = it },
-                    onDaySelected = onDaySelected,
-                    onAddClick = onAddClick,
-                    onCompleteWorkout = onCompleteWorkout,
-                    onExerciseClick = onExerciseClick,
-                    onExerciseLongClick = onExerciseLongClick,
-                    onSelectionToggle = onSelectionToggle,
-                    onSelectionClear = onSelectionClear,
-                    onDeleteSelected = onDeleteSelected,
-                    onCreateSuperset = onCreateSuperset,
-                    onDissolveSuperset = onDissolveSuperset,
-                    onProgressClick = onProgressClick,
-                    onReorder = onReorder
+                    actions = actions,
+                    onDestinationClick = { menuDestination = it }
                 )
                 MenuDestination.TRACKING ->
                     TrackingRoute(onBack = { menuDestination = null })
                 MenuDestination.STATS ->
                     StatsRoute(onBack = { menuDestination = null })
-                MenuDestination.HISTORY -> HistoryScreen(
-                    sessions = uiState.sessions,
-                    days = uiState.days,
-                    today = uiState.today,
-                    onDeleteSession = onDeleteSession,
-                    onBack = { menuDestination = null }
-                )
+                MenuDestination.HISTORY ->
+                    HistoryRoute(onBack = { menuDestination = null })
                 MenuDestination.DELOAD -> DeloadScreen(
                     status = uiState.deload,
                     onBack = { menuDestination = null }
                 )
                 MenuDestination.SETTINGS ->
                     SettingsRoute(onBack = { menuDestination = null })
-                else -> PlaceholderScreen(
-                    destination = menuDestination!!,
+                MenuDestination.ABOUT -> PlaceholderScreen(
+                    destination = MenuDestination.ABOUT,
                     onBack = { menuDestination = null }
                 )
             }
@@ -216,11 +185,11 @@ fun TrainingScreen(
         ExerciseEditSheet(
             form = form,
             knownExerciseNames = uiState.knownExerciseNames,
-            onFormChange = onFormChange,
-            onVariationToggle = onVariationToggle,
-            onSave = onFormSave,
-            onDelete = onFormDelete,
-            onDismiss = onFormDismiss
+            onFormChange = actions.onFormChange,
+            onVariationToggle = actions.onVariationToggle,
+            onSave = actions.onFormSave,
+            onDelete = actions.onFormDelete,
+            onDismiss = actions.onFormDismiss
         )
     }
 }
@@ -229,19 +198,8 @@ fun TrainingScreen(
 private fun TrainingContent(
     uiState: TrainingUiState,
     unit: String,
+    actions: TrainingActions,
     onDestinationClick: (MenuDestination) -> Unit,
-    onDaySelected: (Int) -> Unit,
-    onAddClick: () -> Unit,
-    onCompleteWorkout: () -> Unit,
-    onExerciseClick: (ExerciseItem) -> Unit,
-    onExerciseLongClick: (ExerciseItem) -> Unit,
-    onSelectionToggle: (ExerciseItem) -> Unit,
-    onSelectionClear: () -> Unit,
-    onDeleteSelected: () -> Unit,
-    onCreateSuperset: () -> Unit,
-    onDissolveSuperset: () -> Unit,
-    onProgressClick: (ExerciseItem) -> Unit,
-    onReorder: (List<Long>) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -250,28 +208,46 @@ private fun TrainingContent(
     // Datenbank zu warten – nur so folgen die Karten dem Finger ruckelfrei.
     val visibleExercises = remember { mutableStateListOf<ExerciseItem>() }
 
+    /**
+     * Steht auf `true`, solange die eigene Sortierung vom Ablegen noch nicht aus der Datenbank
+     * zurückgekommen ist. Nur in dieser Zeit darf die lokale Reihenfolge die eingehende
+     * überstimmen.
+     */
+    var awaitingReorderEcho by remember { mutableStateOf(false) }
+
     val dragDropState = rememberDragDropState(
         lazyListState = listState,
         itemCount = visibleExercises.size,
         onMove = { from, to -> visibleExercises.add(to, visibleExercises.removeAt(from)) },
-        onMoveFinished = { onReorder(visibleExercises.map { it.id }) }
+        onMoveFinished = {
+            awaitingReorderEcho = true
+            actions.onReorder(visibleExercises.map { it.id })
+        }
     )
     val isDragging = dragDropState.draggingItemIndex != null
 
     LaunchedEffect(uiState.exercises, isDragging) {
         if (isDragging) return@LaunchedEffect
         val incoming = uiState.exercises
-        if (incoming.map { it.id }.toSet() == visibleExercises.map { it.id }.toSet()) {
-            // Dieselben Übungen: Nach dem Ablegen liefert Room die neue Reihenfolge erst
-            // verzögert nach. Die lokale Sortierung bleibt deshalb stehen (sonst springt die
-            // Liste kurz zurück), nur die Inhalte werden aktualisiert.
+        val incomingIds = incoming.map { it.id }
+        val visibleIds = visibleExercises.map { it.id }
+        if (awaitingReorderEcho && incomingIds.toSet() == visibleIds.toSet()) {
+            // Unser eigenes Echo, nur mit noch alter Reihenfolge: Nach dem Ablegen liefert Room
+            // die neue Sortierung erst verzögert nach. Die lokale bleibt deshalb stehen (sonst
+            // springt die Liste kurz zurück), nur die Inhalte werden aktualisiert.
             val byId = incoming.associateBy { it.id }
             visibleExercises.indices.forEach { index ->
-                val updated = byId.getValue(visibleExercises[index].id)
+                val updated = byId[visibleExercises[index].id] ?: return@forEach
                 if (updated != visibleExercises[index]) visibleExercises[index] = updated
             }
+            if (incomingIds == visibleIds) awaitingReorderEcho = false
         } else {
-            // Anderer Tag, neue oder gelöschte Übung: komplett übernehmen.
+            // Alles andere kommt vollständig an: anderer Tag, neue oder gelöschte Übung – aber
+            // auch eine Umsortierung aus anderer Quelle. Ein Superset rückt seine Mitglieder
+            // beim Anlegen zusammen, ohne dass sich die Menge der Zeilen ändert; verglichen man
+            // nur die Kennungen, bliebe die alte Reihenfolge stehen und der graue Kasten zerfiele
+            // in zwei Hälften um Zeilen, die gar nicht nebeneinanderliegen.
+            awaitingReorderEcho = false
             visibleExercises.clear()
             visibleExercises.addAll(incoming)
         }
@@ -282,7 +258,8 @@ private fun TrainingContent(
     val moveDownLabel = stringResource(R.string.action_move_down)
     val moveAndSave: (Int, Int) -> Unit = { from, to ->
         visibleExercises.add(to, visibleExercises.removeAt(from))
-        onReorder(visibleExercises.map { it.id })
+        awaitingReorderEcho = true
+        actions.onReorder(visibleExercises.map { it.id })
     }
 
     Column(
@@ -295,10 +272,10 @@ private fun TrainingContent(
                 count = uiState.selectedIds.size,
                 canCreateSuperset = uiState.canCreateSuperset,
                 canDissolveSuperset = uiState.canDissolveSuperset,
-                onClear = onSelectionClear,
-                onDelete = onDeleteSelected,
-                onCreateSuperset = onCreateSuperset,
-                onDissolveSuperset = onDissolveSuperset
+                onClear = actions.onSelectionClear,
+                onDelete = actions.onDeleteSelected,
+                onCreateSuperset = actions.onCreateSuperset,
+                onDissolveSuperset = actions.onDissolveSuperset
             )
         } else {
             ScreenHeader(
@@ -311,7 +288,7 @@ private fun TrainingContent(
         DayTabRow(
             days = uiState.days,
             selectedDayId = uiState.selectedDayId,
-            onDaySelected = onDaySelected
+            onDaySelected = actions.onDaySelected
         )
 
         Spacer(modifier = Modifier.height(Dimens.SectionSpacingLarge))
@@ -325,9 +302,14 @@ private fun TrainingContent(
             ) { index, exercise ->
                 val isSelected = exercise.id in uiState.selectedIds
                 DraggableItem(state = dragDropState, index = index) { itemIsDragging ->
+                    // Nur die drei Kennungen statt der ganzen Liste: Ein Lesezugriff auf ein
+                    // Element einer SnapshotStateList meldet sich an der *ganzen* Liste an,
+                    // jede Änderung setzte damit sämtliche Zeilen neu zusammen – beim Ziehen
+                    // also bei jedem Platzwechsel alle statt der beiden betroffenen.
                     SupersetContainer(
-                        exercises = visibleExercises,
-                        index = index
+                        supersetId = exercise.supersetId,
+                        previousSupersetId = visibleExercises.getOrNull(index - 1)?.supersetId,
+                        nextSupersetId = visibleExercises.getOrNull(index + 1)?.supersetId
                     ) {
                         ExerciseRow(
                             name = exerciseTitle(exercise.name, exercise.variation),
@@ -345,13 +327,13 @@ private fun TrainingContent(
                                 ),
                             onClick = {
                                 if (uiState.isSelectionMode) {
-                                    onSelectionToggle(exercise)
+                                    actions.onSelectionToggle(exercise)
                                 } else {
-                                    onExerciseClick(exercise)
+                                    actions.onExerciseClick(exercise)
                                 }
                             },
-                            onLongClick = { onExerciseLongClick(exercise) },
-                            onProgressClick = { onProgressClick(exercise) },
+                            onLongClick = { actions.onExerciseLongClick(exercise) },
+                            onProgressClick = { actions.onProgressClick(exercise) },
                             modifier = Modifier.semantics {
                                 customActions = buildList {
                                     if (index > 0) {
@@ -387,8 +369,8 @@ private fun TrainingContent(
             // Haken und „+“ scrollen als letztes Listenelement mit.
             item {
                 ListActionButtons(
-                    onCompleteWorkout = onCompleteWorkout,
-                    onAddExercise = onAddClick,
+                    onCompleteWorkout = actions.onCompleteWorkout,
+                    onAddExercise = actions.onAddClick,
                     isCompleted = uiState.isSelectedDayCompleted,
                     modifier = Modifier.padding(bottom = Dimens.ListBottomPadding)
                 )
@@ -403,16 +385,19 @@ private fun TrainingContent(
  * Weil die Mitglieder immer direkt untereinander liegen, genügt es, jeder Zeile den passenden
  * Ausschnitt des Kastens mitzugeben: oben abgerundet, unten abgerundet oder gerade
  * durchlaufend. Zusammen ergibt das eine geschlossene Fläche.
+ *
+ * Übergeben werden nur die Kennungen der Nachbarn, nicht die Liste: So hängt die Zeile an drei
+ * Werten statt an jeder Änderung irgendwo in der Liste.
  */
 @Composable
 private fun SupersetContainer(
-    exercises: List<ExerciseItem>,
-    index: Int,
+    supersetId: Long?,
+    previousSupersetId: Long?,
+    nextSupersetId: Long?,
     content: @Composable () -> Unit
 ) {
-    val supersetId = exercises[index].supersetId
-    val isFirst = supersetId != null && exercises.getOrNull(index - 1)?.supersetId != supersetId
-    val isLast = supersetId != null && exercises.getOrNull(index + 1)?.supersetId != supersetId
+    val isFirst = supersetId != null && previousSupersetId != supersetId
+    val isLast = supersetId != null && nextSupersetId != supersetId
 
     val shape: Shape = when {
         supersetId == null -> RectangleShape
@@ -656,19 +641,8 @@ private fun TrainingContentPreview() {
                 )
             ),
             unit = "Kg",
-            onDestinationClick = {},
-            onDaySelected = {},
-            onAddClick = {},
-            onCompleteWorkout = {},
-            onExerciseClick = {},
-            onExerciseLongClick = {},
-            onSelectionToggle = {},
-            onSelectionClear = {},
-            onDeleteSelected = {},
-            onCreateSuperset = {},
-            onDissolveSuperset = {},
-            onProgressClick = {},
-            onReorder = {}
+            actions = TrainingActions(),
+            onDestinationClick = {}
         )
     }
 }

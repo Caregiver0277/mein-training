@@ -7,19 +7,18 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
 import de.beispiel.meintraining.data.model.ExerciseItem
+import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.deloadStatus
-import de.beispiel.meintraining.util.increaseWeight
 import de.beispiel.meintraining.util.parseOptionalDecimal
 import de.beispiel.meintraining.util.parseOptionalInt
 import de.beispiel.meintraining.util.parseProgressionStep
 import de.beispiel.meintraining.util.toDecimalString
 import de.beispiel.meintraining.util.toLocalDate
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,14 +27,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class TrainingViewModel(
     private val repository: TrainingRepository,
     private val currentDate: CurrentDate
@@ -58,8 +55,24 @@ class TrainingViewModel(
     private val eventChannel = Channel<TrainingEvent>(Channel.BUFFERED)
     val events: Flow<TrainingEvent> = eventChannel.receiveAsFlow()
 
-    private val exercises = repository.selectedDayId.flatMapLatest { dayId ->
-        repository.observeExercises(dayId)
+    /**
+     * Alle Übungen aller Tage, einmal abonniert und im Speicher nach Tag geschnitten.
+     *
+     * Eine eigene Abfrage je Tag baut bei jedem Umschalten eine neue Room-Abfrage auf und
+     * verwirft die alte; hin und zurück kostet das drei Abfragen, jede mit Datenbankzugriff.
+     * Bei höchstens sieben Tagen mit einer Handvoll Übungen ist der ganze Bestand so klein,
+     * dass ein einziges Abonnement billiger ist – und das Umschalten damit ohne Datenbank
+     * auskommt.
+     *
+     * `shareIn` statt `stateIn` aus demselben Grund wie bei [sessions]: Ein leerer Anfangswert
+     * ließe die Liste beim Öffnen für einen Frame leer erscheinen.
+     */
+    private val allExercises = repository.observeAllExercises()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
+
+    // `observeAll` sortiert bereits nach Tag, Position und id – das Filtern erhält die Reihenfolge.
+    private val exercises = combine(allExercises, repository.selectedDayId) { all, dayId ->
+        all.filter { it.dayId == dayId }
     }
 
     // Dauerhaft aktiv, weil das Formular die geteilten Werte beim Tippen sofort braucht.
@@ -78,9 +91,8 @@ class TrainingViewModel(
 
     private val dayState = combine(
         repository.observeDays(),
-        repository.selectedDayId,
-        sessions
-    ) { days, id, sessionList -> Triple(days, id, sessionList) }
+        repository.selectedDayId
+    ) { days, id -> DayState(days, id) }
 
     private val preferences = combine(
         repository.dayCount,
@@ -113,6 +125,11 @@ class TrainingViewModel(
         )
     }
 
+    private data class DayState(
+        val days: List<TrainingDay>,
+        val selectedDayId: Int
+    )
+
     private data class Preferences(
         val dayCount: Int,
         val title: String,
@@ -124,32 +141,58 @@ class TrainingViewModel(
         val deload: DeloadStatus
     )
 
+    /**
+     * Alles, was um die Übungsliste herum steht, in einem Wert.
+     *
+     * `combine` nimmt höchstens fünf Zuflüsse; ohne diese Zusammenfassung müssten Einstellungen
+     * und Sitzungszusammenfassung als geschachtelte `Pair` durchgereicht und in der Kopfzeile
+     * der Lambda wieder auseinandergenommen werden – jeder neue Wert hätte die Schachtelung
+     * umgebaut.
+     */
+    private data class Surroundings(
+        val dayCount: Int,
+        val title: String,
+        val today: LocalDate,
+        val completedDayIds: Set<Int>,
+        val deload: DeloadStatus
+    )
+
+    private val surroundings = combine(preferences, sessionSummary) { prefs, summary ->
+        Surroundings(
+            dayCount = prefs.dayCount,
+            title = prefs.title,
+            today = prefs.today,
+            completedDayIds = summary.completedDayIds,
+            deload = summary.deload
+        )
+    }
+
     val uiState = combine(
         dayState,
         exercises,
         definitions,
         selectedIds,
-        combine(preferences, sessionSummary) { prefs, summary -> prefs to summary }
-    ) { (days, selectedDayId, sessionList),
-        exerciseList,
-        definitionList,
-        selection,
-        (prefs, summary) ->
+        surroundings
+    ) { day, exerciseList, definitionList, selection, around ->
         // Über die eingestellte Anzahl hinausgehende Tage bleiben in der Datenbank stehen,
         // werden aber nicht angezeigt – so ist eine verkürzte Runde jederzeit umkehrbar.
-        val visibleDays = days.filter { it.id <= prefs.dayCount }
+        val visibleDays = day.days.filter { it.id <= around.dayCount }
         TrainingUiState(
             days = visibleDays,
-            selectedDayId = selectedDayId,
+            selectedDayId = day.selectedDayId,
             exercises = exerciseList,
             knownExerciseNames = definitionList.map { it.name },
-            // Zeilen, die inzwischen weg sind, dürfen nicht markiert bleiben.
-            selectedIds = selection intersect exerciseList.map { it.id }.toSet(),
-            sessions = sessionList,
-            completedDayIds = summary.completedDayIds,
-            deload = summary.deload,
-            appTitle = prefs.title,
-            today = prefs.today
+            // Zeilen, die inzwischen weg sind, dürfen nicht markiert bleiben. Ohne Auswahl
+            // gibt es dafür nichts zu tun – der häufige Fall kostet so keine Zwischenmengen.
+            selectedIds = if (selection.isEmpty()) {
+                emptySet()
+            } else {
+                selection intersect exerciseList.mapTo(HashSet()) { it.id }
+            },
+            completedDayIds = around.completedDayIds,
+            deload = around.deload,
+            appTitle = around.title,
+            today = around.today
         )
     }.stateIn(
         scope = viewModelScope,
@@ -175,8 +218,15 @@ class TrainingViewModel(
 
     // --- Tag-Auswahl -------------------------------------------------------
 
+    /**
+     * Der Tag gilt sofort; gespeichert wird er nebenher.
+     *
+     * Liefe die Auswahl nur über die Coroutine, hinge das Aufleuchten des Reiters an einem
+     * Schreibvorgang samt `fsync` – siehe [TrainingRepository.selectedDayId].
+     */
     fun onDaySelected(dayId: Int) {
         selectedIds.value = emptySet()
+        repository.selectDayNow(dayId)
         viewModelScope.launch { repository.selectDay(dayId) }
     }
 
@@ -189,18 +239,14 @@ class TrainingViewModel(
      * gibt den Haken wieder frei.
      */
     fun onCompleteWorkout() {
-        val state = uiState.value
-        if (state.isSelectedDayCompleted) return
-        val dayId = state.selectedDayId
         viewModelScope.launch {
+            // Der Tag kommt aus dem Repository, nicht aus dem angezeigten Zustand: Wer den
+            // Reiter wechselt und sofort abhakt, träfe sonst noch das vorige Training.
+            val dayId = repository.currentSelectedDay()
+            if (dayId in uiState.value.completedDayIds) return@launch
             val sessionId = repository.completeWorkout(dayId)
             eventChannel.send(TrainingEvent.WorkoutCompleted(sessionId))
         }
-    }
-
-    /** Entfernt einen versehentlich abgehakten Eintrag aus dem Verlauf. */
-    fun onDeleteSession(sessionId: Long) {
-        viewModelScope.launch { repository.deleteSession(sessionId) }
     }
 
     // --- Mehrfachauswahl ---------------------------------------------------
@@ -235,17 +281,19 @@ class TrainingViewModel(
     fun onCreateSuperset() {
         val selection = selectedIds.value
         if (selection.size < MIN_SUPERSET_SIZE) return
-        val dayId = uiState.value.selectedDayId
         selectedIds.value = emptySet()
-        viewModelScope.launch { repository.createSuperset(dayId, selection) }
+        viewModelScope.launch {
+            repository.createSuperset(repository.currentSelectedDay(), selection)
+        }
     }
 
     fun onDissolveSuperset() {
         val selection = selectedIds.value
         if (selection.isEmpty()) return
-        val dayId = uiState.value.selectedDayId
         selectedIds.value = emptySet()
-        viewModelScope.launch { repository.dissolveSuperset(dayId, selection) }
+        viewModelScope.launch {
+            repository.dissolveSuperset(repository.currentSelectedDay(), selection)
+        }
     }
 
     // --- Bearbeiten-Sheet --------------------------------------------------
@@ -334,8 +382,9 @@ class TrainingViewModel(
      * Oberfläche nur ihre eigene Kopie, gespeichert wird erst beim Loslassen.
      */
     fun onReorder(orderedIds: List<Long>) {
-        val dayId = uiState.value.selectedDayId
-        viewModelScope.launch { repository.reorderExercises(dayId, orderedIds) }
+        viewModelScope.launch {
+            repository.reorderExercises(repository.currentSelectedDay(), orderedIds)
+        }
     }
 
     // --- Progression -------------------------------------------------------
@@ -343,21 +392,22 @@ class TrainingViewModel(
     /**
      * Erhöht das Gewicht um den bei dieser Übung hinterlegten Schritt – an allen Tagen,
      * an denen sie vorkommt. Ohne gesetztes Gewicht öffnet sich stattdessen das Sheet.
+     *
+     * Gerechnet wird im Repository auf dem gespeicherten Stand; die Zeile entscheidet hier nur,
+     * ob es überhaupt etwas zu erhöhen gibt – siehe [TrainingRepository.progressWeight].
      */
     fun onProgressClick(exercise: ExerciseItem) {
-        val current = exercise.weightKg
-        if (current == null) {
+        if (exercise.weightKg == null) {
             onExerciseClick(exercise)
             return
         }
         viewModelScope.launch {
-            val newWeight = increaseWeight(current, exercise.progressionStepKg)
-            repository.setWeight(exercise.name, newWeight)
+            val change = repository.progressWeight(exercise.name) ?: return@launch
             eventChannel.send(
                 TrainingEvent.WeightIncreased(
                     exerciseName = exercise.name,
-                    previousWeightKg = exercise.weightKg,
-                    newWeightKg = newWeight
+                    previousWeightKg = change.previousKg,
+                    newWeightKg = change.newKg
                 )
             )
         }
