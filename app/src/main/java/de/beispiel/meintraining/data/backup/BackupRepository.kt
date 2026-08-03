@@ -66,8 +66,7 @@ class BackupRepository(
                 BackupDefinition(
                     name = it.name,
                     weightKg = it.weightKg,
-                    progressionStepKg = it.progressionStepKg,
-                    usesBodyweight = it.usesBodyweight
+                    progressionStepKg = it.progressionStepKg
                 )
             },
             weightLogs = logs.map {
@@ -83,7 +82,6 @@ class BackupRepository(
             settings = with(settingsStore.snapshot()) {
                 BackupSettings(
                     appTitle = appTitle,
-                    bodyweightKg = bodyweightKg,
                     deloadCycleWeeks = deloadCycleWeeks,
                     dayCount = dayCount,
                     selectedDayId = selectedDayId,
@@ -224,8 +222,7 @@ class BackupRepository(
                     ExerciseDefinition(
                         name = it.name,
                         weightKg = it.weightKg,
-                        progressionStepKg = it.progressionStepKg,
-                        usesBodyweight = it.usesBodyweight
+                        progressionStepKg = it.progressionStepKg
                     )
                 }
             )
@@ -262,7 +259,6 @@ class BackupRepository(
 
         with(backup.settings) {
             settingsStore.setAppTitle(appTitle)
-            settingsStore.setBodyweightKg(bodyweightKg)
             deloadCycleWeeks?.let { settingsStore.setDeloadCycleWeeks(it) }
             dayCount?.let { settingsStore.setDayCount(it) }
             settingsStore.setHiddenTrackingNames(hiddenTrackingNames.toSet())

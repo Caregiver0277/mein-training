@@ -7,9 +7,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
 import de.beispiel.meintraining.data.repository.TrainingRepository
+import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.currentWeeklyStreak
-import de.beispiel.meintraining.util.effectiveWeightKg
 import de.beispiel.meintraining.util.exerciseGains
 import de.beispiel.meintraining.util.longestWeeklyStreak
 import de.beispiel.meintraining.util.sessionsPerWeek
@@ -43,16 +43,18 @@ data class StatsUiState(
     val hasSessions: Boolean get() = totalSessions > 0
 }
 
-class StatsViewModel(repository: TrainingRepository) : ViewModel() {
+class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) : ViewModel() {
 
     val uiState = combine(
         repository.observeSessions(),
         repository.observeWeightLogs(),
         repository.observeAllExercises(),
         repository.observeDefinitions(),
-        repository.bodyweightKg
-    ) { sessions, logs, exercises, definitions, bodyweightKg ->
-        val today = LocalDate.now()
+        // Nicht `LocalDate.now()` mitten in der Rechnung: Der Wert fröre auf dem Tag ein, an
+        // dem zuletzt etwas ausgesendet wurde – Streaks und „seit N Tagen“ blieben bei einer
+        // über Nacht offen gebliebenen App auf gestern stehen.
+        currentDate.flow
+    ) { sessions, logs, exercises, definitions, today ->
         val zone = ZoneId.systemDefault()
         val dates = sessions.map { it.completedAt.toLocalDate() }
         val times = sessions.map {
@@ -66,13 +68,6 @@ class StatsViewModel(repository: TrainingRepository) : ViewModel() {
         val currentWeights = definitions.mapNotNull { definition ->
             definition.weightKg?.let { definition.name to it }
         }.toMap()
-        // Für „schwerste Übung“ zählt die tatsächliche Last: Bei Körpergewichtsübungen ist
-        // der eingetragene Wert nur die Zusatzlast, sonst stünde ein Klimmzug bei 0 kg.
-        val effectiveWeights = definitions.mapNotNull { definition ->
-            effectiveWeightKg(definition.weightKg, definition.usesBodyweight, bodyweightKg)
-                ?.let { definition.name to it }
-        }.toMap()
-
         StatsUiState(
             totalSessions = sessions.size,
             sessionsPerWeek = sessionsPerWeek(dates, today),
@@ -84,7 +79,7 @@ class StatsViewModel(repository: TrainingRepository) : ViewModel() {
             totalGainKg = gains.sumOf { it.gainKg },
             stagnating = stagnatingExercises(lastChanged, currentWeights, today).take(TOP_ENTRIES),
             exerciseCount = exercises.size,
-            heaviestExercise = effectiveWeights.maxByOrNull { it.value }?.toPair()
+            heaviestExercise = currentWeights.maxByOrNull { it.value }?.toPair()
         )
     }.stateIn(
         scope = viewModelScope,
@@ -100,7 +95,7 @@ class StatsViewModel(repository: TrainingRepository) : ViewModel() {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as MeinTrainingApp
-                StatsViewModel(app.repository)
+                StatsViewModel(app.repository, app.currentDate)
             }
         }
     }

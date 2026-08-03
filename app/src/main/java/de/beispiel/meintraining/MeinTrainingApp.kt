@@ -5,6 +5,7 @@ import de.beispiel.meintraining.data.backup.BackupRepository
 import de.beispiel.meintraining.data.local.AppDatabase
 import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.repository.TrainingRepository
+import de.beispiel.meintraining.util.CurrentDate
 
 /** Einfache manuelle Abhängigkeitsverwaltung – für diese App reicht das aus. */
 class MeinTrainingApp : Application() {
@@ -14,15 +15,16 @@ class MeinTrainingApp : Application() {
     /** Auch der Sicherungs-Worker greift darauf zu, deshalb nicht privat. */
     val settingsStore by lazy { SettingsStore(this) }
 
+    /**
+     * Gemeinsames „heute“ für Training, Statistik und Tracking – siehe [CurrentDate].
+     * Nur so zeigen alle Bereiche denselben Tag, auch wenn die App über Nacht offen blieb.
+     */
+    val currentDate by lazy { CurrentDate() }
+
     val repository: TrainingRepository by lazy {
         TrainingRepository(
-            context = this,
+            appContext = applicationContext,
             database = database,
-            dayDao = database.trainingDayDao(),
-            exerciseDao = database.exerciseDao(),
-            definitionDao = database.exerciseDefinitionDao(),
-            weightLogDao = database.weightLogDao(),
-            sessionDao = database.workoutSessionDao(),
             settingsStore = settingsStore
         )
     }

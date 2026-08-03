@@ -20,11 +20,19 @@ interface ExerciseDefinitionDao {
     @Query("SELECT * FROM ExerciseDefinition ORDER BY name ASC")
     suspend fun listAll(): List<ExerciseDefinition>
 
-    @Query("SELECT * FROM ExerciseDefinition WHERE usesBodyweight = 1")
-    suspend fun listBodyweightExercises(): List<ExerciseDefinition>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(definition: ExerciseDefinition)
+
+    /**
+     * Legt die Definition nur an, wenn es sie nicht schon gibt.
+     *
+     * Für das Wiederherstellen nach dem Löschen: Steht die Übung noch an einem anderen Tag,
+     * lebt ihre Definition weiter und hat sich womöglich seither geändert. Ein Überschreiben
+     * mit dem Stand von vor dem Löschen nähme dort stillschweigend eine Gewichtserhöhung
+     * zurück – während der zugehörige Verlaufseintrag stehen bliebe.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIfAbsent(definition: ExerciseDefinition)
 
     /** Der ganze Bestand auf einmal – für das Einspielen einer Sicherung. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -34,8 +42,8 @@ interface ExerciseDefinitionDao {
     @Query("UPDATE ExerciseDefinition SET weightKg = :weightKg WHERE name = :name")
     suspend fun updateWeight(name: String, weightKg: Double?)
 
-    @Query("DELETE FROM ExerciseDefinition WHERE name = :name")
-    suspend fun deleteByName(name: String)
+    @Query("DELETE FROM ExerciseDefinition WHERE name IN (:names)")
+    suspend fun deleteByNames(names: Collection<String>)
 
     /** Entfernt Übungen, die an keinem Tag mehr vorkommen. */
     @Query("DELETE FROM ExerciseDefinition WHERE name NOT IN (SELECT name FROM Exercise)")

@@ -31,6 +31,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             MeinTrainingTheme {
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+                // Getrennt eingesammelt: Das Formular ändert sich bei jedem Tastendruck und
+                // soll damit nicht den ganzen Hauptscreen neu zusammensetzen.
+                val editorForm by viewModel.editorForm.collectAsStateWithLifecycle()
 
                 // Über Nacht offen gebliebene App: Beim Zurückkehren kann ein neuer Tag
                 // angebrochen sein.
@@ -38,6 +41,7 @@ class MainActivity : ComponentActivity() {
 
                 TrainingScreen(
                     uiState = uiState,
+                    editorForm = editorForm,
                     events = viewModel.events,
                     onDaySelected = viewModel::onDaySelected,
                     onAddClick = viewModel::onAddClick,
@@ -54,7 +58,6 @@ class MainActivity : ComponentActivity() {
                     onReorder = viewModel::onReorder,
                     onFormChange = viewModel::onFormChange,
                     onVariationToggle = viewModel::onVariationToggle,
-                    onBodyweightToggle = viewModel::onBodyweightToggle,
                     onFormSave = viewModel::onFormSave,
                     onFormDelete = viewModel::onFormDelete,
                     onFormDismiss = viewModel::onFormDismiss,

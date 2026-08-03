@@ -1,6 +1,5 @@
 package de.beispiel.meintraining.util
 
-import java.math.BigDecimal
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.time.Instant
@@ -80,31 +79,5 @@ fun Int?.toSetsRepsLabel(repsMin: Int?, repsMax: Int?): String? {
     return if (reps == null) sets.toString() else "$sets$SETS_REPS_SEPARATOR$reps"
 }
 
-/**
- * Liest einen Progressionsschritt ein. Komma und Punkt sind als Dezimaltrenner erlaubt;
- * leere, ungültige oder nicht positive Eingaben fallen auf [DEFAULT_PROGRESSION_STEP_KG] zurück.
- */
-fun parseProgressionStep(input: String): Double {
-    val value = parseOptionalDecimal(input) ?: return DEFAULT_PROGRESSION_STEP_KG
-    return if (value > 0.0) value else DEFAULT_PROGRESSION_STEP_KG
-}
-
-/** Optionale Dezimalzahl; akzeptiert Komma und Punkt. Leer oder ungültig → `null`. */
-fun parseOptionalDecimal(input: String): Double? {
-    val normalized = input.trim().replace(',', '.')
-    if (normalized.isEmpty()) return null
-    return normalized.toDoubleOrNull()
-}
-
-/** Optionale Ganzzahl. Leer, ungültig oder negativ → `null`. */
-fun parseOptionalInt(input: String): Int? {
-    val value = input.trim().toIntOrNull() ?: return null
-    return if (value >= 0) value else null
-}
-
-/**
- * Erhöht ein Gewicht um den Progressionsschritt.
- * Rechnet mit [BigDecimal], damit aus `20 + 2,5` nicht `22,499999…` wird.
- */
-fun increaseWeight(currentKg: Double, stepKg: Double): Double =
-    BigDecimal.valueOf(currentKg).add(BigDecimal.valueOf(stepKg)).toDouble()
+// Eingelesen wird in `Parsing.kt`: Hier geht es darum, wie ein Wert aussieht, dort darum,
+// ob er überhaupt einer ist.

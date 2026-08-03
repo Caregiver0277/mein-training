@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -34,7 +33,6 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 /** Alle Einstellungen zu einem Zeitpunkt – siehe [SettingsStore.snapshot]. */
 data class SettingsSnapshot(
     val appTitle: String,
-    val bodyweightKg: Double?,
     val deloadCycleWeeks: Int,
     val dayCount: Int,
     val selectedDayId: Int,
@@ -76,7 +74,6 @@ class SettingsStore(context: Context) {
     suspend fun snapshot(): SettingsSnapshot = preferences.first().let { prefs ->
         SettingsSnapshot(
             appTitle = readAppTitle(prefs),
-            bodyweightKg = readBodyweight(prefs),
             deloadCycleWeeks = readDeloadWeeks(prefs),
             dayCount = readDayCount(prefs),
             selectedDayId = readSelectedDay(prefs),
@@ -113,17 +110,6 @@ class SettingsStore(context: Context) {
 
     suspend fun setHiddenTrackingNames(names: Set<String>) {
         store.edit { prefs -> prefs[KEY_HIDDEN_TRACKING] = names }
-    }
-
-    private fun readBodyweight(prefs: Preferences): Double? = prefs[KEY_BODYWEIGHT]
-
-    /** Eigenes Körpergewicht in kg; `null`, solange nichts eingetragen ist. */
-    val bodyweightKg: Flow<Double?> = preference(::readBodyweight)
-
-    suspend fun setBodyweightKg(weightKg: Double?) {
-        store.edit { prefs ->
-            if (weightKg == null) prefs.remove(KEY_BODYWEIGHT) else prefs[KEY_BODYWEIGHT] = weightKg
-        }
     }
 
     private fun readDeloadWeeks(prefs: Preferences): Int =
@@ -219,7 +205,6 @@ class SettingsStore(context: Context) {
 
     private companion object {
         val KEY_SELECTED_DAY = intPreferencesKey("selected_day_id")
-        val KEY_BODYWEIGHT = doublePreferencesKey("bodyweight_kg")
         val KEY_DELOAD_WEEKS = intPreferencesKey("deload_cycle_weeks")
         val KEY_DAY_COUNT = intPreferencesKey("day_count")
         val KEY_APP_TITLE = stringPreferencesKey("app_title")

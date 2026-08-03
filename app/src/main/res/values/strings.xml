@@ -27,10 +27,7 @@
     <string name="cd_add_variation">Variation hinzufügen</string>
     <string name="cd_remove_variation">Variation entfernen</string>
     <string name="field_weight">Gewicht (kg)</string>
-    <string name="field_extra_weight">Zusatzgewicht (kg)</string>
-    <string name="field_bodyweight_exercise">Körpergewichtsübung</string>
     <string name="hint_weight_shared">Gilt an allen Tagen mit dieser Übung.</string>
-    <string name="hint_weight_bodyweight">Kommt zum Körpergewicht dazu. Leer lassen für reines Körpergewicht.</string>
     <string name="field_sets">Sätze</string>
     <string name="field_reps_min">Wiederh. von</string>
     <string name="field_reps_max">Wiederh. bis</string>
@@ -63,14 +60,18 @@
     <string name="tracking_pick_exercises">Übungen auswählen</string>
     <string name="tracking_show_all">Alle anzeigen</string>
     <string name="tracking_hide_all">Alle abwählen</string>
+    <string name="tracking_points_hint">Langer Druck auf eine Übung zeigt ihre Datenpunkte.</string>
+    <string name="tracking_points_empty">Für diese Übung gibt es keine Datenpunkte mehr.</string>
+    <plurals name="tracking_points_count">
+        <item quantity="one">%1$d Datenpunkt</item>
+        <item quantity="other">%1$d Datenpunkte</item>
+    </plurals>
     <string name="tracking_empty">Noch keine Gewichte aufgezeichnet.</string>
 
     <!-- Einstellungen -->
     <string name="settings_general">Allgemein</string>
     <string name="settings_app_title">Überschrift</string>
     <string name="settings_app_title_hint">Leer lassen für „MEIN TRAINING“.</string>
-    <string name="settings_bodyweight">Körpergewicht (kg)</string>
-    <string name="settings_bodyweight_hint">Wird bei Körpergewichtsübungen zur Zusatzlast addiert.</string>
     <string name="settings_deload_weeks">Deload alle … Wochen</string>
     <string name="settings_deload_weeks_hint">Die letzte Woche des Blocks ist die Deload-Woche (%1$d–%2$d).</string>
     <string name="settings_days">Trainingstage</string>

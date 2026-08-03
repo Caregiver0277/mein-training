@@ -96,6 +96,8 @@ import kotlinx.coroutines.flow.Flow
 @Composable
 fun TrainingScreen(
     uiState: TrainingUiState,
+    /** Offenes Bearbeiten-Sheet; steht neben [uiState], weil es bei jedem Tastendruck wechselt. */
+    editorForm: ExerciseForm?,
     events: Flow<TrainingEvent>,
     onDaySelected: (Int) -> Unit,
     onAddClick: () -> Unit,
@@ -112,7 +114,6 @@ fun TrainingScreen(
     onReorder: (List<Long>) -> Unit,
     onFormChange: (ExerciseForm) -> Unit,
     onVariationToggle: () -> Unit,
-    onBodyweightToggle: () -> Unit,
     onFormSave: () -> Unit,
     onFormDelete: () -> Unit,
     onFormDismiss: () -> Unit,
@@ -211,13 +212,12 @@ fun TrainingScreen(
         }
     }
 
-    uiState.editorForm?.let { form ->
+    editorForm?.let { form ->
         ExerciseEditSheet(
             form = form,
             knownExerciseNames = uiState.knownExerciseNames,
             onFormChange = onFormChange,
             onVariationToggle = onVariationToggle,
-            onBodyweightToggle = onBodyweightToggle,
             onSave = onFormSave,
             onDelete = onFormDelete,
             onDismiss = onFormDismiss

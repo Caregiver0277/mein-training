@@ -27,7 +27,13 @@ data class DeloadStatus(
     val weekInCycle: Int = 1,
     /** Erster Trainingstag des laufenden Blocks. */
     val cycleStart: LocalDate? = null,
-    /** Montag der kommenden – oder laufenden – Deload-Woche. */
+    /**
+     * Erster Tag der kommenden – oder laufenden – Deload-Woche.
+     *
+     * Gezählt wird in Sieben-Tage-Blöcken ab [cycleStart], nicht im Kalender: Der Wert fällt
+     * deshalb auf denselben Wochentag wie der erste Trainingstag des Blocks und ist bewusst
+     * kein Montag.
+     */
     val deloadWeekStart: LocalDate? = null,
     val lastSessionDate: LocalDate? = null,
     /** Aktuell läuft eine längere Pause; sie ersetzt den Deload. */
@@ -60,8 +66,9 @@ fun deloadStatus(
 
     // Blockbeginn ist der erste Trainingstag nach der letzten längeren Pause.
     var cycleStart = days.first()
-    days.zipWithNext { previous, next ->
-        if (ChronoUnit.DAYS.between(previous, next) >= REST_RESETS_CYCLE_DAYS) cycleStart = next
+    for (index in 1..days.lastIndex) {
+        val pause = ChronoUnit.DAYS.between(days[index - 1], days[index])
+        if (pause >= REST_RESETS_CYCLE_DAYS) cycleStart = days[index]
     }
 
     val lastSession = days.last()

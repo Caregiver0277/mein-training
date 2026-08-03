@@ -72,7 +72,6 @@ fun ExerciseEditSheet(
     knownExerciseNames: List<String>,
     onFormChange: (ExerciseForm) -> Unit,
     onVariationToggle: () -> Unit,
-    onBodyweightToggle: () -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
@@ -90,7 +89,6 @@ fun ExerciseEditSheet(
             knownExerciseNames = knownExerciseNames,
             onFormChange = onFormChange,
             onVariationToggle = onVariationToggle,
-            onBodyweightToggle = onBodyweightToggle,
             onSave = onSave,
             onDelete = onDelete,
             onDismiss = onDismiss
@@ -104,7 +102,6 @@ private fun ExerciseEditSheetContent(
     knownExerciseNames: List<String>,
     onFormChange: (ExerciseForm) -> Unit,
     onVariationToggle: () -> Unit,
-    onBodyweightToggle: () -> Unit,
     onSave: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
@@ -168,40 +165,10 @@ private fun ExerciseEditSheetContent(
         SheetTextField(
             value = form.weight,
             onValueChange = { onFormChange(form.copy(weight = it)) },
-            label = stringResource(
-                if (form.usesBodyweight) R.string.field_extra_weight else R.string.field_weight
-            ),
+            label = stringResource(R.string.field_weight),
             keyboardType = KeyboardType.Decimal,
-            supportingText = stringResource(
-                if (form.usesBodyweight) {
-                    R.string.hint_weight_bodyweight
-                } else {
-                    R.string.hint_weight_shared
-                }
-            )
+            supportingText = stringResource(R.string.hint_weight_shared)
         )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(role = Role.Checkbox, onClick = onBodyweightToggle),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = form.usesBodyweight,
-                onCheckedChange = { onBodyweightToggle() },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = AccentBlue,
-                    uncheckedColor = TextSecondary,
-                    checkmarkColor = TextPrimary
-                )
-            )
-            Text(
-                text = stringResource(R.string.field_bodyweight_exercise),
-                style = AppTextStyles.Body,
-                color = TextPrimary
-            )
-        }
 
         SheetTextField(
             value = form.sets,
@@ -419,7 +386,6 @@ private fun ExerciseEditSheetContentPreview() {
             knownExerciseNames = listOf("Trizeps", "Bankdrücken"),
             onFormChange = {},
             onVariationToggle = {},
-            onBodyweightToggle = {},
             onSave = {},
             onDelete = {},
             onDismiss = {}

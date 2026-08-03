@@ -1,8 +1,10 @@
 package de.beispiel.meintraining.ui.tracking
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -42,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +54,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.ui.theme.AccentBlue
+import de.beispiel.meintraining.ui.theme.AccentRed
 import de.beispiel.meintraining.ui.theme.AppTextStyles
 import de.beispiel.meintraining.ui.theme.CardBackground
 import de.beispiel.meintraining.ui.theme.ChipBackground
@@ -60,6 +65,10 @@ import de.beispiel.meintraining.ui.theme.TabActiveText
 import de.beispiel.meintraining.ui.theme.TabInactiveText
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
+import de.beispiel.meintraining.util.formatFullDate
+import de.beispiel.meintraining.util.toClockTime
+import de.beispiel.meintraining.util.toLocalDate
+import de.beispiel.meintraining.util.toWeightLabel
 
 /**
  * Hängt den Tracking-Screen an sein ViewModel. Der Screen selbst bleibt zustandslos,
@@ -78,7 +87,10 @@ fun TrackingRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onPickerOpen = viewModel::onPickerOpen,
         onPickerDismiss = viewModel::onPickerDismiss,
         onExerciseToggled = viewModel::onExerciseToggled,
+        onExerciseLongPressed = viewModel::onExerciseLongPressed,
         onToggleAll = viewModel::onToggleAll,
+        onPointsDismiss = viewModel::onPointsDismiss,
+        onDeletePoint = viewModel::onDeletePoint,
         modifier = modifier
     )
 }
@@ -92,7 +104,10 @@ fun TrackingScreen(
     onPickerOpen: () -> Unit,
     onPickerDismiss: () -> Unit,
     onExerciseToggled: (String) -> Unit,
+    onExerciseLongPressed: (String) -> Unit,
     onToggleAll: () -> Unit,
+    onPointsDismiss: () -> Unit,
+    onDeletePoint: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -159,10 +174,109 @@ fun TrackingScreen(
             visibleNames = uiState.visibleNames,
             allVisible = uiState.allVisible,
             onToggle = onExerciseToggled,
+            onLongPress = onExerciseLongPressed,
             onToggleAll = onToggleAll,
             onDismiss = onPickerDismiss
         )
     }
+
+    // Liegt über dem Auswahlfenster: Von dort kommt der lange Druck, und danach steht die
+    // Auswahl wieder offen, ohne dass man sie erneut aufrufen muss.
+    uiState.pointsExercise?.let { name ->
+        DataPointsDialog(
+            exerciseName = name,
+            points = uiState.points,
+            onDeletePoint = onDeletePoint,
+            onDismiss = onPointsDismiss
+        )
+    }
+}
+
+/**
+ * Die einzelnen Datenpunkte einer Übung, jüngster zuerst, jeder für sich löschbar.
+ *
+ * Gelöscht wird sofort und ohne Rückfrage: Ein einzelner Punkt ist schnell wieder eingetragen,
+ * und die Liste zeigt unmittelbar, was passiert ist. Das eingetragene Gewicht der Übung bleibt
+ * unberührt – hier steht der Verlauf, nicht der heutige Stand.
+ */
+@Composable
+private fun DataPointsDialog(
+    exerciseName: String,
+    points: List<TrackedPoint>,
+    onDeletePoint: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val unit = stringResource(R.string.unit_kg)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CardBackground,
+        titleContentColor = TextPrimary,
+        title = {
+            Text(text = exerciseName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        },
+        text = {
+            if (points.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.tracking_points_empty),
+                    style = AppTextStyles.Body,
+                    color = TextSecondary
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = Dimens.PickerMaxHeight)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.tracking_points_count,
+                            points.size,
+                            points.size
+                        ),
+                        style = AppTextStyles.ColumnLabel,
+                        color = TextSecondary
+                    )
+                    points.forEach { point ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = point.weightKg.toWeightLabel(unit),
+                                    style = AppTextStyles.Body,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "${formatFullDate(point.recordedAt.toLocalDate())}, " +
+                                        point.recordedAt.toClockTime(),
+                                    style = AppTextStyles.ColumnLabel,
+                                    color = TextSecondary
+                                )
+                            }
+                            IconButton(
+                                onClick = { onDeletePoint(point.id) },
+                                modifier = Modifier.size(Dimens.TouchTargetSize)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = stringResource(R.string.action_delete),
+                                    tint = AccentRed,
+                                    modifier = Modifier.size(Dimens.MenuIconSize)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_done), color = AccentBlue)
+            }
+        }
+    )
 }
 
 /** Zeitraum-Auswahl; „Jahr“ öffnet eine Liste der Jahre, für die es Daten gibt. */
@@ -296,12 +410,14 @@ private fun Legend(series: List<ChartSeries>, modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ExercisePickerDialog(
     names: List<String>,
     visibleNames: Set<String>,
     allVisible: Boolean,
     onToggle: (String) -> Unit,
+    onLongPress: (String) -> Unit,
     onToggleAll: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -323,11 +439,20 @@ private fun ExercisePickerDialog(
                         .heightIn(max = Dimens.PickerMaxHeight)
                         .verticalScroll(rememberScrollState())
                 ) {
+                    Text(
+                        text = stringResource(R.string.tracking_points_hint),
+                        style = AppTextStyles.ColumnLabel,
+                        color = TextSecondary
+                    )
                     names.forEach { name ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onToggle(name) },
+                                // Kurz: ein- und ausblenden. Lang: die Datenpunkte ansehen.
+                                .combinedClickable(
+                                    onClick = { onToggle(name) },
+                                    onLongClick = { onLongPress(name) }
+                                ),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Checkbox(

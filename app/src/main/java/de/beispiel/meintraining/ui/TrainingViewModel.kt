@@ -8,6 +8,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.repository.TrainingRepository
+import de.beispiel.meintraining.util.CurrentDate
+import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.deloadStatus
@@ -22,18 +24,35 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class TrainingViewModel(private val repository: TrainingRepository) : ViewModel() {
+class TrainingViewModel(
+    private val repository: TrainingRepository,
+    private val currentDate: CurrentDate
+) : ViewModel() {
 
-    private val editorForm = MutableStateFlow<ExerciseForm?>(null)
+    private val formState = MutableStateFlow<ExerciseForm?>(null)
+
+    /**
+     * Das Bearbeiten-Sheet steht bewusst neben [uiState] statt darin.
+     *
+     * Es ändert sich bei jedem Tastendruck. Läge es im selben `combine`, liefe mit jedem
+     * Buchstaben die ganze abgeleitete Rechnung erneut – Deload-Zyklus samt Sortieren aller
+     * Trainingstermine, Rotation, Tagesliste – und der Hauptscreen würde dabei jedes Mal neu
+     * zusammengesetzt, obwohl sich dort nichts geändert hat.
+     */
+    val editorForm: StateFlow<ExerciseForm?> = formState.asStateFlow()
+
     private val selectedIds = MutableStateFlow<Set<Long>>(emptySet())
 
     private val eventChannel = Channel<TrainingEvent>(Channel.BUFFERED)
@@ -48,47 +67,77 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /**
-     * Das heutige Datum als Zustand statt als Aufruf mitten in der Berechnung: Sonst blieben
-     * Deload-Woche und Verlauf auf dem Tag stehen, an dem die App zuletzt gestartet wurde.
+     * Einmal abgefragt und geteilt: Verlauf und Deload-Rechnung brauchen dieselben Sitzungen.
+     *
+     * `shareIn` statt `stateIn`, weil letzteres einen Anfangswert braucht: Mit einer leeren
+     * Liste als Start liefe der Zustand einmal ohne Sitzungen durch, und die Haken an den
+     * Trainingstagen blitzten beim Öffnen kurz als offen auf.
      */
-    private val today = MutableStateFlow(LocalDate.now())
+    private val sessions = repository.observeSessions()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
 
     private val dayState = combine(
         repository.observeDays(),
         repository.selectedDayId,
-        repository.observeSessions()
-    ) { days, id, sessions -> Triple(days, id, sessions) }
+        sessions
+    ) { days, id, sessionList -> Triple(days, id, sessionList) }
 
     private val preferences = combine(
         repository.dayCount,
-        repository.deloadCycleWeeks,
         repository.appTitle,
-        today
-    ) { dayCount, cycleWeeks, title, currentDate ->
-        Preferences(dayCount, cycleWeeks, title, currentDate)
+        currentDate.flow
+    ) { dayCount, title, today -> Preferences(dayCount, title, today) }
+
+    /**
+     * Der teure Teil, getrennt gehalten: Er hängt nur an den Sitzungen, der Rundenlänge, der
+     * Blocklänge und dem Datum. `combine` merkt sich den letzten Wert eines Zuflusses, deshalb
+     * rechnet das hier nicht mit, wenn anderswo nur eine Markierung umspringt.
+     */
+    private val sessionSummary = combine(
+        sessions,
+        repository.dayCount,
+        repository.deloadCycleWeeks,
+        currentDate.flow
+    ) { sessionList, dayCount, cycleWeeks, today ->
+        SessionSummary(
+            // Die Sitzungen kommen neueste zuerst; die Rotation zählt in Eintragsreihenfolge.
+            completedDayIds = completedDaysInRotation(
+                dayIdsOldestFirst = sessionList.asReversed().map { it.dayId },
+                dayCount = dayCount
+            ),
+            deload = deloadStatus(
+                sessionDates = sessionList.map { it.completedAt.toLocalDate() },
+                today = today,
+                cycleWeeks = cycleWeeks
+            )
+        )
     }
 
     private data class Preferences(
         val dayCount: Int,
-        val cycleWeeks: Int,
         val title: String,
         val today: LocalDate
+    )
+
+    private data class SessionSummary(
+        val completedDayIds: Set<Int>,
+        val deload: DeloadStatus
     )
 
     val uiState = combine(
         dayState,
         exercises,
         definitions,
-        combine(editorForm, selectedIds) { form, selection -> form to selection },
-        preferences
-    ) { (days, selectedDayId, sessions),
+        selectedIds,
+        combine(preferences, sessionSummary) { prefs, summary -> prefs to summary }
+    ) { (days, selectedDayId, sessionList),
         exerciseList,
         definitionList,
-        (form, selection),
-        (dayCount, cycleWeeks, title, currentDate) ->
+        selection,
+        (prefs, summary) ->
         // Über die eingestellte Anzahl hinausgehende Tage bleiben in der Datenbank stehen,
         // werden aber nicht angezeigt – so ist eine verkürzte Runde jederzeit umkehrbar.
-        val visibleDays = days.filter { it.id <= dayCount }
+        val visibleDays = days.filter { it.id <= prefs.dayCount }
         TrainingUiState(
             days = visibleDays,
             selectedDayId = selectedDayId,
@@ -96,20 +145,11 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
             knownExerciseNames = definitionList.map { it.name },
             // Zeilen, die inzwischen weg sind, dürfen nicht markiert bleiben.
             selectedIds = selection intersect exerciseList.map { it.id }.toSet(),
-            sessions = sessions,
-            // Die Sitzungen kommen neueste zuerst; die Rotation zählt in Eintragsreihenfolge.
-            completedDayIds = completedDaysInRotation(
-                dayIdsOldestFirst = sessions.asReversed().map { it.dayId },
-                dayCount = dayCount
-            ),
-            deload = deloadStatus(
-                sessionDates = sessions.map { it.completedAt.toLocalDate() },
-                today = currentDate,
-                cycleWeeks = cycleWeeks
-            ),
-            appTitle = title,
-            editorForm = form,
-            today = currentDate
+            sessions = sessionList,
+            completedDayIds = summary.completedDayIds,
+            deload = summary.deload,
+            appTitle = prefs.title,
+            today = prefs.today
         )
     }.stateIn(
         scope = viewModelScope,
@@ -129,9 +169,8 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
      * Datumsangaben, Deload-Woche und der vorausgewählte Trainingstag nicht mehr.
      */
     fun onResumed() {
-        val currentDate = LocalDate.now()
-        if (today.value != currentDate) today.value = currentDate
-        viewModelScope.launch { repository.advanceDayIfNewDate(currentDate) }
+        currentDate.refresh()
+        viewModelScope.launch { repository.advanceDayIfNewDate(currentDate.value) }
     }
 
     // --- Tag-Auswahl -------------------------------------------------------
@@ -211,12 +250,19 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
 
     // --- Bearbeiten-Sheet --------------------------------------------------
 
+    /**
+     * Der Tag wird beim Öffnen festgehalten, nicht erst beim Speichern nachgeschlagen: Die
+     * Übung landet dort, wo der Nutzer sie angelegt hat – auch wenn die Auswahl inzwischen
+     * weitergesprungen ist, etwa weil um Mitternacht ein neuer Tag angebrochen ist.
+     */
     fun onAddClick() {
-        editorForm.value = ExerciseForm()
+        viewModelScope.launch {
+            formState.value = ExerciseForm(dayId = repository.selectedDayId.first())
+        }
     }
 
     fun onExerciseClick(exercise: ExerciseItem) {
-        editorForm.value = exercise.toForm()
+        formState.value = exercise.toForm()
     }
 
     /**
@@ -225,13 +271,13 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
      * Sätze und Wiederholungen bleiben bewusst unangetastet, die gehören zum jeweiligen Tag.
      */
     fun onFormChange(form: ExerciseForm) {
-        val nameChanged = editorForm.value?.name != form.name
-        editorForm.value = if (nameChanged) form.withSharedValues() else form
+        val nameChanged = formState.value?.name != form.name
+        formState.value = if (nameChanged) form.withSharedValues() else form
     }
 
     fun onVariationToggle() {
-        val form = editorForm.value ?: return
-        editorForm.value = if (form.showVariation) {
+        val form = formState.value ?: return
+        formState.value = if (form.showVariation) {
             form.copy(showVariation = false, variation = "")
         } else {
             form.copy(showVariation = true)
@@ -239,11 +285,11 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
     }
 
     fun onFormDismiss() {
-        editorForm.value = null
+        formState.value = null
     }
 
     fun onFormSave() {
-        val form = editorForm.value ?: return
+        val form = formState.value ?: return
         if (!form.canSave) return
 
         viewModelScope.launch {
@@ -255,24 +301,23 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
 
             repository.saveExercise(
                 id = form.id,
-                dayId = repository.selectedDayId.first(),
+                dayId = form.dayId,
                 name = form.name.trim(),
                 variation = form.variation.trim().takeIf { form.showVariation && it.isNotEmpty() },
                 weightKg = parseOptionalDecimal(form.weight),
                 sets = parseOptionalInt(form.sets),
                 repsMin = repsMin,
                 repsMax = repsMax,
-                progressionStepKg = parseProgressionStep(form.progressionStep),
-                usesBodyweight = form.usesBodyweight
+                progressionStepKg = parseProgressionStep(form.progressionStep)
             )
-            editorForm.value = null
+            formState.value = null
         }
     }
 
     /** Löschen aus dem geöffneten Sheet heraus. */
     fun onFormDelete() {
-        val id = editorForm.value?.id ?: return
-        editorForm.value = null
+        val id = formState.value?.id ?: return
+        formState.value = null
         viewModelScope.launch {
             val exercise = repository.findExercise(id) ?: return@launch
             val items = listOf(exercise)
@@ -300,8 +345,7 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
      * an denen sie vorkommt. Ohne gesetztes Gewicht öffnet sich stattdessen das Sheet.
      */
     fun onProgressClick(exercise: ExerciseItem) {
-        // Bei Körpergewichtsübungen wächst die Zusatzlast; ohne Zusatz beginnt sie bei null.
-        val current = exercise.weightKg ?: if (exercise.usesBodyweight) 0.0 else null
+        val current = exercise.weightKg
         if (current == null) {
             onExerciseClick(exercise)
             return
@@ -345,13 +389,13 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
         return copy(
             name = match.name,
             weight = match.weightKg?.toDecimalString().orEmpty(),
-            progressionStep = match.progressionStepKg.toDecimalString(),
-            usesBodyweight = match.usesBodyweight
+            progressionStep = match.progressionStepKg.toDecimalString()
         )
     }
 
     private fun ExerciseItem.toForm() = ExerciseForm(
         id = id,
+        dayId = dayId,
         name = name,
         variation = variation.orEmpty(),
         showVariation = !variation.isNullOrBlank(),
@@ -359,14 +403,8 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
         sets = sets?.toString().orEmpty(),
         repsMin = repsMin?.toString().orEmpty(),
         repsMax = repsMax?.toString().orEmpty(),
-        progressionStep = progressionStepKg.toDecimalString(),
-        usesBodyweight = usesBodyweight
+        progressionStep = progressionStepKg.toDecimalString()
     )
-
-    fun onBodyweightToggle() {
-        val form = editorForm.value ?: return
-        editorForm.value = form.copy(usesBodyweight = !form.usesBodyweight)
-    }
 
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L
@@ -375,7 +413,7 @@ class TrainingViewModel(private val repository: TrainingRepository) : ViewModel(
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as MeinTrainingApp
-                TrainingViewModel(app.repository)
+                TrainingViewModel(app.repository, app.currentDate)
             }
         }
     }

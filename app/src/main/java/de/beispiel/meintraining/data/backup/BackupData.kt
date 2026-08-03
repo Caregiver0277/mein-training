@@ -52,8 +52,7 @@ data class BackupExercise(
 data class BackupDefinition(
     val name: String,
     val weightKg: Double? = null,
-    val progressionStepKg: Double,
-    val usesBodyweight: Boolean = false
+    val progressionStepKg: Double
 )
 
 @Serializable
@@ -70,7 +69,6 @@ data class BackupSession(val dayId: Int, val completedAt: Long)
 @Serializable
 data class BackupSettings(
     val appTitle: String = "",
-    val bodyweightKg: Double? = null,
     val deloadCycleWeeks: Int? = null,
     val dayCount: Int? = null,
     val selectedDayId: Int? = null,

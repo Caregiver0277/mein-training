@@ -13,7 +13,7 @@ import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 
 /** Aktuelle Schemaversion; steht hier, damit auch die Tests sie benennen können. */
-const val DATABASE_VERSION = 5
+const val DATABASE_VERSION = 6
 
 @Database(
     entities = [
@@ -155,12 +155,47 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Körpergewichtsübungen fallen wieder weg.
+         *
+         * `weightKg` bleibt unverändert stehen: Bei einer Körpergewichtsübung war das die
+         * Zusatzlast, und genau die stand auch schon vorher in der Trainingsliste. Der
+         * Gewichtsverlauf bleibt ebenfalls unangetastet – dort stecken zwar noch Werte
+         * samt Körpergewicht, aber das sind aufgezeichnete Messpunkte, die niemand
+         * nachträglich umrechnen kann; sie lassen sich im Tracking einzeln löschen.
+         *
+         * `DROP COLUMN` gibt es erst in neueren SQLite-Fassungen, deshalb die Tabelle neu.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `ExerciseDefinition_new` (
+                        `name` TEXT NOT NULL,
+                        `weightKg` REAL,
+                        `progressionStepKg` REAL NOT NULL,
+                        PRIMARY KEY(`name`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `ExerciseDefinition_new` (name, weightKg, progressionStepKg)
+                    SELECT name, weightKg, progressionStepKg FROM `ExerciseDefinition`
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE `ExerciseDefinition`")
+                db.execSQL("ALTER TABLE `ExerciseDefinition_new` RENAME TO `ExerciseDefinition`")
+            }
+        }
+
         /** Alle Migrationen in der Reihenfolge ihrer Versionen – auch für die Tests. */
         val MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
             MIGRATION_3_4,
-            MIGRATION_4_5
+            MIGRATION_4_5,
+            MIGRATION_5_6
         )
 
         @Volatile

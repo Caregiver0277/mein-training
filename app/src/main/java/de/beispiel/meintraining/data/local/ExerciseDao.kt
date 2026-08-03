@@ -23,8 +23,7 @@ private const val ITEM_COLUMNS = """
     e.sets AS sets, e.repsMin AS repsMin, e.repsMax AS repsMax, e.position AS position,
     e.supersetId AS supersetId,
     d.weightKg AS weightKg,
-    COALESCE(d.progressionStepKg, $DEFAULT_PROGRESSION_STEP_KG) AS progressionStepKg,
-    COALESCE(d.usesBodyweight, 0) AS usesBodyweight
+    COALESCE(d.progressionStepKg, $DEFAULT_PROGRESSION_STEP_KG) AS progressionStepKg
 """
 
 @Dao
@@ -100,12 +99,13 @@ interface ExerciseDao {
     @Query("DELETE FROM Exercise WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
 
-    @Query("SELECT DISTINCT dayId FROM Exercise WHERE name = :name")
-    suspend fun listDayIdsForName(name: String): List<Int>
+    /** Die Tage, an denen eine der Übungen vorkommt – dort müssen danach die Supersets aufgeräumt werden. */
+    @Query("SELECT DISTINCT dayId FROM Exercise WHERE name IN (:names)")
+    suspend fun listDayIdsForNames(names: Collection<String>): List<Int>
 
-    /** Entfernt die Übung von allen Trainingstagen. */
-    @Query("DELETE FROM Exercise WHERE name = :name")
-    suspend fun deleteByName(name: String)
+    /** Entfernt die Übungen von allen Trainingstagen. */
+    @Query("DELETE FROM Exercise WHERE name IN (:names)")
+    suspend fun deleteByNames(names: Collection<String>)
 
     /** Nur für das vollständige Zurücksetzen der App. */
     @Query("DELETE FROM Exercise")

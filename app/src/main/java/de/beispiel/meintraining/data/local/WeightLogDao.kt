@@ -33,9 +33,13 @@ interface WeightLogDao {
     )
     suspend fun deleteLatest(name: String)
 
-    /** Löscht den kompletten Verlauf einer Übung. */
-    @Query("DELETE FROM WeightLog WHERE exerciseName = :name")
-    suspend fun deleteByName(name: String)
+    /** Entfernt einen einzelnen Punkt aus dem Verlauf – von Hand im Tracking gelöscht. */
+    @Query("DELETE FROM WeightLog WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    /** Löscht den kompletten Verlauf der Übungen. */
+    @Query("DELETE FROM WeightLog WHERE exerciseName IN (:names)")
+    suspend fun deleteByNames(names: Collection<String>)
 
     /** Nur für das vollständige Zurücksetzen der App. */
     @Query("DELETE FROM WeightLog")

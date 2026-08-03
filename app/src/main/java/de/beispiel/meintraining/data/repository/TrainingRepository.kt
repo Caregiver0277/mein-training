@@ -18,7 +18,6 @@ import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
-import de.beispiel.meintraining.util.effectiveWeightKg
 import de.beispiel.meintraining.util.nextDayId
 import de.beispiel.meintraining.util.survivingSupersetMembers
 import de.beispiel.meintraining.util.toLocalDate
@@ -26,19 +25,24 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 
-/** Einzige Datenquelle für die ViewModels; kapselt Room und die Einstellungen. */
+/**
+ * Einzige Datenquelle für die ViewModels; kapselt Room und die Einstellungen.
+ *
+ * Die DAOs kommen aus der [database] statt einzeln von außen: Sie gehören ohnehin zu genau
+ * dieser Datenbank, und eine Liste von acht Parametern lädt nur dazu ein, sie irgendwann
+ * durcheinanderzubringen.
+ */
 class TrainingRepository(
-    context: Context,
+    private val appContext: Context,
     private val database: AppDatabase,
-    private val dayDao: TrainingDayDao,
-    private val exerciseDao: ExerciseDao,
-    private val definitionDao: ExerciseDefinitionDao,
-    private val weightLogDao: WeightLogDao,
-    private val sessionDao: WorkoutSessionDao,
     private val settingsStore: SettingsStore
 ) {
 
-    private val appContext = context.applicationContext
+    private val dayDao: TrainingDayDao = database.trainingDayDao()
+    private val exerciseDao: ExerciseDao = database.exerciseDao()
+    private val definitionDao: ExerciseDefinitionDao = database.exerciseDefinitionDao()
+    private val weightLogDao: WeightLogDao = database.weightLogDao()
+    private val sessionDao: WorkoutSessionDao = database.workoutSessionDao()
 
     val selectedDayId: Flow<Int> = settingsStore.selectedDayId
 
@@ -70,7 +74,6 @@ class TrainingRepository(
 
     // --- Einstellungen -----------------------------------------------------
 
-    val bodyweightKg: Flow<Double?> = settingsStore.bodyweightKg
     val deloadCycleWeeks: Flow<Int> = settingsStore.deloadCycleWeeks
     val appTitle: Flow<String> = settingsStore.appTitle
 
@@ -112,20 +115,13 @@ class TrainingRepository(
     suspend fun renameDay(dayId: Int, name: String) = dayDao.updateName(dayId, name)
 
     /**
-     * Setzt das Körpergewicht. Weil damit auch die Last aller Körpergewichtsübungen steigt
-     * oder fällt, bekommen diese einen neuen Verlaufseintrag – sonst zeigte der Graph eine
-     * Änderung, die nie stattgefunden hätte.
+     * Entfernt einen einzelnen Punkt aus dem Gewichtsverlauf.
+     *
+     * Nur der Verlauf ändert sich, nicht das eingetragene Gewicht der Übung: Der Punkt ist
+     * eine Aufzeichnung von damals, das Gewicht der Stand von heute. Wer das aktuelle Gewicht
+     * ändern will, tut das in der Trainingsliste.
      */
-    suspend fun setBodyweightKg(weightKg: Double?) {
-        val previous = settingsStore.bodyweightKg.first()
-        settingsStore.setBodyweightKg(weightKg)
-        if (weightKg == null || weightKg == previous) return
-        database.withTransaction {
-            definitionDao.listBodyweightExercises().forEach { definition ->
-                logWeight(definition.name, weightKg + (definition.weightKg ?: 0.0))
-            }
-        }
-    }
+    suspend fun deleteWeightLog(id: Long) = weightLogDao.deleteById(id)
 
     suspend fun setHiddenTrackingNames(names: Set<String>) =
         settingsStore.setHiddenTrackingNames(names)
@@ -143,14 +139,13 @@ class TrainingRepository(
     suspend fun deleteExercisesEverywhere(names: Collection<String>) {
         if (names.isEmpty()) return
         database.withTransaction {
-            val affectedDays = mutableSetOf<Int>()
-            names.forEach { name ->
-                affectedDays += exerciseDao.listDayIdsForName(name)
-                exerciseDao.deleteByName(name)
-                definitionDao.deleteByName(name)
-                weightLogDao.deleteByName(name)
-            }
-            affectedDays.forEach { normalizeSupersets(it) }
+            // Alle Namen in einem Rutsch statt vier Abfragen je Übung – aus der Verwaltung
+            // kommt hier gern ein Dutzend Namen auf einmal an.
+            val affectedDays = exerciseDao.listDayIdsForNames(names)
+            exerciseDao.deleteByNames(names)
+            definitionDao.deleteByNames(names)
+            weightLogDao.deleteByNames(names)
+            affectedDays.distinct().forEach { normalizeSupersets(it) }
         }
         // Sonst blieben die Namen im Tracking ausgeblendet und später neu angelegte
         // Übungen gleichen Namens wären von Anfang an unsichtbar.
@@ -168,12 +163,16 @@ class TrainingRepository(
     suspend fun advanceDayIfNewDate(today: LocalDate = LocalDate.now()) {
         val epochDay = today.toEpochDay()
         if (settingsStore.lastDayAdvance() >= epochDay) return
-        settingsStore.setLastDayAdvance(epochDay)
 
-        val latest = sessionDao.latest() ?: return
+        val latest = sessionDao.latest()
         // Am Tag des Trainings selbst bleibt die Ansicht stehen.
-        if (!latest.completedAt.toLocalDate().isBefore(today)) return
-        settingsStore.setSelectedDayId(nextDayId(latest.dayId, settingsStore.dayCount.first()))
+        if (latest != null && latest.completedAt.toLocalDate().isBefore(today)) {
+            settingsStore.setSelectedDayId(nextDayId(latest.dayId, settingsStore.dayCount.first()))
+        }
+        // Erst hinterher vermerken: Bricht der Vorgang vorher ab – Prozess beendet, Coroutine
+        // abgebrochen –, wäre der Tag sonst als erledigt markiert, ohne dass etwas geschah,
+        // und die App bliebe bis morgen auf dem falschen Trainingstag stehen.
+        settingsStore.setLastDayAdvance(epochDay)
     }
 
     suspend fun selectDay(dayId: Int) = settingsStore.setSelectedDayId(dayId)
@@ -196,13 +195,8 @@ class TrainingRepository(
         sets: Int?,
         repsMin: Int?,
         repsMax: Int?,
-        progressionStepKg: Double,
-        usesBodyweight: Boolean
+        progressionStepKg: Double
     ) {
-        // Vor der Transaktion lesen: Die Einstellungen liegen in einer eigenen Datei, und
-        // solange darauf gewartet wird, bliebe die Schreibsperre der Datenbank unnötig offen.
-        val bodyweight = settingsStore.bodyweightKg.first()
-
         database.withTransaction {
             // Zuerst prüfen, ob es die zu ändernde Zeile überhaupt noch gibt – sonst bliebe
             // beim Abbruch eine schon geschriebene Definition samt Verlaufseintrag zurück.
@@ -214,16 +208,10 @@ class TrainingRepository(
                 ExerciseDefinition(
                     name = name,
                     weightKg = weightKg,
-                    progressionStepKg = progressionStepKg,
-                    usesBodyweight = usesBodyweight
+                    progressionStepKg = progressionStepKg
                 )
             )
-            // Auch das Umschalten auf Körpergewicht ändert die tatsächliche Last.
-            val newEffective = effectiveWeightKg(weightKg, usesBodyweight, bodyweight)
-            val oldEffective = previous?.let {
-                effectiveWeightKg(it.weightKg, it.usesBodyweight, bodyweight)
-            }
-            if (newEffective != null && newEffective != oldEffective) logWeight(name, newEffective)
+            if (weightKg != null && weightKg != previous?.weightKg) logWeight(name, weightKg)
 
             if (existing == null) {
                 exerciseDao.insert(
@@ -254,21 +242,12 @@ class TrainingRepository(
     }
 
     /**
-     * Setzt die eingetragene Last der Übung – an jedem Tag, an dem sie vorkommt. In den
-     * Verlauf wandert das tatsächliche Gewicht, bei Körpergewichtsübungen also samt Körpergewicht.
+     * Setzt die eingetragene Last der Übung – an jedem Tag, an dem sie vorkommt – und hält
+     * die Änderung im Verlauf fest.
      */
-    suspend fun setWeight(name: String, weightKg: Double) {
-        val bodyweight = settingsStore.bodyweightKg.first()
-        database.withTransaction {
-            definitionDao.updateWeight(name, weightKg)
-            val definition = definitionDao.find(name)
-            val effective = effectiveWeightKg(
-                weightKg = weightKg,
-                usesBodyweight = definition?.usesBodyweight == true,
-                bodyweightKg = bodyweight
-            )
-            if (effective != null) logWeight(name, effective)
-        }
+    suspend fun setWeight(name: String, weightKg: Double) = database.withTransaction {
+        definitionDao.updateWeight(name, weightKg)
+        logWeight(name, weightKg)
     }
 
     /**
@@ -292,10 +271,17 @@ class TrainingRepository(
         items.map { it.dayId }.distinct().forEach { normalizeSupersets(it) }
     }
 
-    /** Stellt gelöschte Übungen mit ihrer ursprünglichen id, Position und Gewicht wieder her. */
+    /**
+     * Stellt gelöschte Übungen mit ihrer ursprünglichen id, Position und Gewicht wieder her.
+     *
+     * Die Definition wird nur angelegt, wenn sie beim Löschen als verwaist mit verschwunden
+     * ist. Stand die Übung noch an einem anderen Tag, lebt ihre Definition weiter – und ein
+     * Überschreiben nähme dort eine inzwischen erfolgte Gewichtserhöhung zurück, ohne den
+     * zugehörigen Verlaufseintrag mitzunehmen. Liste und Graph zeigten dann Verschiedenes.
+     */
     suspend fun restoreExercises(items: List<ExerciseItem>) = database.withTransaction {
         items.forEach { item ->
-            definitionDao.upsert(item.toDefinition())
+            definitionDao.insertIfAbsent(item.toDefinition())
             exerciseDao.insert(item.toExercise())
         }
         items.map { it.dayId }.distinct().forEach { normalizeSupersets(it) }

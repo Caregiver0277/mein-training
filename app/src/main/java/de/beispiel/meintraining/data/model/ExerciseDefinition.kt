@@ -14,10 +14,5 @@ import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 data class ExerciseDefinition(
     @PrimaryKey val name: String,
     val weightKg: Double? = null,
-    val progressionStepKg: Double = DEFAULT_PROGRESSION_STEP_KG,
-    /**
-     * Körpergewichtsübung: Zum eingetragenen Gewicht kommt das eigene Körpergewicht dazu.
-     * [weightKg] ist dann die Zusatzlast – bei Klimmzügen mit Gürtel etwa die Scheiben.
-     */
-    val usesBodyweight: Boolean = false
+    val progressionStepKg: Double = DEFAULT_PROGRESSION_STEP_KG
 )

@@ -19,15 +19,10 @@ enum class TimeRange {
     MANUAL_YEAR
 }
 
-/** Ein Messpunkt im Graphen. */
+/** Ein Messpunkt im Graphen – immer eine tatsächlich eingetragene Gewichtsänderung. */
 data class ChartPoint(
     val timeMillis: Long,
-    val weightKg: Double,
-    /**
-     * `true` für echte Gewichtsänderungen – nur die bekommen einen Punkt. Die Stützstellen
-     * am linken und rechten Rand dienen nur dazu, die Linie über den ganzen Zeitraum zu ziehen.
-     */
-    val isChange: Boolean
+    val weightKg: Double
 )
 
 /** Der Verlauf einer Übung. */
@@ -106,37 +101,31 @@ private fun forwardBuffer(span: Long): Long = (span * FORWARD_BUFFER_SHARE).toLo
 /**
  * Formt die Verlaufseinträge in Linien um.
  *
- * Jede Linie beginnt am linken Rand mit dem Gewicht, das dort galt (auch wenn die letzte
- * Änderung davor lag), und läuft mit dem aktuellen Gewicht bis zum rechten Rand – dazwischen
- * gerade Strecken von Änderung zu Änderung.
+ * Gezeichnet wird ausschließlich zwischen tatsächlich eingetragenen Änderungen: Die Linie
+ * beginnt beim ersten Punkt im Zeitraum und endet beim letzten. Bewusst keine Stützstellen
+ * an den Rändern – eine Linie, die bis zum Rand weiterläuft, behauptet Messpunkte, die es
+ * nicht gibt. Wo nichts eingetragen wurde, steht auch keine Linie.
+ *
+ * Eine Übung mit nur einem Punkt im Zeitraum bleibt sichtbar: Sie zeigt genau diesen einen
+ * Punkt, ohne Linie.
  */
 fun buildSeries(
     logs: List<WeightLog>,
     names: Collection<String>,
-    window: TimeWindow,
-    now: Long
+    window: TimeWindow
 ): List<ChartSeries> {
     val byName = logs.groupBy { it.exerciseName }
-    val rightEdge = minOf(window.endMillis, now)
 
     return names.sortedWith(String.CASE_INSENSITIVE_ORDER).mapNotNull { name ->
-        val entries = byName[name].orEmpty().sortedBy { it.recordedAt }
-        if (entries.isEmpty()) return@mapNotNull null
+        val inside = byName[name].orEmpty()
+            .filter { it.recordedAt in window.startMillis..window.endMillis }
+            .sortedBy { it.recordedAt }
+        if (inside.isEmpty()) return@mapNotNull null
 
-        val before = entries.lastOrNull { it.recordedAt < window.startMillis }
-        val inside = entries.filter { it.recordedAt in window.startMillis..window.endMillis }
-        if (before == null && inside.isEmpty()) return@mapNotNull null
-
-        val points = buildList {
-            if (before != null) add(ChartPoint(window.startMillis, before.weightKg, isChange = false))
-            inside.forEach { add(ChartPoint(it.recordedAt, it.weightKg, isChange = true)) }
-            val lastValue = inside.lastOrNull()?.weightKg ?: before?.weightKg
-            val lastTime = inside.lastOrNull()?.recordedAt ?: window.startMillis
-            if (lastValue != null && lastTime < rightEdge) {
-                add(ChartPoint(rightEdge, lastValue, isChange = false))
-            }
-        }
-        ChartSeries(name = name, points = points)
+        ChartSeries(
+            name = name,
+            points = inside.map { ChartPoint(it.recordedAt, it.weightKg) }
+        )
     }
 }
 

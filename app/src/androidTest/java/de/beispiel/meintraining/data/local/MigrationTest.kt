@@ -3,6 +3,7 @@ package de.beispiel.meintraining.data.local
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
+import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -10,6 +11,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -31,6 +33,12 @@ class MigrationTest {
 
     private val context: Context
         get() = InstrumentationRegistry.getInstrumentation().targetContext
+
+    @get:Rule
+    val helper = MigrationTestHelper(
+        InstrumentationRegistry.getInstrumentation(),
+        AppDatabase::class.java
+    )
 
     @Before
     fun setUp() {
@@ -128,10 +136,13 @@ class MigrationTest {
         }
 
         migrated { db ->
-            db.query("SELECT usesBodyweight FROM ExerciseDefinition WHERE name = 'Klimmzüge'")
+            // Gewicht und Schrittweite überstehen den ganzen Weg – auch das Entfernen der
+            // Körpergewichtsspalte in Fassung 6.
+            db.query("SELECT weightKg, progressionStepKg FROM ExerciseDefinition WHERE name = 'Klimmzüge'")
                 .use { cursor ->
                     assertTrue(cursor.moveToFirst())
-                    assertEquals(0, cursor.getInt(0))
+                    assertEquals(5.0, cursor.getDouble(0), TOLERANCE)
+                    assertEquals(2.5, cursor.getDouble(1), TOLERANCE)
                 }
             db.query("SELECT COUNT(*) FROM WorkoutSession").use { cursor ->
                 assertTrue(cursor.moveToFirst())
@@ -142,6 +153,46 @@ class MigrationTest {
                 assertTrue(cursor.isNull(0))
                 assertTrue(cursor.isNull(1))
             }
+        }
+    }
+
+    /**
+     * Körpergewichtsübungen fallen weg: Die Spalte verschwindet, Gewicht und Schrittweite
+     * bleiben. Für diesen Schritt gibt es exportierte Schemata, deshalb der direkte Weg über
+     * [MigrationTestHelper] statt über eine von Hand gebaute Datenbank.
+     */
+    @Test
+    fun dieKoerpergewichtsspalteFaelltWegOhneDatenZuVerlieren() {
+        helper.createDatabase(TEST_DB, 5).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO ExerciseDefinition (name, weightKg, progressionStepKg, usesBodyweight)
+                VALUES ('Klimmzüge', 7.5, 1.25, 1)
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO ExerciseDefinition (name, weightKg, progressionStepKg, usesBodyweight)
+                VALUES ('Bankdrücken', 60.0, 2.5, 0)
+                """.trimIndent()
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 6, true, *AppDatabase.MIGRATIONS)
+        db.use {
+            // Die Zusatzlast bleibt als Gewicht stehen; sie stand auch vorher schon so in
+            // der Trainingsliste.
+            it.query("SELECT name, weightKg, progressionStepKg FROM ExerciseDefinition ORDER BY name")
+                .use { cursor ->
+                    assertEquals(2, cursor.count)
+                    assertTrue(cursor.moveToFirst())
+                    assertEquals("Bankdrücken", cursor.getString(0))
+                    assertEquals(60.0, cursor.getDouble(1), TOLERANCE)
+                    assertTrue(cursor.moveToNext())
+                    assertEquals("Klimmzüge", cursor.getString(0))
+                    assertEquals(7.5, cursor.getDouble(1), TOLERANCE)
+                    assertEquals(1.25, cursor.getDouble(2), TOLERANCE)
+                }
         }
     }
 

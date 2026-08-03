@@ -26,7 +26,6 @@ data class TrainingUiState(
     val deload: DeloadStatus = DeloadStatus(),
     /** Selbst vergebene Überschrift; leer heißt: Vorgabe aus den Textressourcen. */
     val appTitle: String = "",
-    val editorForm: ExerciseForm? = null,
     /**
      * Das heutige Datum. Steht hier, statt in den Screens einzeln geholt zu werden, damit eine
      * über Nacht offen gebliebene App nicht bei gestern stehen bleibt: Das ViewModel schreibt
@@ -57,6 +56,12 @@ data class TrainingUiState(
  */
 data class ExerciseForm(
     val id: Long? = null,
+    /**
+     * Der Trainingstag, zu dem die Übung gehört – beim Öffnen des Sheets festgehalten, damit
+     * eine neue Übung auch dann dort landet, wo der Nutzer sie angelegt hat, wenn die Auswahl
+     * inzwischen weitergesprungen ist.
+     */
+    val dayId: Int = FIRST_DAY_ID,
     val name: String = "",
     val variation: String = "",
     /** Das Variationsfeld erscheint erst auf Wunsch – über das „+“ neben dem Namen. */
@@ -65,9 +70,7 @@ data class ExerciseForm(
     val sets: String = "",
     val repsMin: String = "",
     val repsMax: String = "",
-    val progressionStep: String = DEFAULT_PROGRESSION_STEP_KG.toDecimalString(),
-    /** Körpergewichtsübung: Das eingetragene Gewicht ist dann die Zusatzlast. */
-    val usesBodyweight: Boolean = false
+    val progressionStep: String = DEFAULT_PROGRESSION_STEP_KG.toDecimalString()
 ) {
     val isEditMode: Boolean get() = id != null
     val canSave: Boolean get() = name.isNotBlank()

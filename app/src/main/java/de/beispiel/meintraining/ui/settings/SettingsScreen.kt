@@ -114,7 +114,6 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         SettingsSection.OVERVIEW -> SettingsScreen(
             uiState = uiState,
             onAppTitleChange = viewModel::onAppTitleChange,
-            onBodyweightChange = viewModel::onBodyweightChange,
             onDeloadCycleChange = viewModel::onDeloadCycleChange,
             onManageDays = { section = SettingsSection.DAYS },
             onManageExercises = { section = SettingsSection.EXERCISES },
@@ -130,7 +129,6 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
 fun SettingsScreen(
     uiState: SettingsUiState,
     onAppTitleChange: (String) -> Unit,
-    onBodyweightChange: (String) -> Unit,
     onDeloadCycleChange: (String) -> Unit,
     onManageDays: () -> Unit,
     onManageExercises: () -> Unit,
@@ -159,13 +157,6 @@ fun SettingsScreen(
                     label = stringResource(R.string.settings_app_title),
                     supportingText = stringResource(R.string.settings_app_title_hint),
                     keyboardType = KeyboardType.Text
-                )
-                SettingsField(
-                    value = uiState.bodyweightKg?.toDecimalString().orEmpty(),
-                    onValueChange = onBodyweightChange,
-                    label = stringResource(R.string.settings_bodyweight),
-                    supportingText = stringResource(R.string.settings_bodyweight_hint),
-                    keyboardType = KeyboardType.Decimal
                 )
                 SettingsField(
                     value = uiState.deloadCycleWeeks.toString(),
@@ -819,12 +810,10 @@ private fun SettingsScreenPreview() {
                 days = (1..4).map { TrainingDay(it, "Tag $it") },
                 dayCount = 4,
                 appTitle = "",
-                bodyweightKg = 74.5,
                 deloadCycleWeeks = 6,
                 exercises = listOf(ManagedExercise("Bizep curls", 2, 4))
             ),
             onAppTitleChange = {},
-            onBodyweightChange = {},
             onDeloadCycleChange = {},
             onManageDays = {},
             onManageExercises = {},

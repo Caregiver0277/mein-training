@@ -39,7 +39,6 @@ data class SettingsUiState(
     val days: List<TrainingDay> = emptyList(),
     val dayCount: Int = DEFAULT_DAY_COUNT,
     val appTitle: String = "",
-    val bodyweightKg: Double? = null,
     val deloadCycleWeeks: Int = DEFAULT_DELOAD_CYCLE_WEEKS,
     val exercises: List<ManagedExercise> = emptyList()
 )
@@ -52,13 +51,16 @@ class SettingsViewModel(
 ) : ViewModel() {
 
     /**
-     * Tastendrücke landen nicht sofort in der Datenbank.
+     * Tastendrücke landen nicht sofort in der Datenbank – sonst schriebe jeder Buchstabe
+     * der Überschrift einen eigenen Stand fest.
      *
-     * Beim Körpergewicht ist das keine Frage der Sparsamkeit, sondern der Richtigkeit: Jede
-     * Änderung schreibt allen Körpergewichtsübungen einen Verlaufseintrag. Ohne diese Bremse
-     * hinterließe die Eingabe „74,5“ dauerhaft die Zwischenstände 7 kg und 74 kg im Graphen.
+     * Der Preis: Wer die App innerhalb der Wartezeit ganz verlässt, verliert den zuletzt
+     * getippten Stand, weil mit der Activity auch dieser Bereich endet. Innerhalb der App ist
+     * das ungefährlich – das ViewModel hängt an der Activity und überlebt den Weg zurück zum
+     * Hauptscreen. Ein Nachreichen beim Beenden gibt es bewusst nicht: Es liefe auf einen
+     * Schreibvorgang außerhalb jedes Gültigkeitsbereichs hinaus, und ein halber Titel ist
+     * kein Verlust, der das rechtfertigt.
      */
-    private val bodyweightInput = MutableStateFlow<String?>(null)
     private val titleInput = MutableStateFlow<String?>(null)
 
     /** Offene Umbenennungen je Tag – als Sammlung, damit zwei schnell nacheinander
@@ -72,11 +74,10 @@ class SettingsViewModel(
         repository.observeDays(),
         combine(
             repository.appTitle,
-            repository.bodyweightKg,
             repository.deloadCycleWeeks,
             repository.dayCount
-        ) { title, bodyweight, weeks, dayCount ->
-            GeneralSettings(title, bodyweight, weeks, dayCount)
+        ) { title, weeks, dayCount ->
+            GeneralSettings(title, weeks, dayCount)
         }
     ) { exercises, definitions, logs, days, general ->
         val historyCounts = logs.groupingBy { it.exerciseName }.eachCount()
@@ -91,7 +92,6 @@ class SettingsViewModel(
             days = days.filter { it.id <= general.dayCount },
             dayCount = general.dayCount,
             appTitle = general.title,
-            bodyweightKg = general.bodyweightKg,
             deloadCycleWeeks = general.cycleWeeks,
             exercises = names.map { name ->
                 ManagedExercise(
@@ -108,11 +108,6 @@ class SettingsViewModel(
     )
 
     init {
-        viewModelScope.launch {
-            bodyweightInput.filterNotNull().debounce(INPUT_DEBOUNCE_MILLIS).collect { input ->
-                repository.setBodyweightKg(parseOptionalDecimal(input)?.takeIf { it > 0.0 })
-            }
-        }
         viewModelScope.launch {
             titleInput.filterNotNull().debounce(INPUT_DEBOUNCE_MILLIS).collect {
                 repository.setAppTitle(it)
@@ -170,11 +165,6 @@ class SettingsViewModel(
         titleInput.value = title
     }
 
-    /** Leere oder unsinnige Eingaben löschen das Körpergewicht wieder. */
-    fun onBodyweightChange(input: String) {
-        bodyweightInput.value = input
-    }
-
     /**
      * Nimmt die Zykluslänge nur an, wenn sie schon im erlaubten Bereich liegt.
      *
@@ -191,7 +181,6 @@ class SettingsViewModel(
     /** Die Werte aus den Einstellungen, gebündelt für den zusammengesetzten Fluss. */
     private data class GeneralSettings(
         val title: String,
-        val bodyweightKg: Double?,
         val cycleWeeks: Int,
         val dayCount: Int
     )

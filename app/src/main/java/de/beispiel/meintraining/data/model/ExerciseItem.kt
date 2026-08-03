@@ -15,8 +15,7 @@ data class ExerciseItem(
     val position: Int,
     val supersetId: Long?,
     val weightKg: Double?,
-    val progressionStepKg: Double,
-    val usesBodyweight: Boolean = false
+    val progressionStepKg: Double
 ) {
     fun toExercise() = Exercise(
         id = id,
@@ -33,7 +32,6 @@ data class ExerciseItem(
     fun toDefinition() = ExerciseDefinition(
         name = name,
         weightKg = weightKg,
-        progressionStepKg = progressionStepKg,
-        usesBodyweight = usesBodyweight
+        progressionStepKg = progressionStepKg
     )
 }

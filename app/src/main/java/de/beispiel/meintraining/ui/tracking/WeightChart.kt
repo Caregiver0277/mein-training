@@ -32,7 +32,8 @@ import kotlin.math.roundToInt
 
 /**
  * Verlaufsgraph der Gewichte. Waagerechte Hilfslinien erleichtern das Ablesen, jede
- * Gewichtsänderung bekommt einen Punkt, dazwischen laufen gerade Strecken.
+ * Gewichtsänderung bekommt einen Punkt, dazwischen laufen gerade Strecken. Vor dem ersten
+ * und nach dem letzten Punkt einer Übung wird nichts gezeichnet.
  */
 @Composable
 fun WeightChart(
@@ -204,14 +205,13 @@ private fun DrawScope.drawSeries(
             )
         )
     }
-    line.points.forEachIndexed { index, point ->
-        if (point.isChange) {
-            drawCircle(
-                color = appearance.color,
-                radius = POINT_RADIUS.toPx(),
-                center = positions[index]
-            )
-        }
+    // Jeder Punkt ist eine eingetragene Änderung und wird auch als solcher gezeigt.
+    positions.forEach { position ->
+        drawCircle(
+            color = appearance.color,
+            radius = POINT_RADIUS.toPx(),
+            center = position
+        )
     }
 }
 

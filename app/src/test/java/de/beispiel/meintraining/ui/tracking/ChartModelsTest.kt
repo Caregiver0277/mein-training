@@ -65,32 +65,36 @@ class ChartModelsTest {
     // --- Linien ------------------------------------------------------------
 
     @Test
-    fun linieLaeuftBisZumRechtenRandWeiter() {
+    fun dieLinieEndetBeimLetztenPunkt() {
+        // Keine Stützstelle am rechten Rand: Wo nichts eingetragen wurde, läuft keine Linie.
         val logs = listOf(log("A", 20.0, 20), log("A", 22.5, 10))
         val window = timeWindowFor(TimeRange.MONTH_1, 2026, logs, NOW, ZONE)
 
-        val series = buildSeries(logs, listOf("A"), window, NOW).single()
+        val series = buildSeries(logs, listOf("A"), window).single()
 
-        assertEquals(3, series.points.size)
-        assertEquals(NOW, series.points.last().timeMillis)
+        assertEquals(2, series.points.size)
+        assertEquals(logs.last().recordedAt, series.points.last().timeMillis)
         assertEquals(22.5, series.points.last().weightKg, 0.0)
-        // Nur die beiden echten Änderungen bekommen einen Punkt.
-        assertEquals(2, series.points.count { it.isChange })
-        assertFalse(series.points.last().isChange)
     }
 
     @Test
-    fun aeltereAenderungTraegtDenLinkenRand() {
-        // Die letzte Änderung liegt vor dem Fenster: Die Linie muss trotzdem waagerecht laufen.
+    fun aeltereAenderungenVorDemFensterZaehlenNichtMehr() {
+        // Früher trug dieser Eintrag den linken Rand; jetzt gibt es im Fenster nichts zu zeigen.
         val logs = listOf(log("A", 40.0, 200))
         val window = timeWindowFor(TimeRange.MONTH_1, 2026, logs, NOW, ZONE)
 
-        val series = buildSeries(logs, listOf("A"), window, NOW).single()
+        assertTrue(buildSeries(logs, listOf("A"), window).isEmpty())
+    }
 
-        assertEquals(2, series.points.size)
-        assertEquals(window.startMillis, series.points.first().timeMillis)
-        assertTrue(series.points.all { it.weightKg == 40.0 })
-        assertEquals(0, series.points.count { it.isChange })
+    @Test
+    fun eineEinzelneAenderungBleibtAlsPunktSichtbar() {
+        val logs = listOf(log("A", 20.0, 5))
+        val window = timeWindowFor(TimeRange.MONTH_1, 2026, logs, NOW, ZONE)
+
+        val series = buildSeries(logs, listOf("A"), window).single()
+
+        assertEquals(1, series.points.size)
+        assertEquals(20.0, series.points.single().weightKg, 0.0)
     }
 
     @Test
@@ -98,7 +102,7 @@ class ChartModelsTest {
         val logs = listOf(log("A", 20.0, 5))
         val window = timeWindowFor(TimeRange.MONTH_1, 2026, logs, NOW, ZONE)
 
-        val series = buildSeries(logs, listOf("A", "B"), window, NOW)
+        val series = buildSeries(logs, listOf("A", "B"), window)
 
         assertEquals(listOf("A"), series.map { it.name })
     }

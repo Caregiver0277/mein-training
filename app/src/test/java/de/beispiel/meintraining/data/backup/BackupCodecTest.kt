@@ -24,14 +24,13 @@ private fun sampleBackup() = BackupFile(
         BackupExercise(id = 8, dayId = 1, name = "Dehnen", position = 1)
     ),
     definitions = listOf(
-        BackupDefinition("Bankdrücken", 60.0, 2.5, usesBodyweight = false),
-        BackupDefinition("Klimmzüge", null, 1.25, usesBodyweight = true)
+        BackupDefinition("Bankdrücken", 60.0, 2.5),
+        BackupDefinition("Klimmzüge", null, 1.25)
     ),
     weightLogs = listOf(BackupWeightLog("Bankdrücken", 57.5, 1_750_000_000_000L)),
     sessions = listOf(BackupSession(dayId = 2, completedAt = 1_752_000_000_000L)),
     settings = BackupSettings(
         appTitle = "PPL",
-        bodyweightKg = 78.5,
         deloadCycleWeeks = 6,
         dayCount = 2,
         selectedDayId = 2,
@@ -53,7 +52,7 @@ class BackupCodecTest {
         val original = BackupFile(createdAt = 0L)
         val restored = BackupCodec.decode(BackupCodec.encode(original))
         assertEquals(emptyList<BackupExercise>(), restored.exercises)
-        assertNull(restored.settings.bodyweightKg)
+        assertNull(restored.settings.dayCount)
         assertEquals("", restored.settings.appTitle)
     }
 
@@ -98,7 +97,7 @@ class BackupCodecTest {
 
     @Test
     fun doppelteUebungsdatenWerdenAbgelehnt() {
-        val duplicate = BackupDefinition("Bankdrücken", 40.0, 2.5, usesBodyweight = false)
+        val duplicate = BackupDefinition("Bankdrücken", 40.0, 2.5)
         assertRejected(BackupCodec.encode(sampleBackup().let {
             it.copy(definitions = it.definitions + duplicate)
         }))
