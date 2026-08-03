@@ -35,7 +35,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -204,62 +203,70 @@ private fun TrainingContent(
 ) {
     val listState = rememberLazyListState()
 
-    // Eigene Kopie der Liste: Sie wird beim Ziehen sofort umsortiert, ohne auf die
-    // Datenbank zu warten – nur so folgen die Karten dem Finger ruckelfrei.
-    val visibleExercises = remember { mutableStateListOf<ExerciseItem>() }
-
     /**
-     * Steht auf `true`, solange die eigene Sortierung vom Ablegen noch nicht aus der Datenbank
-     * zurückgekommen ist. Nur in dieser Zeit darf die lokale Reihenfolge die eingehende
-     * überstimmen.
+     * Reihenfolge, die die Oberfläche selbst gesetzt hat: beim Ziehen und danach, bis die
+     * Datenbank sie bestätigt. `null` heißt, es gilt unverändert, was von dort kommt.
+     *
+     * Nur die *Reihenfolge* wird vorgemerkt, nicht die Zeilen selbst. Eine eigene Kopie der
+     * Liste müsste in einem Effekt nachgezogen werden, und Effekte laufen erst im nächsten
+     * Frame – der angetippte Reiter leuchtete dann eine Bildwiederholung vor der zugehörigen
+     * Übungsliste auf. So wird die Anzeige direkt beim Zusammensetzen abgeleitet und der
+     * Tageswechsel geschieht in einem Zug.
      */
-    var awaitingReorderEcho by remember { mutableStateOf(false) }
+    var pendingOrder by remember { mutableStateOf<List<Long>?>(null) }
+
+    val exercises = remember(uiState.exercises, pendingOrder) {
+        val order = pendingOrder
+        val byId = uiState.exercises.associateBy { it.id }
+        // Passt die Vormerkung nicht mehr zum Bestand – anderer Tag, gelöschte oder neue
+        // Zeile –, gilt sofort wieder die Datenbank.
+        if (order != null && order.size == byId.size && byId.keys.containsAll(order)) {
+            order.map { byId.getValue(it) }
+        } else {
+            uiState.exercises
+        }
+    }
 
     val dragDropState = rememberDragDropState(
         lazyListState = listState,
-        itemCount = visibleExercises.size,
-        onMove = { from, to -> visibleExercises.add(to, visibleExercises.removeAt(from)) },
-        onMoveFinished = {
-            awaitingReorderEcho = true
-            actions.onReorder(visibleExercises.map { it.id })
-        }
+        itemCount = exercises.size,
+        onMove = { from, to ->
+            val moved = (pendingOrder ?: exercises.map { it.id }).toMutableList()
+            moved.add(to, moved.removeAt(from))
+            pendingOrder = moved
+        },
+        onMoveFinished = { pendingOrder?.let { actions.onReorder(it) } }
     )
     val isDragging = dragDropState.draggingItemIndex != null
 
+    /**
+     * Räumt die Vormerkung weg, sobald sie erledigt ist – entweder bestätigt, weil die
+     * Datenbank dieselbe Reihenfolge liefert, oder überholt, weil ganz andere Zeilen kommen.
+     *
+     * Dieser Effekt entscheidet bewusst nicht mehr, *was* angezeigt wird; er hält nur auf,
+     * dass die Vormerkung ewig stehen bleibt.
+     */
     LaunchedEffect(uiState.exercises, isDragging) {
         if (isDragging) return@LaunchedEffect
-        val incoming = uiState.exercises
-        val incomingIds = incoming.map { it.id }
-        val visibleIds = visibleExercises.map { it.id }
-        if (awaitingReorderEcho && incomingIds.toSet() == visibleIds.toSet()) {
-            // Unser eigenes Echo, nur mit noch alter Reihenfolge: Nach dem Ablegen liefert Room
-            // die neue Sortierung erst verzögert nach. Die lokale bleibt deshalb stehen (sonst
-            // springt die Liste kurz zurück), nur die Inhalte werden aktualisiert.
-            val byId = incoming.associateBy { it.id }
-            visibleExercises.indices.forEach { index ->
-                val updated = byId[visibleExercises[index].id] ?: return@forEach
-                if (updated != visibleExercises[index]) visibleExercises[index] = updated
-            }
-            if (incomingIds == visibleIds) awaitingReorderEcho = false
-        } else {
-            // Alles andere kommt vollständig an: anderer Tag, neue oder gelöschte Übung – aber
-            // auch eine Umsortierung aus anderer Quelle. Ein Superset rückt seine Mitglieder
-            // beim Anlegen zusammen, ohne dass sich die Menge der Zeilen ändert; verglichen man
-            // nur die Kennungen, bliebe die alte Reihenfolge stehen und der graue Kasten zerfiele
-            // in zwei Hälften um Zeilen, die gar nicht nebeneinanderliegen.
-            awaitingReorderEcho = false
-            visibleExercises.clear()
-            visibleExercises.addAll(incoming)
-        }
+        val order = pendingOrder ?: return@LaunchedEffect
+        val incomingIds = uiState.exercises.map { it.id }
+        if (incomingIds == order || incomingIds.toSet() != order.toSet()) pendingOrder = null
+    }
+
+    // Beim Tageswechsel oben anfangen: Sonst übernähme die Liste des neuen Tages die
+    // Scrollposition des alten und man landete mitten darin.
+    LaunchedEffect(uiState.selectedDayId) {
+        listState.scrollToItem(0)
     }
 
     // Sortieren ohne Ziehen – für TalkBack und andere Bedienhilfen.
     val moveUpLabel = stringResource(R.string.action_move_up)
     val moveDownLabel = stringResource(R.string.action_move_down)
     val moveAndSave: (Int, Int) -> Unit = { from, to ->
-        visibleExercises.add(to, visibleExercises.removeAt(from))
-        awaitingReorderEcho = true
-        actions.onReorder(visibleExercises.map { it.id })
+        val moved = (pendingOrder ?: exercises.map { it.id }).toMutableList()
+        moved.add(to, moved.removeAt(from))
+        pendingOrder = moved
+        actions.onReorder(moved)
     }
 
     Column(
@@ -297,19 +304,17 @@ private fun TrainingContent(
 
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             itemsIndexed(
-                items = visibleExercises,
+                items = exercises,
                 key = { _, exercise -> exercise.id }
             ) { index, exercise ->
                 val isSelected = exercise.id in uiState.selectedIds
                 DraggableItem(state = dragDropState, index = index) { itemIsDragging ->
-                    // Nur die drei Kennungen statt der ganzen Liste: Ein Lesezugriff auf ein
-                    // Element einer SnapshotStateList meldet sich an der *ganzen* Liste an,
-                    // jede Änderung setzte damit sämtliche Zeilen neu zusammen – beim Ziehen
-                    // also bei jedem Platzwechsel alle statt der beiden betroffenen.
+                    // Nur die drei Kennungen statt der ganzen Liste, damit eine Zeile an drei
+                    // Werten hängt und nicht an jeder Änderung irgendwo in der Liste.
                     SupersetContainer(
                         supersetId = exercise.supersetId,
-                        previousSupersetId = visibleExercises.getOrNull(index - 1)?.supersetId,
-                        nextSupersetId = visibleExercises.getOrNull(index + 1)?.supersetId
+                        previousSupersetId = exercises.getOrNull(index - 1)?.supersetId,
+                        nextSupersetId = exercises.getOrNull(index + 1)?.supersetId
                     ) {
                         ExerciseRow(
                             name = exerciseTitle(exercise.name, exercise.variation),
@@ -344,7 +349,7 @@ private fun TrainingContent(
                                             }
                                         )
                                     }
-                                    if (index < visibleExercises.lastIndex) {
+                                    if (index < exercises.lastIndex) {
                                         add(
                                             CustomAccessibilityAction(moveDownLabel) {
                                                 moveAndSave(index, index + 1)
