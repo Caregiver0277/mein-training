@@ -66,14 +66,16 @@ class TrainingViewModel(
      *
      * `shareIn` statt `stateIn` aus demselben Grund wie bei [sessions]: Ein leerer Anfangswert
      * ließe die Liste beim Öffnen für einen Frame leer erscheinen.
+     *
+     * Geschnitten wird erst unten in [uiState], nicht hier in einem eigenen Zufluss. Hinge der
+     * ausgewählte Tag an zwei Zweigen – einem für die Reiter, einem für die Liste –, käme jeder
+     * für sich beim Zusammenlegen an: `combine` sendet bei *jeder* Änderung eines Zuflusses.
+     * Ein Tippen ergäbe dann zwei Zustände nacheinander, den ersten mit dem neuen Tag und noch
+     * der alten Liste. Genau das sieht man als Nachziehen der Übungen unter einem schon
+     * umgesprungenen Reiter.
      */
     private val allExercises = repository.observeAllExercises()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
-
-    // `observeAll` sortiert bereits nach Tag, Position und id – das Filtern erhält die Reihenfolge.
-    private val exercises = combine(allExercises, repository.selectedDayId) { all, dayId ->
-        all.filter { it.dayId == dayId }
-    }
 
     // Dauerhaft aktiv, weil das Formular die geteilten Werte beim Tippen sofort braucht.
     private val definitions = repository.observeDefinitions()
@@ -169,11 +171,15 @@ class TrainingViewModel(
 
     val uiState = combine(
         dayState,
-        exercises,
+        allExercises,
         definitions,
         selectedIds,
         surroundings
-    ) { day, exerciseList, definitionList, selection, around ->
+    ) { day, all, definitionList, selection, around ->
+        // Tag und zugehörige Liste entstehen hier gemeinsam aus *einer* Aussendung – nur so
+        // springen Reiter und Übungen im selben Frame um.
+        // `observeAll` sortiert bereits nach Tag, Position und id; das Filtern erhält das.
+        val exerciseList = all.filter { it.dayId == day.selectedDayId }
         // Über die eingestellte Anzahl hinausgehende Tage bleiben in der Datenbank stehen,
         // werden aber nicht angezeigt – so ist eine verkürzte Runde jederzeit umkehrbar.
         val visibleDays = day.days.filter { it.id <= around.dayCount }

@@ -1,6 +1,5 @@
 package de.beispiel.meintraining.ui.components
 
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Box
@@ -224,20 +223,16 @@ fun Modifier.draggableItem(state: DragDropState, key: Any, index: Int): Modifier
 }
 
 /**
- * Ein- und Ausblenden beim Tageswechsel.
- *
- * `animateItem` blendet von Haus aus mit `spring(stiffness = StiffnessMediumLow)` ein und aus;
- * eine solche Feder braucht bis zur Ruhe rund vier Zehntelsekunden. Beim Umschalten des Tages
- * wechseln *alle* Schlüssel, also blendet die komplette Liste so lange über – das Umschalten
- * wirkt dadurch träge, obwohl die Daten längst da sind. Ein kurzes `tween` macht daraus einen
- * sauberen Schnitt, der die Bewegung noch erkennen lässt.
- */
-private val ItemFadeIn = tween<Float>(durationMillis = 110)
-private val ItemFadeOut = tween<Float>(durationMillis = 70)
-
-/**
  * Hülle für einen Listeneintrag: der gezogene Eintrag folgt dem Finger und liegt über den
  * anderen, alle übrigen wechseln ihre Plätze animiert.
+ *
+ * Ein- und Ausblenden sind bewusst abgeschaltet. `animateItem` blendet sonst mit
+ * `spring(stiffness = StiffnessMediumLow)` – rund vier Zehntelsekunden bis zur Ruhe. Beim
+ * Tageswechsel wechseln *alle* Schlüssel, die komplette Liste blendete also jedes Mal über;
+ * der neue Tag soll aber einfach da sein und nicht erst erscheinen.
+ *
+ * Der Platzwechsel bleibt bei der Feder: Beim Umsortieren sollen die Karten weich
+ * auseinanderrücken – das ist keine Wartezeit, sondern die Rückmeldung selbst.
  */
 @Composable
 fun LazyItemScope.DraggableItem(
@@ -251,9 +246,7 @@ fun LazyItemScope.DraggableItem(
             .zIndex(1f)
             .graphicsLayer { translationY = state.draggingItemOffset }
     } else {
-        // Der Platzwechsel bleibt bei der Feder: Beim Umsortieren sollen die Karten weich
-        // auseinanderrücken, das ist keine Wartezeit, sondern die Rückmeldung selbst.
-        Modifier.animateItem(fadeInSpec = ItemFadeIn, fadeOutSpec = ItemFadeOut)
+        Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)
     }
     Box(modifier = modifier) { content(isDragging) }
 }

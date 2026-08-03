@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -201,7 +201,12 @@ private fun TrainingContent(
     onDestinationClick: (MenuDestination) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val listState = rememberLazyListState()
+    // Je Tag ein eigener Listenzustand, schon beim Zusammensetzen angelegt: Der neue Tag steht
+    // damit vom ersten Frame an oben. Ein nachträgliches Scrollen im Effekt käme erst einen
+    // Frame später und die Liste spränge sichtbar von der alten Position nach oben.
+    val listState = rememberSaveable(uiState.selectedDayId, saver = LazyListState.Saver) {
+        LazyListState()
+    }
 
     /**
      * Reihenfolge, die die Oberfläche selbst gesetzt hat: beim Ziehen und danach, bis die
@@ -251,12 +256,6 @@ private fun TrainingContent(
         val order = pendingOrder ?: return@LaunchedEffect
         val incomingIds = uiState.exercises.map { it.id }
         if (incomingIds == order || incomingIds.toSet() != order.toSet()) pendingOrder = null
-    }
-
-    // Beim Tageswechsel oben anfangen: Sonst übernähme die Liste des neuen Tages die
-    // Scrollposition des alten und man landete mitten darin.
-    LaunchedEffect(uiState.selectedDayId) {
-        listState.scrollToItem(0)
     }
 
     // Sortieren ohne Ziehen – für TalkBack und andere Bedienhilfen.

@@ -238,8 +238,12 @@ class TrainingRepository(
      * Für Aktionen, die ihn sofort brauchen – abhaken, sortieren, Superset bilden. Der Umweg
      * über den angezeigten Zustand wäre falsch: Der wird erst eine Runde später nachgezogen,
      * und direkt nach einem Tageswechsel steht dort noch der vorige Tag.
+     *
+     * Liegt eine Auswahl aus dieser Sitzung vor, kommt sie ohne Umweg aus dem Speicher; nur
+     * beim allerersten Zugriff wird überhaupt in den Einstellungen nachgesehen.
      */
-    suspend fun currentSelectedDay(): Int = selectedDayId.first()
+    suspend fun currentSelectedDay(): Int =
+        selectedDayOverride.value ?: settingsStore.selectedDayId.first()
 
     suspend fun findExercise(id: Long): ExerciseItem? = exerciseDao.findById(id)
 
