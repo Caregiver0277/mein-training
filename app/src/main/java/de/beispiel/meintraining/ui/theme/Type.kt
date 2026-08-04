@@ -40,6 +40,14 @@ object AppTextStyles {
         fontSize = 13.sp
     )
 
+    /** Restzeit der Pausenuhren – groß genug, um sie zwischen zwei Sätzen zu erfassen. */
+    val Timer = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 18.sp,
+        letterSpacing = 0.5.sp
+    )
+
     val Body = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,

@@ -56,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.beispiel.meintraining.R
+import de.beispiel.meintraining.data.local.RestTimer
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.ui.ExerciseForm
@@ -81,6 +82,8 @@ import de.beispiel.meintraining.ui.theme.SupersetBackground
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.settings.SettingsRoute
 import de.beispiel.meintraining.ui.stats.StatsRoute
+import de.beispiel.meintraining.ui.timer.RestTimerBar
+import de.beispiel.meintraining.ui.timer.RestTimerRoute
 import de.beispiel.meintraining.ui.tracking.TrackingRoute
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.deloadSets
@@ -199,7 +202,13 @@ private fun TrainingContent(
     unit: String,
     actions: TrainingActions,
     onDestinationClick: (MenuDestination) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * Die Pausenuhren als Platzhalter statt fest verdrahtet: Sie bringen ihr eigenes ViewModel
+     * mit, das es in der Vorschau nicht gibt. So kann die Vorschau stattdessen die reine
+     * Darstellung einsetzen.
+     */
+    restTimers: @Composable () -> Unit = { RestTimerRoute() }
 ) {
     // Je Tag ein eigener Listenzustand, schon beim Zusammensetzen angelegt: Der neue Tag steht
     // damit vom ersten Frame an oben. Ein nachträgliches Scrollen im Effekt käme erst einen
@@ -296,6 +305,9 @@ private fun TrainingContent(
             selectedDayId = uiState.selectedDayId,
             onDaySelected = actions.onDaySelected
         )
+
+        Spacer(modifier = Modifier.height(Dimens.SectionSpacingMedium))
+        restTimers()
 
         Spacer(modifier = Modifier.height(Dimens.SectionSpacingLarge))
         ColumnHeaderRow()
@@ -646,7 +658,18 @@ private fun TrainingContentPreview() {
             ),
             unit = "Kg",
             actions = TrainingActions(),
-            onDestinationClick = {}
+            onDestinationClick = {},
+            restTimers = {
+                RestTimerBar(
+                    timers = listOf(
+                        RestTimer(durationSeconds = 90),
+                        RestTimer(durationSeconds = 180)
+                    ),
+                    onToggle = {},
+                    onReset = {},
+                    onDurationChange = { _, _ -> }
+                )
+            }
         )
     }
 }

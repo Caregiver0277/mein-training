@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.util
 
+import de.beispiel.meintraining.data.local.SECONDS_PER_MINUTE
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.time.Instant
@@ -77,6 +78,17 @@ fun Int?.toSetsRepsLabel(repsMin: Int?, repsMax: Int?): String? {
         else -> null
     }
     return if (reps == null) sets.toString() else "$sets$SETS_REPS_SEPARATOR$reps"
+}
+
+/**
+ * Restzeit einer Pausenuhr: `90 → "1:30"`, `45 → "0:45"`, `600 → "10:00"`.
+ *
+ * Die Minuten bleiben einstellig, solange sie es sind – eine führende Null sähe nach Stunden
+ * aus, und länger als eine Stunde dauert keine Satzpause.
+ */
+fun formatRestTime(totalSeconds: Int): String {
+    val safe = totalSeconds.coerceAtLeast(0)
+    return "${safe / SECONDS_PER_MINUTE}:${(safe % SECONDS_PER_MINUTE).toString().padStart(2, '0')}"
 }
 
 // Eingelesen wird in `Parsing.kt`: Hier geht es darum, wie ein Wert aussieht, dort darum,

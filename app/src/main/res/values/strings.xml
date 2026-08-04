@@ -56,6 +56,16 @@
         <item quantity="other">%1$d ausgewählt</item>
     </plurals>
 
+    <!-- Pausenuhren -->
+    <string name="timer_start">Pause starten</string>
+    <string name="timer_pause">Pause anhalten</string>
+    <string name="timer_reset">Zurücksetzen</string>
+    <string name="timer_configure">Dauer einstellen</string>
+    <string name="timer_config_title">Pausenuhr einstellen</string>
+    <string name="timer_minutes">Minuten</string>
+    <string name="timer_seconds">Sekunden</string>
+    <string name="timer_config_hint">Kurzer Druck auf den Knopf startet und hält an, langer Druck setzt zurück. Ist die Pause um, vibriert das Handy zweimal – auch bei geschlossener App.</string>
+
     <!-- Tracking -->
     <string name="tracking_pick_exercises">Übungen auswählen</string>
     <string name="tracking_show_all">Alle anzeigen</string>

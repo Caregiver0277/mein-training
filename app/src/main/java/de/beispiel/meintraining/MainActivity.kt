@@ -2,11 +2,14 @@ package de.beispiel.meintraining
 
 import android.graphics.Color
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.animation.AccelerateInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
@@ -23,6 +26,28 @@ class MainActivity : ComponentActivity() {
     private val viewModel: TrainingViewModel by viewModels { TrainingViewModel.Factory }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Muss vor super.onCreate stehen: Der Aufruf schaltet das Startbild-Theme der Activity
+        // auf das eigentliche App-Theme um, bevor das Fenster aufgebaut wird.
+        installSplashScreen().apply {
+            val shownSince = SystemClock.uptimeMillis()
+            // Ohne Mindestdauer wäre das Bild nach dem ersten gezeichneten Frame wieder weg –
+            // bei dieser App sind das je nach Gerät unter 200 ms, zu kurz, um es zu erkennen.
+            setKeepOnScreenCondition {
+                SystemClock.uptimeMillis() - shownSince < SPLASH_MIN_MILLIS
+            }
+            // Statt hartem Umschalten: Das Bild wächst leicht und blendet weg.
+            setOnExitAnimationListener { splash ->
+                splash.view.animate()
+                    .alpha(0f)
+                    .scaleX(SPLASH_EXIT_SCALE)
+                    .scaleY(SPLASH_EXIT_SCALE)
+                    .setDuration(SPLASH_EXIT_MILLIS)
+                    .setInterpolator(AccelerateInterpolator())
+                    .withEndAction { splash.remove() }
+                    .start()
+            }
+        }
+
         // Systemleisten transparent und dauerhaft im dunklen Stil
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -74,5 +99,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private companion object {
+        const val SPLASH_MIN_MILLIS = 1_000L
+        const val SPLASH_EXIT_MILLIS = 320L
+        const val SPLASH_EXIT_SCALE = 1.15f
     }
 }

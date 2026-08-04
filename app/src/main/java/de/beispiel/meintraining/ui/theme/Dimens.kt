@@ -19,6 +19,12 @@ object Dimens {
     val TabHeight = 36.dp
     val TabSpacing = 8.dp
 
+    // Pausenuhren
+    val TimerBoxHeight = 48.dp
+    val TimerBoxPadding = 6.dp
+    val TimerButtonSize = 36.dp
+    val TimerIconSize = 20.dp
+
     // Übungskarte
     val CardHeight = 56.dp
     val CardSpacing = 8.dp

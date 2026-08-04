@@ -3,6 +3,7 @@ package de.beispiel.meintraining
 import android.app.Application
 import de.beispiel.meintraining.data.backup.BackupRepository
 import de.beispiel.meintraining.data.local.AppDatabase
+import de.beispiel.meintraining.data.local.RestTimerStore
 import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.CurrentDate
@@ -14,6 +15,9 @@ class MeinTrainingApp : Application() {
 
     /** Auch der Sicherungs-Worker greift darauf zu, deshalb nicht privat. */
     val settingsStore by lazy { SettingsStore(this) }
+
+    /** Dauer und Lauf-Zustand der beiden Pausenuhren über der Übungsliste. */
+    val restTimerStore by lazy { RestTimerStore(this) }
 
     /**
      * Gemeinsames „heute“ für Training, Statistik und Tracking – siehe [CurrentDate].
