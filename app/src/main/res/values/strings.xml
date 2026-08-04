@@ -175,8 +175,7 @@
 
     <!-- Training abhaken -->
     <string name="cd_complete_workout">Training abhaken</string>
-    <string name="cd_workout_completed">Training bereits abgehakt</string>
-    <string name="snackbar_workout_completed">Training eingetragen</string>
+    <string name="cd_workout_completed">Training abgehakt – zum Zurücknehmen tippen</string>
 
     <!-- Verlauf -->
     <string name="history_empty">Noch kein Training abgehakt. Der grüne Haken unter der Liste trägt es ein.</string>

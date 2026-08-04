@@ -239,19 +239,22 @@ class TrainingViewModel(
     // --- Training abhaken --------------------------------------------------
 
     /**
-     * Trägt das Training des aktuellen Tages in den Verlauf ein.
+     * Hakt das Training des aktuellen Tages ab – und beim zweiten Tippen wieder zurück.
      *
-     * Pro Runde geht das nur einmal je Tag. Erst „Rückgängig“ oder das Löschen im Verlauf
-     * gibt den Haken wieder frei.
+     * Der Haken ist damit sein eigenes „Rückgängig“. Das ersetzt die frühere Meldung am
+     * unteren Rand, die sich genau über den Knopf schob und dessen Effekt verdeckte.
+     * Pro Runde bleibt es bei einem Eintrag je Tag.
      */
-    fun onCompleteWorkout() {
+    fun onToggleWorkoutCompleted() {
         viewModelScope.launch {
             // Der Tag kommt aus dem Repository, nicht aus dem angezeigten Zustand: Wer den
             // Reiter wechselt und sofort abhakt, träfe sonst noch das vorige Training.
             val dayId = repository.currentSelectedDay()
-            if (dayId in uiState.value.completedDayIds) return@launch
-            val sessionId = repository.completeWorkout(dayId)
-            eventChannel.send(TrainingEvent.WorkoutCompleted(sessionId))
+            if (dayId in uiState.value.completedDayIds) {
+                repository.uncompleteWorkout(dayId)
+            } else {
+                repository.completeWorkout(dayId)
+            }
         }
     }
 
@@ -428,8 +431,6 @@ class TrainingViewModel(
                     repository.revertWeight(event.exerciseName, event.previousWeightKg)
                 is TrainingEvent.ExercisesDeleted ->
                     repository.restoreExercises(event.exercises)
-                is TrainingEvent.WorkoutCompleted ->
-                    repository.deleteSession(event.sessionId)
             }
         }
     }

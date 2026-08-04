@@ -136,8 +136,6 @@ fun TrainingScreen(
                         event.exercises.size
                     )
                 }
-                is TrainingEvent.WorkoutCompleted ->
-                    context.getString(R.string.snackbar_workout_completed)
             }
             val result = snackbarHostState.showSnackbar(
                 message = message,
@@ -385,7 +383,7 @@ private fun TrainingContent(
             // Haken und „+“ scrollen als letztes Listenelement mit.
             item {
                 ListActionButtons(
-                    onCompleteWorkout = actions.onCompleteWorkout,
+                    onToggleWorkoutCompleted = actions.onToggleWorkoutCompleted,
                     onAddExercise = actions.onAddClick,
                     isCompleted = uiState.isSelectedDayCompleted,
                     modifier = Modifier.padding(bottom = Dimens.ListBottomPadding)

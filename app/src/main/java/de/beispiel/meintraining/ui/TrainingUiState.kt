@@ -62,7 +62,7 @@ data class TrainingUiState(
 data class TrainingActions(
     val onDaySelected: (Int) -> Unit = {},
     val onAddClick: () -> Unit = {},
-    val onCompleteWorkout: () -> Unit = {},
+    val onToggleWorkoutCompleted: () -> Unit = {},
     val onExerciseClick: (ExerciseItem) -> Unit = {},
     val onExerciseLongClick: (ExerciseItem) -> Unit = {},
     val onSelectionToggle: (ExerciseItem) -> Unit = {},
@@ -121,7 +121,7 @@ sealed interface TrainingEvent {
 
     /** Übungen wurden gelöscht; die Kopien erlauben das Wiederherstellen. */
     data class ExercisesDeleted(val exercises: List<ExerciseItem>) : TrainingEvent
-
-    /** Training wurde abgehakt; [sessionId] erlaubt das Zurücknehmen. */
-    data class WorkoutCompleted(val sessionId: Long) : TrainingEvent
 }
+
+// Das Abhaken meldet sich hier bewusst nicht: Es nimmt sich selbst zurück, indem man den
+// Haken erneut antippt – siehe [TrainingViewModel.onToggleWorkoutCompleted].

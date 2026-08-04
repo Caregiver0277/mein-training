@@ -28,6 +28,22 @@ interface WorkoutSessionDao {
     @Query("DELETE FROM WorkoutSession WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    /**
+     * Nimmt das jüngste Abhaken eines Trainingstages zurück.
+     *
+     * Der Umweg über die Unterabfrage ist nötig, weil SQLite `DELETE … ORDER BY … LIMIT` nur
+     * mit einer Übersetzungsoption kennt, auf die sich hier niemand verlassen soll.
+     */
+    @Query(
+        """
+        DELETE FROM WorkoutSession WHERE id = (
+            SELECT id FROM WorkoutSession WHERE dayId = :dayId
+            ORDER BY completedAt DESC, id DESC LIMIT 1
+        )
+        """
+    )
+    suspend fun deleteLatestForDay(dayId: Int)
+
     /** Nur für das vollständige Zurücksetzen der App. */
     @Query("DELETE FROM WorkoutSession")
     suspend fun deleteAll()

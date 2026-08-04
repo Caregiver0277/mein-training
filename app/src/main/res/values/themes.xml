@@ -12,12 +12,13 @@
         Startbild. Die Activity trägt dieses Theme; `installSplashScreen()` schaltet gleich beim
         Starten auf `postSplashScreenTheme` weiter, sodass der Rest der App nichts davon merkt.
 
-        Das Symbol ist ein fertig zusammengesetztes Bild: weiße Scheibe, darauf mittig das Foto.
-        Ab Android 12 schneidet das System das Symbol kreisrund zu, und zwar unabhängig davon,
-        wie eine Zeichnung intern aufgebaut ist – eine `layer-list` mit kleiner gesetztem Foto
-        wird dabei einfach mitgedehnt und das Foto trotzdem beschnitten. Als einzelnes
-        quadratisches Bild stimmen die Verhältnisse dagegen immer: Das Foto sitzt so weit innen,
-        dass die Maske nur Weiß abschneidet.
+        Das Symbol ist ein quadratisches Bild mit durchsichtigem Rand, in dessen Mitte das
+        Motiv sitzt. Ab Android 12 schneidet das System das Symbol kreisrund zu, und zwar
+        unabhängig davon, wie eine Zeichnung intern aufgebaut ist – eine `layer-list` mit
+        kleiner gesetztem Motiv wird dabei einfach mitgedehnt und das Motiv trotzdem
+        beschnitten. Bei einem einzelnen quadratischen Bild stimmen die Verhältnisse dagegen
+        immer: Das Motiv ist so weit innen, dass seine Diagonale in den sichtbaren Kreis passt
+        und die Maske nur Durchsichtiges abschneidet.
     -->
     <style name="Theme.MeinTraining.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/screen_background</item>

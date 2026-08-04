@@ -106,10 +106,18 @@ class TrainingRepository(
     /** Alle abgehakten Trainings, das jüngste zuerst. */
     fun observeSessions(): Flow<List<WorkoutSession>> = sessionDao.observeAll()
 
-    /** Hakt das Training eines Tages ab und liefert die Kennung für „Rückgängig“. */
+    /** Hakt das Training eines Tages ab und liefert die Kennung des Eintrags. */
     suspend fun completeWorkout(dayId: Int): Long = sessionDao.insert(
         WorkoutSession(dayId = dayId, completedAt = System.currentTimeMillis())
     )
+
+    /**
+     * Nimmt das Abhaken eines Tages wieder zurück.
+     *
+     * Gelöscht wird der jüngste Eintrag dieses Tages. Solange der Tag in der laufenden Runde
+     * als erledigt gilt, ist genau das der Eintrag, der ihn dazu gemacht hat.
+     */
+    suspend fun uncompleteWorkout(dayId: Int) = sessionDao.deleteLatestForDay(dayId)
 
     suspend fun deleteSession(id: Long) = sessionDao.deleteById(id)
 

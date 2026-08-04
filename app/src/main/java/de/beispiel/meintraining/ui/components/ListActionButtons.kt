@@ -57,13 +57,14 @@ import kotlin.math.sin
  * Abschluss der Liste: links der Haken, der das Training in den Verlauf einträgt,
  * rechts kompakt das „+“ zum Anlegen einer Übung.
  *
- * [isCompleted] färbt den Haken grün und sperrt ihn: Jeder Trainingstag wird pro Runde nur
- * einmal abgehakt. Grün bleibt er, bis alle Tage dran waren – so sieht man auf einen Blick,
- * welche Tage der Runde noch offen sind.
+ * [isCompleted] färbt den Haken grün. Grün bleibt er, bis alle Tage der Runde dran waren – so
+ * sieht man auf einen Blick, welche noch offen sind. Ein zweites Tippen nimmt das Abhaken
+ * wieder zurück; der Haken ist damit sein eigenes „Rückgängig“ und braucht keine Meldung, die
+ * sich über ihn schiebt.
  */
 @Composable
 fun ListActionButtons(
-    onCompleteWorkout: () -> Unit,
+    onToggleWorkoutCompleted: () -> Unit,
     onAddExercise: () -> Unit,
     isCompleted: Boolean,
     modifier: Modifier = Modifier
@@ -73,7 +74,7 @@ fun ListActionButtons(
         horizontalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
     ) {
         CompleteWorkoutButton(
-            onClick = onCompleteWorkout,
+            onClick = onToggleWorkoutCompleted,
             isCompleted = isCompleted,
             modifier = Modifier.weight(1f)
         )
@@ -88,6 +89,9 @@ fun ListActionButtons(
  * Der Knopf federt kurz ein, ein Ring läuft nach außen, ein paar Funken stieben weg, und das
  * Handy gibt einen kurzen Stoß. Alles zusammen dauert etwa eine halbe Sekunde und hält
  * niemanden auf.
+ *
+ * Beim Zurücknehmen federt der Knopf nur; Ring und Funken bleiben dem Abhaken vorbehalten.
+ * Ein Feuerwerk fürs Rückgängigmachen wäre am Anlass vorbei.
  */
 @Composable
 private fun CompleteWorkoutButton(
@@ -98,21 +102,27 @@ private fun CompleteWorkoutButton(
     val haptics = LocalHapticFeedback.current
 
     /**
-     * Zählt jeden Druck hoch. Ein `Boolean` täte es nicht: Er müsste nach der Animation wieder
+     * Zählen jeden Druck hoch. Ein `Boolean` täte es nicht: Er müsste nach der Animation wieder
      * zurückgesetzt werden, und bis dahin liefe kein zweiter Druck an. Eine Zahl ist bei jedem
      * Druck neu und startet den Effekt damit zuverlässig.
+     *
+     * Getrennt, weil der Knopf bei jedem Druck federt, Ring und Funken aber nur beim Abhaken.
      */
     var pressCount by remember { mutableIntStateOf(0) }
+    var burstCount by remember { mutableIntStateOf(0) }
 
     // Zwei getrennte Verläufe: Der Ring läuft gleichmäßig aus, der Knopf federt zurück. In
     // einem gemeinsamen Verlauf müssten sie sich auf eine Kurve einigen.
     val burst = remember { Animatable(BURST_DONE) }
     val scale = remember { Animatable(1f) }
 
-    LaunchedEffect(pressCount) {
-        if (pressCount == 0) return@LaunchedEffect
+    LaunchedEffect(burstCount) {
+        if (burstCount == 0) return@LaunchedEffect
         burst.snapTo(0f)
-        burst.animateTo(BURST_DONE, animationSpec = tween(BURST_MILLIS, easing = LinearOutSlowInEasing))
+        burst.animateTo(
+            targetValue = BURST_DONE,
+            animationSpec = tween(durationMillis = BURST_MILLIS, easing = LinearOutSlowInEasing)
+        )
     }
 
     LaunchedEffect(pressCount) {
@@ -168,10 +178,11 @@ private fun CompleteWorkoutButton(
                     color = border,
                     shape = Dimens.CornerAddButton
                 )
-                // Abgehakt ist abgehakt: kein zweiter Eintrag für denselben Tag.
-                .clickable(enabled = !isCompleted, role = Role.Button) {
+                // Kein zweiter Eintrag für denselben Tag: Das zweite Tippen nimmt zurück.
+                .clickable(role = Role.Button) {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     pressCount++
+                    if (!isCompleted) burstCount++
                     onClick()
                 },
             contentAlignment = Alignment.Center
@@ -274,7 +285,7 @@ private const val TWO_PI = (2 * Math.PI).toFloat()
 private fun ListActionButtonsPreview() {
     MeinTrainingTheme {
         ListActionButtons(
-            onCompleteWorkout = {},
+            onToggleWorkoutCompleted = {},
             onAddExercise = {},
             isCompleted = true,
             modifier = Modifier.padding(Dimens.ScreenPaddingHorizontal)
