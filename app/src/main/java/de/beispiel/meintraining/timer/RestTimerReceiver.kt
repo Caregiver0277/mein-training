@@ -32,7 +32,7 @@ class RestTimerReceiver : BroadcastReceiver() {
         // goAsync hält den Empfänger so lange am Leben, bis die Uhr auch im Speicher wieder auf
         // Anfang steht – sonst stünde beim nächsten Öffnen der App eine Uhr auf 0:00.
         val pending = goAsync()
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        scope.launch {
             try {
                 RestTimerStore(context).clearRun(index)
             } finally {
@@ -65,5 +65,13 @@ class RestTimerReceiver : BroadcastReceiver() {
 
     private companion object {
         const val NO_REPEAT = -1
+
+        /**
+         * Einer für alle Aufrufe. Das System legt für jeden Wecker ein neues Exemplar des
+         * Empfängers an; ein Bereich je Aufruf ließe mit jedem Klingeln einen Job zurück, den
+         * niemand mehr abbricht. Beendet wird ohnehin nicht der Bereich, sondern der Empfänger
+         * über `pending.finish()`.
+         */
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }

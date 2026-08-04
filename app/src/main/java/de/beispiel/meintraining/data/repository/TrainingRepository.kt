@@ -112,12 +112,38 @@ class TrainingRepository(
     )
 
     /**
-     * Nimmt das Abhaken eines Tages wieder zurück.
+     * Hakt das Training eines Tages ab oder nimmt das Abhaken zurück; liefert den neuen Stand.
      *
-     * Gelöscht wird der jüngste Eintrag dieses Tages. Solange der Tag in der laufenden Runde
-     * als erledigt gilt, ist genau das der Eintrag, der ihn dazu gemacht hat.
+     * Zurückgenommen wird nur ein Eintrag von *heute*. Das ist der Fall, für den es das
+     * Zurücknehmen gibt: danebengetippt, falscher Tag, doch nicht trainiert. Ein Eintrag von
+     * vorgestern gehört dagegen zu einem Training, das stattgefunden hat – wer denselben Tag
+     * heute erneut abhakt, hat ihn erneut trainiert und bekommt einen zweiten Eintrag.
+     *
+     * Der Umweg über den Eintrag statt über die angezeigte Runde ist nötig, weil die Runde
+     * genau dann leer ist, wenn sie voll war: Nach dem letzten Tag beginnt sie von vorn und
+     * jeder Haken steht wieder auf offen. Ein Zurücknehmen, das sich daran hält, legte
+     * ausgerechnet nach dem letzten Training der Runde einen zweiten Eintrag an – und ein
+     * Zurücknehmen, das die alten Einträge trotzdem sieht, löschte beim ersten Training der
+     * neuen Runde das Training der alten.
+     *
+     * Entschieden wird im Repository und nicht in der Oberfläche: Der angezeigte Zustand wird
+     * erst nachgezogen, wenn Room die Änderung gemeldet hat, und das dauert mehrere Bilder.
+     * Zwei schnelle Tipps läsen beide noch den Stand von vorher und legten zwei Einträge für
+     * denselben Tag an. Innerhalb der Transaktion sieht der zweite Tipp das Ergebnis des
+     * ersten: Ohne WAL hat die Datenbank genau einen Schreiber, Transaktionen laufen also
+     * nacheinander.
      */
-    suspend fun uncompleteWorkout(dayId: Int) = sessionDao.deleteLatestForDay(dayId)
+    suspend fun toggleWorkout(dayId: Int, today: LocalDate = LocalDate.now()): Boolean =
+        database.withTransaction {
+            val latest = sessionDao.latestForDay(dayId)
+            if (latest != null && latest.completedAt.toLocalDate() == today) {
+                sessionDao.deleteById(latest.id)
+                false
+            } else {
+                completeWorkout(dayId)
+                true
+            }
+        }
 
     suspend fun deleteSession(id: Long) = sessionDao.deleteById(id)
 

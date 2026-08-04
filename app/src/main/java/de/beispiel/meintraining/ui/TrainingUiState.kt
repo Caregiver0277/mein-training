@@ -8,9 +8,9 @@ import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
 import de.beispiel.meintraining.util.toDecimalString
-import java.time.LocalDate
 
 /** Kompletter Zustand des Hauptscreens. */
+@Immutable
 data class TrainingUiState(
     val days: List<TrainingDay> = emptyList(),
     val selectedDayId: Int = FIRST_DAY_ID,
@@ -23,16 +23,8 @@ data class TrainingUiState(
     val completedDayIds: Set<Int> = emptySet(),
     val deload: DeloadStatus = DeloadStatus(),
     /** Selbst vergebene Überschrift; leer heißt: Vorgabe aus den Textressourcen. */
-    val appTitle: String = "",
-    /**
-     * Das heutige Datum. Steht hier, statt in den Screens einzeln geholt zu werden, damit eine
-     * über Nacht offen gebliebene App nicht bei gestern stehen bleibt: Das ViewModel schreibt
-     * den Wert beim Zurückkehren in den Vordergrund fort.
-     */
-    val today: LocalDate = LocalDate.now()
+    val appTitle: String = ""
 ) {
-    val isLoading: Boolean get() = days.isEmpty()
-
     /** Ist der angezeigte Tag in dieser Runde schon erledigt? */
     val isSelectedDayCompleted: Boolean get() = selectedDayId in completedDayIds
 
@@ -106,7 +98,12 @@ data class ExerciseForm(
     val canSave: Boolean get() = name.isNotBlank()
 }
 
-/** Einmalige Ereignisse für Snackbars mit „Rückgängig“. */
+/**
+ * Einmalige Ereignisse für Snackbars mit „Rückgängig“.
+ *
+ * Das Abhaken meldet sich hier bewusst nicht: Es nimmt sich selbst zurück, indem man den Haken
+ * erneut antippt – siehe [TrainingViewModel.onToggleWorkoutCompleted].
+ */
 sealed interface TrainingEvent {
 
     /**
@@ -122,6 +119,3 @@ sealed interface TrainingEvent {
     /** Übungen wurden gelöscht; die Kopien erlauben das Wiederherstellen. */
     data class ExercisesDeleted(val exercises: List<ExerciseItem>) : TrainingEvent
 }
-
-// Das Abhaken meldet sich hier bewusst nicht: Es nimmt sich selbst zurück, indem man den
-// Haken erneut antippt – siehe [TrainingViewModel.onToggleWorkoutCompleted].

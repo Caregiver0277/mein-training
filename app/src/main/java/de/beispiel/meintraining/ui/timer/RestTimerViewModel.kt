@@ -1,6 +1,6 @@
 package de.beispiel.meintraining.ui.timer
 
-import android.content.Context
+import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -12,8 +12,10 @@ import de.beispiel.meintraining.data.local.RestTimer
 import de.beispiel.meintraining.data.local.RestTimerStore
 import de.beispiel.meintraining.data.local.DEFAULT_REST_TIMER_SECONDS
 import de.beispiel.meintraining.timer.RestTimerAlarm
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -27,7 +29,8 @@ import kotlinx.coroutines.launch
  * zu einer Uhr, die längst zurückgesetzt wurde.
  */
 class RestTimerViewModel(
-    private val context: Context,
+    /** Die Application, nicht die Activity: Der Wecker wird beim System angemeldet. */
+    private val context: Application,
     private val store: RestTimerStore
 ) : ViewModel() {
 
@@ -43,16 +46,37 @@ class RestTimerViewModel(
         }
     )
 
+    /**
+     * Fängt Wecker ab, die nie ankommen.
+     *
+     * Der Wecker liegt beim System und überlebt einiges nicht: Beim Neustart des Geräts
+     * verfällt er, ein „Beenden erzwingen“ räumt ihn ebenso ab wie das Einspielen einer neuen
+     * Fassung der App. Zurück bleibt ein Endzeitpunkt ohne Wecker – und weil nur der Empfänger
+     * den Lauf zurücksetzt, stünde die Uhr danach für immer auf 0:00.
+     *
+     * Gewartet wird bis genau zu diesem Zeitpunkt, nicht getickt. Räumt der Empfänger wie
+     * vorgesehen auf, sendet der Speicher einen neuen Stand und `collectLatest` bricht das
+     * Warten ab; wer hier ankommt, weiß, dass der Wecker ausgeblieben ist. Aufgeräumt wird
+     * dann genau wie sonst – nur ohne Vibrieren, denn das hätte längst kommen müssen.
+     */
     init {
         viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            store.timers.first().forEachIndexed { index, timer ->
-                // Abgelaufen, aber nie abgeräumt: Der Wecker verfällt beim Neustart des Geräts,
-                // dann bleibt der Endzeitpunkt in der Vergangenheit stehen. Ohne dieses
-                // Aufräumen zeigte die Uhr für immer 0:00.
-                val endAt = timer.endAtMillis ?: return@forEachIndexed
-                if (endAt <= now) store.clearRun(index)
+            store.timers.collectLatest { timers ->
+                clearExpired(timers)
+                val nextEnd = timers.mapNotNull { it.endAtMillis }
+                    .filter { it > System.currentTimeMillis() }
+                    .minOrNull() ?: return@collectLatest
+                delay(nextEnd - System.currentTimeMillis() + ALARM_GRACE_MILLIS)
+                clearExpired(store.timers.first())
             }
+        }
+    }
+
+    private suspend fun clearExpired(timers: List<RestTimer>) {
+        val now = System.currentTimeMillis()
+        timers.forEachIndexed { index, timer ->
+            val endAt = timer.endAtMillis ?: return@forEachIndexed
+            if (endAt <= now) store.clearRun(index)
         }
     }
 
@@ -93,6 +117,12 @@ class RestTimerViewModel(
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L
         private const val MILLIS_PER_SECOND = 1000L
+
+        /**
+         * Wartezeit, bevor ein ausgebliebener Wecker als ausgeblieben gilt. Der Empfänger
+         * braucht selbst ein paar Millisekunden, bis sein Aufräumen im Speicher steht.
+         */
+        private const val ALARM_GRACE_MILLIS = 1_500L
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

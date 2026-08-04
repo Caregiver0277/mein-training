@@ -31,7 +31,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 class TrainingViewModel(
     private val repository: TrainingRepository,
@@ -77,9 +76,16 @@ class TrainingViewModel(
     private val allExercises = repository.observeAllExercises()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
 
-    // Dauerhaft aktiv, weil das Formular die geteilten Werte beim Tippen sofort braucht.
+    /**
+     * Die bekannten Übungen samt ihrer geteilten Werte.
+     *
+     * `WhileSubscribed` wie überall sonst: Das Formular braucht die Werte zwar beim Tippen
+     * sofort, aber es gibt das Formular nur, solange der Hauptscreen läuft – und der hält
+     * dieses Abonnement über [uiState] ohnehin. Dauerhaft aktiv hinge sonst eine
+     * Datenbankabfrage am Prozess, auch wenn die App längst im Hintergrund liegt.
+     */
     private val definitions = repository.observeDefinitions()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
     /**
      * Einmal abgefragt und geteilt: Verlauf und Deload-Rechnung brauchen dieselben Sitzungen.
@@ -96,11 +102,17 @@ class TrainingViewModel(
         repository.selectedDayId
     ) { days, id -> DayState(days, id) }
 
+    /**
+     * Das Datum steht hier bewusst *nicht* mit drin, obwohl es der Hauptscreen einmal
+     * durchreichte: Es hängt schon an [sessionSummary], und `combine` sendet je Zufluss
+     * einzeln. Ein Tageswechsel ergäbe dann zwei Zustände nacheinander – den ersten mit dem
+     * neuen Datum und noch der alten Deload-Rechnung. Angezeigt wurde das Datum ohnehin
+     * nirgends; der Verlauf holt sich sein eigenes.
+     */
     private val preferences = combine(
         repository.dayCount,
-        repository.appTitle,
-        currentDate.flow
-    ) { dayCount, title, today -> Preferences(dayCount, title, today) }
+        repository.appTitle
+    ) { dayCount, title -> Preferences(dayCount, title) }
 
     /**
      * Der teure Teil, getrennt gehalten: Er hängt nur an den Sitzungen, der Rundenlänge, der
@@ -134,8 +146,7 @@ class TrainingViewModel(
 
     private data class Preferences(
         val dayCount: Int,
-        val title: String,
-        val today: LocalDate
+        val title: String
     )
 
     private data class SessionSummary(
@@ -154,7 +165,6 @@ class TrainingViewModel(
     private data class Surroundings(
         val dayCount: Int,
         val title: String,
-        val today: LocalDate,
         val completedDayIds: Set<Int>,
         val deload: DeloadStatus
     )
@@ -163,7 +173,6 @@ class TrainingViewModel(
         Surroundings(
             dayCount = prefs.dayCount,
             title = prefs.title,
-            today = prefs.today,
             completedDayIds = summary.completedDayIds,
             deload = summary.deload
         )
@@ -197,8 +206,7 @@ class TrainingViewModel(
             },
             completedDayIds = around.completedDayIds,
             deload = around.deload,
-            appTitle = around.title,
-            today = around.today
+            appTitle = around.title
         )
     }.stateIn(
         scope = viewModelScope,
@@ -239,22 +247,22 @@ class TrainingViewModel(
     // --- Training abhaken --------------------------------------------------
 
     /**
-     * Hakt das Training des aktuellen Tages ab – und beim zweiten Tippen wieder zurück.
+     * Hakt das Training des aktuellen Tages ab – und beim zweiten Tippen am selben Tag wieder
+     * zurück.
      *
      * Der Haken ist damit sein eigenes „Rückgängig“. Das ersetzt die frühere Meldung am
      * unteren Rand, die sich genau über den Knopf schob und dessen Effekt verdeckte.
-     * Pro Runde bleibt es bei einem Eintrag je Tag.
+     *
+     * Was ein Tippen bewirkt, entscheidet das Repository in einer Transaktion und nicht der
+     * hier sichtbare Zustand: Der hinkt der Datenbank um mehrere Bilder hinterher, und die
+     * angezeigte Runde beginnt nach ihrem letzten Tag ohnehin wieder von vorn – siehe
+     * [TrainingRepository.toggleWorkout].
      */
     fun onToggleWorkoutCompleted() {
         viewModelScope.launch {
             // Der Tag kommt aus dem Repository, nicht aus dem angezeigten Zustand: Wer den
             // Reiter wechselt und sofort abhakt, träfe sonst noch das vorige Training.
-            val dayId = repository.currentSelectedDay()
-            if (dayId in uiState.value.completedDayIds) {
-                repository.uncompleteWorkout(dayId)
-            } else {
-                repository.completeWorkout(dayId)
-            }
+            repository.toggleWorkout(repository.currentSelectedDay())
         }
     }
 

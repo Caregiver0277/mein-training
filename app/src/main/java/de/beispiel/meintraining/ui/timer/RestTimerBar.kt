@@ -1,7 +1,6 @@
 package de.beispiel.meintraining.ui.timer
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -35,7 +34,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.local.RestTimer
@@ -86,15 +88,28 @@ fun RestTimerBar(
     /** Welche Uhr gerade eingestellt wird; `null`, solange kein Dialog offen ist. */
     var configuring by remember { mutableStateOf<Int?>(null) }
 
-    // Die Anzeige braucht einen eigenen Takt: Im Speicher steht nur der Endzeitpunkt, die
-    // Restzeit ergibt sich erst aus „jetzt“. Getickt wird ausschließlich, solange wirklich
-    // eine Uhr läuft – sonst würde die Zeile im Ruhezustand endlos neu gezeichnet.
+    /**
+     * Die Anzeige braucht einen eigenen Takt: Im Speicher steht nur der Endzeitpunkt, die
+     * Restzeit ergibt sich erst aus „jetzt“.
+     *
+     * Getickt wird nur, solange wirklich eine Uhr läuft *und* der Bildschirm sie zeigt.
+     * `LaunchedEffect` allein reicht dafür nicht: Die Composition überlebt eine angehaltene
+     * Activity, der Takt liefe also in der Hosentasche weiter.
+     *
+     * Gewartet wird bis zur nächsten vollen Sekunde statt in festen Abständen. Die Anzeige
+     * kennt nur ganze Sekunden – ein kürzerer Takt ergäbe mehrfach dasselbe Bild.
+     */
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val isAnyRunning = timers.any { it.isRunning }
-    LaunchedEffect(isAnyRunning) {
-        while (isAnyRunning) {
-            now = System.currentTimeMillis()
-            delay(TICK_MILLIS)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(isAnyRunning, lifecycleOwner) {
+        if (!isAnyRunning) return@LaunchedEffect
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                val current = System.currentTimeMillis()
+                now = current
+                delay(MILLIS_PER_SECOND - current % MILLIS_PER_SECOND)
+            }
         }
     }
 
@@ -153,16 +168,20 @@ private fun RowScope.RestTimerBox(
         label = "timerTextColor"
     )
 
-    // Wie viel der Pause noch aussteht, als Füllstand hinter der Zeile: Auf einen Blick
-    // erkennbar, ohne die Ziffern lesen zu müssen.
-    val progress by animateFloatAsState(
-        targetValue = if (timer.durationSeconds > 0) {
-            (remaining.toFloat() / timer.durationSeconds).coerceIn(0f, 1f)
-        } else {
-            0f
-        },
-        label = "timerProgress"
-    )
+    /**
+     * Wie viel der Pause noch aussteht, als Füllstand hinter der Zeile: Auf einen Blick
+     * erkennbar, ohne die Ziffern lesen zu müssen.
+     *
+     * Bewusst ohne `animateFloatAsState`: Der Zielwert wechselt mit jeder Sekunde, jede
+     * Änderung startete also eine neue Feder und der Balken liefe die ganze Pause über in
+     * voller Bildwiederholrate – für eine Strecke von rund einem Prozent je Sekunde. So
+     * springt er einmal pro Sekunde, was man bei dieser Schrittweite nicht sieht.
+     */
+    val progress = if (timer.durationSeconds > 0) {
+        (remaining.toFloat() / timer.durationSeconds).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
     val isIdle = !timer.isRunning && !timer.isPaused
 
     Row(
@@ -232,7 +251,7 @@ private fun RowScope.RestTimerBox(
     }
 }
 
-private const val TICK_MILLIS = 200L
+private const val MILLIS_PER_SECOND = 1000L
 
 @Preview(showBackground = true, backgroundColor = 0xFF10141A, widthDp = 360)
 @Composable

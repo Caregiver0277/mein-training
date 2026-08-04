@@ -25,9 +25,6 @@ data class ExerciseGain(val name: String, val fromKg: Double, val toKg: Double) 
 /** Übung, deren Gewicht seit [sinceDays] Tagen unverändert ist. */
 data class StagnatingExercise(val name: String, val weightKg: Double, val sinceDays: Long)
 
-/** Geplantes Volumen eines Trainingstages: Sätze × Wiederholungen × Gewicht. */
-data class DayVolume(val dayId: Int, val volumeKg: Double, val countedExercises: Int)
-
 /**
  * Trainings pro Woche über den gesamten bisherigen Zeitraum.
  *
@@ -129,40 +126,5 @@ fun stagnatingExercises(
     val days = ChronoUnit.DAYS.between(changedAt, today)
     if (days < minDays) null else StagnatingExercise(name, weight, days)
 }.sortedByDescending { it.sinceDays }
-
-/**
- * Geplantes Volumen je Trainingstag. Gezählt werden nur Übungen, bei denen Sätze,
- * Wiederholungen und Gewicht bekannt sind – alles andere wäre geraten.
- */
-fun volumePerDay(
-    exercises: List<VolumeInput>
-): List<DayVolume> = exercises.groupBy { it.dayId }
-    .map { (dayId, entries) ->
-        val counted = entries.filter { it.sets != null && it.weightKg != null && it.averageReps != null }
-        DayVolume(
-            dayId = dayId,
-            volumeKg = counted.sumOf { it.sets!! * it.averageReps!! * it.weightKg!! },
-            countedExercises = counted.size
-        )
-    }
-    .sortedBy { it.dayId }
-
-/** Was für die Volumenrechnung einer Übung gebraucht wird. */
-data class VolumeInput(
-    val dayId: Int,
-    val sets: Int?,
-    val repsMin: Int?,
-    val repsMax: Int?,
-    val weightKg: Double?
-) {
-    /** Mitte der Wiederholungsspanne; `null`, wenn gar keine Angabe da ist. */
-    val averageReps: Double?
-        get() = when {
-            repsMin != null && repsMax != null -> (repsMin + repsMax) / 2.0
-            repsMin != null -> repsMin.toDouble()
-            repsMax != null -> repsMax.toDouble()
-            else -> null
-        }
-}
 
 private fun LocalDate.weekStart(): LocalDate = with(DayOfWeek.MONDAY)

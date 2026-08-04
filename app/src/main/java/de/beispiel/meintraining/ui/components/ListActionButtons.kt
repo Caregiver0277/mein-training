@@ -101,13 +101,11 @@ private fun CompleteWorkoutButton(
 ) {
     val haptics = LocalHapticFeedback.current
 
-    /**
-     * Zählen jeden Druck hoch. Ein `Boolean` täte es nicht: Er müsste nach der Animation wieder
-     * zurückgesetzt werden, und bis dahin liefe kein zweiter Druck an. Eine Zahl ist bei jedem
-     * Druck neu und startet den Effekt damit zuverlässig.
-     *
-     * Getrennt, weil der Knopf bei jedem Druck federt, Ring und Funken aber nur beim Abhaken.
-     */
+    // Beide zählen Drücke hoch. Ein `Boolean` täte es nicht: Er müsste nach der Animation
+    // wieder zurückgesetzt werden, und bis dahin liefe kein zweiter Druck an. Eine Zahl ist
+    // bei jedem Druck neu und startet den Effekt damit zuverlässig.
+    //
+    // Getrennt, weil der Knopf bei jedem Druck federt, Ring und Funken aber nur beim Abhaken.
     var pressCount by remember { mutableIntStateOf(0) }
     var burstCount by remember { mutableIntStateOf(0) }
 

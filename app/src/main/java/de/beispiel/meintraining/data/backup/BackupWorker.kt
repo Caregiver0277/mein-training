@@ -2,6 +2,7 @@ package de.beispiel.meintraining.data.backup
 
 import android.content.Context
 import android.net.Uri
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -69,7 +70,19 @@ class BackupWorker(
             val request = PeriodicWorkRequestBuilder<BackupWorker>(
                 intervalDays.toLong().coerceAtLeast(1L),
                 TimeUnit.DAYS
-            ).build()
+            )
+                // Auf eine Sicherung wartet niemand: Sie darf ein paar Stunden später laufen,
+                // wenn der Akku dann nicht mehr im roten Bereich ist.
+                //
+                // Bewusst keine Netzbedingung, obwohl das Ziel in der Cloud liegen kann: Es
+                // kann genauso gut eine Datei auf dem Gerät sein, und die wäre dann ohne Not
+                // vom Netz abhängig.
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiresBatteryNotLow(true)
+                        .build()
+                )
+                .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.UPDATE,

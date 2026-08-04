@@ -6,6 +6,11 @@ package de.beispiel.meintraining.util
  * Eine Runde ist durch, sobald jeder Tag einmal dran war – dann fängt die Zählung von vorn an
  * und alle Haken sind wieder offen. [dayIdsOldestFirst] sind die abgehakten Tage in der
  * Reihenfolge, in der sie eingetragen wurden.
+ *
+ * Diese Menge sagt, was *angezeigt* wird, und ist bewusst keine Grundlage dafür, ob ein
+ * Tippen auf den Haken einträgt oder zurücknimmt: Nach einer vollen Runde gilt hier wieder
+ * jeder Tag als offen, obwohl die Einträge noch stehen – siehe
+ * [de.beispiel.meintraining.data.repository.TrainingRepository.toggleWorkout].
  */
 fun completedDaysInRotation(dayIdsOldestFirst: List<Int>, dayCount: Int): Set<Int> {
     val done = mutableSetOf<Int>()

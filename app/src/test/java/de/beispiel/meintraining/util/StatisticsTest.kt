@@ -140,42 +140,4 @@ class StatisticsTest {
         assertEquals(40L, stagnating.first().sinceDays)
     }
 
-    // --- Volumen -----------------------------------------------------------
-
-    @Test
-    fun volumenIstSaetzeMalWiederholungenMalGewicht() {
-        val volumes = volumePerDay(
-            listOf(VolumeInput(dayId = 1, sets = 3, repsMin = 8, repsMax = 12, weightKg = 50.0))
-        )
-        // 3 × 10 × 50
-        assertEquals(1500.0, volumes.single().volumeKg, 0.0)
-        assertEquals(1, volumes.single().countedExercises)
-    }
-
-    @Test
-    fun unvollstaendigeUebungenBleibenAussenVor() {
-        val volumes = volumePerDay(
-            listOf(
-                VolumeInput(dayId = 1, sets = 3, repsMin = 10, repsMax = 10, weightKg = 20.0),
-                // ohne Gewicht: nicht rechenbar
-                VolumeInput(dayId = 1, sets = 3, repsMin = 10, repsMax = 10, weightKg = null),
-                // ohne Wiederholungen: nicht rechenbar
-                VolumeInput(dayId = 1, sets = 3, repsMin = null, repsMax = null, weightKg = 20.0)
-            )
-        )
-        assertEquals(600.0, volumes.single().volumeKg, 0.0)
-        assertEquals(1, volumes.single().countedExercises)
-    }
-
-    @Test
-    fun volumenWirdNachTagenGetrennt() {
-        val volumes = volumePerDay(
-            listOf(
-                VolumeInput(dayId = 2, sets = 1, repsMin = 1, repsMax = 1, weightKg = 10.0),
-                VolumeInput(dayId = 1, sets = 1, repsMin = 1, repsMax = 1, weightKg = 5.0)
-            )
-        )
-        assertEquals(listOf(1, 2), volumes.map { it.dayId })
-        assertEquals(5.0, volumes.first().volumeKg, 0.0)
-    }
 }
