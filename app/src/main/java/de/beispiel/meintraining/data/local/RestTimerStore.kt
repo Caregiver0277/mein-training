@@ -46,24 +46,39 @@ data class RestTimer(
     val durationSeconds: Int,
     /** Wanduhrzeit des Ablaufs; `null`, wenn die Uhr gerade nicht läuft. */
     val endAtMillis: Long? = null,
-    /** Restsekunden im angehaltenen Zustand; `null`, wenn nicht angehalten. */
-    val pausedSeconds: Int? = null
+    /** Restzeit im angehaltenen Zustand; `null`, wenn nicht angehalten. */
+    val pausedMillis: Long? = null
 ) {
     val isRunning: Boolean get() = endAtMillis != null
 
-    val isPaused: Boolean get() = endAtMillis == null && pausedSeconds != null
+    val isPaused: Boolean get() = endAtMillis == null && pausedMillis != null
+
+    /**
+     * Verbleibende Zeit in Millisekunden.
+     *
+     * Millisekunden und nicht Sekunden, weil zwei Dinge daran hängen, die feiner sind als die
+     * Anzeige: der gleitende Balken und das Anhalten. Auf ganze Sekunden gerundet angehalten,
+     * schöbe jedes Weiterlaufen die Pause um bis zu einer Sekunde nach hinten – und der Balken
+     * spränge beim Weiterlaufen genau um diesen Rest nach rechts.
+     */
+    fun remainingMillis(nowMillis: Long): Long = when {
+        endAtMillis != null -> (endAtMillis - nowMillis).coerceAtLeast(0L)
+        pausedMillis != null -> pausedMillis
+        else -> durationSeconds * MILLIS_PER_SECOND
+    }
 
     /**
      * Verbleibende Sekunden. Aufgerundet, weil sonst direkt nach dem Start schon eine Sekunde
      * fehlte: Nach 1 ms wären von 90 s abgerundet bereits 89 übrig.
      */
-    fun remainingSeconds(nowMillis: Long): Int = when {
-        endAtMillis != null -> {
-            val left = endAtMillis - nowMillis
-            if (left <= 0L) 0 else ((left + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND).toInt()
-        }
-        pausedSeconds != null -> pausedSeconds
-        else -> durationSeconds
+    fun remainingSeconds(nowMillis: Long): Int =
+        ((remainingMillis(nowMillis) + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND).toInt()
+
+    /** Anteil der Pause, der noch aussteht – der Füllstand des Balkens. */
+    fun remainingFraction(nowMillis: Long): Float {
+        if (durationSeconds <= 0) return 0f
+        val total = durationSeconds * MILLIS_PER_SECOND
+        return (remainingMillis(nowMillis).toFloat() / total).coerceIn(0f, 1f)
     }
 
     private companion object {
@@ -88,7 +103,7 @@ class RestTimerStore(context: Context) {
             durationSeconds = (prefs[durationKey(index)] ?: defaultSeconds(index))
                 .coerceIn(MIN_REST_TIMER_SECONDS, MAX_REST_TIMER_SECONDS),
             endAtMillis = prefs[endAtKey(index)],
-            pausedSeconds = prefs[pausedKey(index)]
+            pausedMillis = prefs[pausedKey(index)]
         )
     }
 
@@ -109,10 +124,10 @@ class RestTimerStore(context: Context) {
         }
     }
 
-    suspend fun setPaused(index: Int, remainingSeconds: Int) {
+    suspend fun setPaused(index: Int, remainingMillis: Long) {
         store.edit { prefs ->
             prefs.remove(endAtKey(index))
-            prefs[pausedKey(index)] = remainingSeconds.coerceAtLeast(0)
+            prefs[pausedKey(index)] = remainingMillis.coerceAtLeast(0L)
         }
     }
 
@@ -130,6 +145,12 @@ class RestTimerStore(context: Context) {
 
         fun durationKey(index: Int) = intPreferencesKey("timer_${index}_duration")
         fun endAtKey(index: Int) = longPreferencesKey("timer_${index}_end_at")
-        fun pausedKey(index: Int) = intPreferencesKey("timer_${index}_paused")
+
+        /**
+         * Eigener Name statt des früheren `timer_N_paused`: Dort liegen ganze Sekunden als Int,
+         * und ein Long-Schlüssel auf denselben Namen läse einen alten Stand als ClassCastException
+         * aus. Eine beim Umstieg angehaltene Uhr steht danach wieder auf ihrer vollen Dauer.
+         */
+        fun pausedKey(index: Int) = longPreferencesKey("timer_${index}_paused_millis")
     }
 }

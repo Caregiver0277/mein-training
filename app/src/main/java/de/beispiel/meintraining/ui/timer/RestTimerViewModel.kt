@@ -85,13 +85,13 @@ class RestTimerViewModel(
         viewModelScope.launch {
             val timer = store.timers.first().getOrNull(index) ?: return@launch
             if (timer.isRunning) {
-                val remaining = timer.remainingSeconds(System.currentTimeMillis())
+                val remaining = timer.remainingMillis(System.currentTimeMillis())
                 RestTimerAlarm.cancel(context, index)
                 // Genau auf 0 angehalten wäre nicht fortsetzbar – dann lieber gleich von vorn.
-                if (remaining <= 0) store.clearRun(index) else store.setPaused(index, remaining)
+                if (remaining <= 0L) store.clearRun(index) else store.setPaused(index, remaining)
             } else {
-                val seconds = timer.pausedSeconds ?: timer.durationSeconds
-                val endAt = System.currentTimeMillis() + seconds * MILLIS_PER_SECOND
+                val millis = timer.pausedMillis ?: timer.durationSeconds * MILLIS_PER_SECOND
+                val endAt = System.currentTimeMillis() + millis
                 store.setRunningUntil(index, endAt)
                 RestTimerAlarm.schedule(context, index, endAt)
             }

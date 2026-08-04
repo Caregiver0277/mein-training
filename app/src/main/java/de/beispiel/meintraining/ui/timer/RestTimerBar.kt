@@ -17,11 +17,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,7 +53,6 @@ import de.beispiel.meintraining.ui.theme.MenuButtonSurface
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.formatRestTime
-import kotlinx.coroutines.delay
 
 /** Hängt die Pausenuhren an ihr ViewModel. */
 @Composable
@@ -92,26 +93,34 @@ fun RestTimerBar(
      * Die Anzeige braucht einen eigenen Takt: Im Speicher steht nur der Endzeitpunkt, die
      * Restzeit ergibt sich erst aus „jetzt“.
      *
+     * Getaktet wird Bild für Bild, damit der Balken gleitet statt einmal je Sekunde zu springen.
+     * Teuer ist das nicht: Der Balken hängt am Zeichnen und die Ziffern an einer abgeleiteten
+     * Sekunde – neu aufgebaut wird also weder das eine noch das andere sechzigmal je Sekunde.
+     *
      * Getickt wird nur, solange wirklich eine Uhr läuft *und* der Bildschirm sie zeigt.
      * `LaunchedEffect` allein reicht dafür nicht: Die Composition überlebt eine angehaltene
      * Activity, der Takt liefe also in der Hosentasche weiter.
-     *
-     * Gewartet wird bis zur nächsten vollen Sekunde statt in festen Abständen. Die Anzeige
-     * kennt nur ganze Sekunden – ein kürzerer Takt ergäbe mehrfach dasselbe Bild.
      */
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val frame = remember { mutableLongStateOf(System.currentTimeMillis()) }
     val isAnyRunning = timers.any { it.isRunning }
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(isAnyRunning, lifecycleOwner) {
         if (!isAnyRunning) return@LaunchedEffect
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            while (true) {
-                val current = System.currentTimeMillis()
-                now = current
-                delay(MILLIS_PER_SECOND - current % MILLIS_PER_SECOND)
-            }
+            while (true) withFrameMillis { frame.longValue = System.currentTimeMillis() }
         }
     }
+
+    /**
+     * Die Uhr des Augenblicks, in dem gerechnet wird – nicht der zuletzt getickte Stand.
+     *
+     * [frame] wird nur gelesen, damit Compose die Anzeige überhaupt an den Bildtakt hängt; es
+     * liegt nie vor der tatsächlichen Zeit, `maxOf` liefert also immer diese. Der Unterschied
+     * zählt genau einmal, dafür sichtbar: Im ersten Bild nach dem Start steht im Takt noch der
+     * Stand von vorhin. Eine gerade gestartete Uhr stünde damit einen Wimpernschlag lang eine
+     * Sekunde zu hoch, und eine fortgesetzte Uhr risse den Balken um die Pausenlänge nach rechts.
+     */
+    val nowMillis = remember { { maxOf(frame.longValue, System.currentTimeMillis()) } }
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -120,7 +129,7 @@ fun RestTimerBar(
         timers.forEachIndexed { index, timer ->
             RestTimerBox(
                 timer = timer,
-                nowMillis = now,
+                nowMillis = nowMillis,
                 onToggle = { onToggle(index) },
                 onReset = { onReset(index) },
                 onConfigure = { configuring = index }
@@ -151,13 +160,21 @@ fun RestTimerBar(
 @Composable
 private fun RowScope.RestTimerBox(
     timer: RestTimer,
-    nowMillis: Long,
+    nowMillis: () -> Long,
     onToggle: () -> Unit,
     onReset: () -> Unit,
     onConfigure: () -> Unit
 ) {
     val haptics = LocalHapticFeedback.current
-    val remaining = timer.remainingSeconds(nowMillis)
+
+    /**
+     * Nur die ganze Sekunde, nicht der Bildtakt: `derivedStateOf` meldet sich erst, wenn sich
+     * die Ziffern wirklich ändern. Ohne das baute sich die Zeile mit jedem Bild neu auf, um
+     * dieselbe Zahl noch einmal hinzuschreiben.
+     */
+    val remaining by remember(timer, nowMillis) {
+        derivedStateOf { timer.remainingSeconds(nowMillis()) }
+    }
 
     val textColor by animateColorAsState(
         targetValue = when {
@@ -168,20 +185,6 @@ private fun RowScope.RestTimerBox(
         label = "timerTextColor"
     )
 
-    /**
-     * Wie viel der Pause noch aussteht, als Füllstand hinter der Zeile: Auf einen Blick
-     * erkennbar, ohne die Ziffern lesen zu müssen.
-     *
-     * Bewusst ohne `animateFloatAsState`: Der Zielwert wechselt mit jeder Sekunde, jede
-     * Änderung startete also eine neue Feder und der Balken liefe die ganze Pause über in
-     * voller Bildwiederholrate – für eine Strecke von rund einem Prozent je Sekunde. So
-     * springt er einmal pro Sekunde, was man bei dieser Schrittweite nicht sieht.
-     */
-    val progress = if (timer.durationSeconds > 0) {
-        (remaining.toFloat() / timer.durationSeconds).coerceIn(0f, 1f)
-    } else {
-        0f
-    }
     val isIdle = !timer.isRunning && !timer.isPaused
 
     Row(
@@ -190,12 +193,18 @@ private fun RowScope.RestTimerBox(
             .height(Dimens.TimerBoxHeight)
             .clip(Dimens.CornerCard)
             .background(CardBackground)
+            // Wie viel der Pause noch aussteht, als Füllstand hinter der Zeile: Auf einen Blick
+            // erkennbar, ohne die Ziffern lesen zu müssen. Der Füllstand wird erst hier beim
+            // Zeichnen bestimmt und nicht oben im Rumpf – so hängt am Bildtakt nur das Zeichnen.
             .drawBehind {
                 // Im Ruhezustand stünde der Balken voll da und sähe nach „läuft“ aus.
                 if (isIdle) return@drawBehind
                 drawRect(
                     color = AccentGreenSurface,
-                    size = Size(width = size.width * progress, height = size.height)
+                    size = Size(
+                        width = size.width * timer.remainingFraction(nowMillis()),
+                        height = size.height
+                    )
                 )
             }
             .combinedClickable(
@@ -250,8 +259,6 @@ private fun RowScope.RestTimerBox(
         )
     }
 }
-
-private const val MILLIS_PER_SECOND = 1000L
 
 @Preview(showBackground = true, backgroundColor = 0xFF10141A, widthDp = 360)
 @Composable
