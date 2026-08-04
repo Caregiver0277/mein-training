@@ -51,6 +51,10 @@ import de.beispiel.meintraining.ui.theme.TextSecondary
  *
  * [dragModifier] wird im Auswahlmodus auf die markierte Zeile gelegt: Wer ausgewählt hat,
  * kann direkt schieben. [isDragging] hebt die Karte dabei optisch ab.
+ *
+ * [contentModifier] liegt auf dem Inhalt – Name, Werte, Pfeil – und nicht auf der Karte: Wer
+ * ihn verschleiert (siehe [Modifier.unconfirmedBlur]), lässt Hintergrund, Rahmen und Schatten
+ * unangetastet.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -65,7 +69,8 @@ fun ExerciseRow(
     isDragging: Boolean = false,
     isSelectable: Boolean = false,
     isSelected: Boolean = false,
-    dragModifier: Modifier = Modifier
+    dragModifier: Modifier = Modifier,
+    contentModifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -89,7 +94,10 @@ fun ExerciseRow(
                     color = if (isSelected) AccentBlue else Color.Transparent,
                     shape = Dimens.CornerCard
                 )
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                // Ganz am Ende der Kette: Alles davor – Schatten, Form, Hintergrund, Rahmen,
+                // auch das Aufleuchten beim Tippen – zeichnet außerhalb und bleibt unberührt.
+                .then(contentModifier),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Rechts liefert der 48dp-Pfeilbutton den optischen Rand, links reicht ein

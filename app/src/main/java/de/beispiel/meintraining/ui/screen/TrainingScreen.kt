@@ -70,6 +70,8 @@ import de.beispiel.meintraining.ui.components.DraggableItem
 import de.beispiel.meintraining.ui.components.ExerciseRow
 import de.beispiel.meintraining.ui.components.draggableItem
 import de.beispiel.meintraining.ui.components.rememberDragDropState
+import de.beispiel.meintraining.ui.components.rememberUnconfirmedBlur
+import de.beispiel.meintraining.ui.components.unconfirmedBlur
 import de.beispiel.meintraining.ui.theme.AccentGreen
 import de.beispiel.meintraining.ui.theme.AccentGreenSurface
 import de.beispiel.meintraining.ui.theme.AppTextStyles
@@ -214,6 +216,20 @@ private fun TrainingContent(
     val listState = rememberSaveable(uiState.selectedDayId, saver = LazyListState.Saver) {
         LazyListState()
     }
+
+    // Solange das Training des Tages nicht eingetragen ist, liegt ein leichter Schleier über
+    // den Übungen; mit dem Haken zieht die Liste scharf.
+    val blur = rememberUnconfirmedBlur(
+        dayId = uiState.selectedDayId,
+        isConfirmed = uiState.isSelectedDayConfirmed,
+        // Ohne Trainingstage kommt der Zustand noch nicht aus der Datenbank – vor der ersten
+        // Antwort steht dort die Vorgabe, und die sagt „nicht abgehakt“.
+        isReady = uiState.days.isNotEmpty()
+    )
+    // Einmal für alle Zeilen und einmal gemerkt: Der Verlauf steckt allein in [blur] und wird
+    // erst beim Zeichnen gelesen. Die Liste wird deshalb während der ganzen Blende kein
+    // einziges Mal neu zusammengesetzt.
+    val rowBlur = remember(blur) { Modifier.unconfirmedBlur(blur) }
 
     /**
      * Reihenfolge, die die Oberfläche selbst gesetzt hat: beim Ziehen und danach, bis die
@@ -375,7 +391,8 @@ private fun TrainingContent(
                                 state = dragDropState,
                                 key = exercise.id,
                                 index = index
-                            )
+                            ),
+                            contentModifier = rowBlur
                         )
                     }
                 }

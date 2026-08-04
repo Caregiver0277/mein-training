@@ -21,12 +21,29 @@ data class TrainingUiState(
     val selectedIds: Set<Long> = emptySet(),
     /** Tage, die in der laufenden Runde schon abgehakt sind. */
     val completedDayIds: Set<Int> = emptySet(),
+    /** Tage, für die *heute* ein Eintrag steht – unabhängig von der laufenden Runde. */
+    val todaysDayIds: Set<Int> = emptySet(),
     val deload: DeloadStatus = DeloadStatus(),
     /** Selbst vergebene Überschrift; leer heißt: Vorgabe aus den Textressourcen. */
     val appTitle: String = ""
 ) {
     /** Ist der angezeigte Tag in dieser Runde schon erledigt? */
     val isSelectedDayCompleted: Boolean get() = selectedDayId in completedDayIds
+
+    /**
+     * Gilt das Training des angezeigten Tages als eingetragen?
+     *
+     * Das ist mehr als [isSelectedDayCompleted], und zwar in genau einem Fall: Mit dem letzten
+     * Tag einer Runde beginnt die Zählung von vorn und jeder Haken steht wieder auf offen
+     * (siehe `completedDaysInRotation`). Wer gerade das letzte Training der Runde abgehakt hat,
+     * ist damit fertig – der Eintrag von heute sagt das unabhängig von der Runde.
+     *
+     * Die Unterscheidung zählt für alles, was auf das Abhaken *antwortet*: Der Schleier über
+     * den Übungen bliebe sonst ausgerechnet nach dem letzten Training der Runde liegen, als
+     * wäre der Haken nicht angekommen.
+     */
+    val isSelectedDayConfirmed: Boolean
+        get() = isSelectedDayCompleted || selectedDayId in todaysDayIds
 
     val isSelectionMode: Boolean get() = selectedIds.isNotEmpty()
 

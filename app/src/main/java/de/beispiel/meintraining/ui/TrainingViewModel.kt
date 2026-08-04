@@ -131,6 +131,11 @@ class TrainingViewModel(
                 dayIdsOldestFirst = sessionList.asReversed().map { it.dayId },
                 dayCount = dayCount
             ),
+            // Neueste zuerst heißt: Was heute eingetragen wurde, steht vorn. `takeWhile` hört
+            // beim ersten älteren Eintrag auf und rechnet nicht den ganzen Verlauf durch.
+            todaysDayIds = sessionList
+                .takeWhile { it.completedAt.toLocalDate() == today }
+                .mapTo(mutableSetOf()) { it.dayId },
             deload = deloadStatus(
                 sessionDates = sessionList.map { it.completedAt.toLocalDate() },
                 today = today,
@@ -151,6 +156,7 @@ class TrainingViewModel(
 
     private data class SessionSummary(
         val completedDayIds: Set<Int>,
+        val todaysDayIds: Set<Int>,
         val deload: DeloadStatus
     )
 
@@ -166,6 +172,7 @@ class TrainingViewModel(
         val dayCount: Int,
         val title: String,
         val completedDayIds: Set<Int>,
+        val todaysDayIds: Set<Int>,
         val deload: DeloadStatus
     )
 
@@ -174,6 +181,7 @@ class TrainingViewModel(
             dayCount = prefs.dayCount,
             title = prefs.title,
             completedDayIds = summary.completedDayIds,
+            todaysDayIds = summary.todaysDayIds,
             deload = summary.deload
         )
     }
@@ -205,6 +213,7 @@ class TrainingViewModel(
                 selection intersect exerciseList.mapTo(HashSet()) { it.id }
             },
             completedDayIds = around.completedDayIds,
+            todaysDayIds = around.todaysDayIds,
             deload = around.deload,
             appTitle = around.title
         )

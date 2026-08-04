@@ -33,6 +33,13 @@ object Dimens {
 
     /** Linker Innenabstand der Karte; im Auswahlmodus steht dort stattdessen der Haken. */
     val CardPaddingStart = 12.dp
+
+    /**
+     * Wie weich der Inhalt einer Zeile wird, solange der Tag nicht abgehakt ist.
+     *
+     * Bewusst knapp bemessen: Die Werte bleiben lesbar, die Liste sieht nur unfertig aus.
+     */
+    val ExerciseBlurRadius = 1.8.dp
     val SelectionMarkWidth = 32.dp
     val SelectionMarkSize = 18.dp
     val SelectionBorderWidth = 1.dp
