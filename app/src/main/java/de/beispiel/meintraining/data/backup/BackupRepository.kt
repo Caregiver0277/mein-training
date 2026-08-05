@@ -66,7 +66,8 @@ class BackupRepository(
                 BackupDefinition(
                     name = it.name,
                     weightKg = it.weightKg,
-                    progressionStepKg = it.progressionStepKg
+                    progressionStepKg = it.progressionStepKg,
+                    progressionDown = it.progressionDown
                 )
             },
             weightLogs = logs.map {
@@ -85,7 +86,8 @@ class BackupRepository(
                     deloadCycleWeeks = deloadCycleWeeks,
                     dayCount = dayCount,
                     selectedDayId = selectedDayId,
-                    hiddenTrackingNames = hiddenTrackingNames.toList()
+                    hiddenTrackingNames = hiddenTrackingNames.toList(),
+                    hiddenExerciseNames = hiddenExerciseNames.toList()
                 )
             }
         )
@@ -216,7 +218,8 @@ class BackupRepository(
                     ExerciseDefinition(
                         name = it.name,
                         weightKg = it.weightKg,
-                        progressionStepKg = it.progressionStepKg
+                        progressionStepKg = it.progressionStepKg,
+                        progressionDown = it.progressionDown
                     )
                 }
             )
@@ -256,6 +259,7 @@ class BackupRepository(
             deloadCycleWeeks?.let { settingsStore.setDeloadCycleWeeks(it) }
             dayCount?.let { settingsStore.setDayCount(it) }
             settingsStore.setHiddenTrackingNames(hiddenTrackingNames.toSet())
+            settingsStore.setHiddenExerciseNames(hiddenExerciseNames.toSet())
             // Die Rundenschnitte gehören zum ersetzten Verlauf und wandern deshalb nicht mit in
             // die Datei: Ein Schnitt von diesem Gerät läge hinter allen eingespielten Trainings
             // und die laufende Runde stünde für immer auf null.

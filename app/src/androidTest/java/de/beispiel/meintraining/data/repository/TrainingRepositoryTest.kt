@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import de.beispiel.meintraining.data.local.AppDatabase
 import de.beispiel.meintraining.data.local.SettingsStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -23,9 +24,9 @@ import org.junit.runner.RunWith
  * Sie ergeben sich erst aus mehreren Tabellen und einer Transaktion. Geprüft wird deshalb gegen
  * eine echte, aber flüchtige Datenbank.
  *
- * Die Einstellungen werden dabei nur *gelesen* – geschrieben wird in ihnen allein, wenn eine im
- * Tracking ausgeblendete Übung umbenannt wird, und die Namen hier hat niemand ausgeblendet. Der
- * Test lässt die Einstellungen des Geräts also unberührt.
+ * Anders als die Datenbank sind die Einstellungen nicht flüchtig: Sie liegen als Datei neben der
+ * App, und das Ausblenden schreibt hinein. Die Ausblendliste wird deshalb vor und nach jedem Test
+ * geleert – sonst trüge ein Test seine Namen in den nächsten.
  */
 @RunWith(AndroidJUnit4::class)
 class TrainingRepositoryTest {
@@ -34,20 +35,24 @@ class TrainingRepositoryTest {
         get() = InstrumentationRegistry.getInstrumentation().targetContext
 
     private lateinit var database: AppDatabase
+    private lateinit var settingsStore: SettingsStore
     private lateinit var repository: TrainingRepository
 
     @Before
     fun setUp() {
         database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
+        settingsStore = SettingsStore(context)
         repository = TrainingRepository(
             appContext = context,
             database = database,
-            settingsStore = SettingsStore(context)
+            settingsStore = settingsStore
         )
+        runBlocking { settingsStore.setHiddenExerciseNames(emptySet()) }
     }
 
     @After
     fun tearDown() {
+        runBlocking { settingsStore.setHiddenExerciseNames(emptySet()) }
         database.close()
     }
 
@@ -111,6 +116,110 @@ class TrainingRepositoryTest {
         assertFalse(zuruecknehmen(erste, "Rudern"))
         assertEquals(45.0, gewichtVon("Rudern")!!, 0.0)
         assertEquals(listOf(40.0, 42.5, 45.0), verlaufVon("Rudern"))
+    }
+
+    // --- Gewicht senken ----------------------------------------------------
+
+    /**
+     * Zeigt der Pfeil nach unten, senkt er das Gewicht um den Schritt – und der Verlauf hält es
+     * genauso fest wie eine Erhöhung. Das ist der Fall für alles, was sich abtrainiert: die
+     * Unterstützung an der Klimmzugmaschine etwa.
+     */
+    @Test
+    fun einePfeilRichtungNachUntenSenktDasGewicht() = runBlocking {
+        anlegen(name = "Klimmzugmaschine", weightKg = 30.0, stepKg = 2.5, progressionDown = true)
+
+        val change = repository.progressWeight("Klimmzugmaschine")!!
+        assertEquals(30.0, change.previousKg, 0.0)
+        assertEquals(27.5, change.newKg, 0.0)
+        assertEquals(listOf(30.0, 27.5), verlaufVon("Klimmzugmaschine"))
+
+        // Zurücknehmen läuft über denselben Weg wie bei einer Erhöhung.
+        assertTrue(zuruecknehmen(change, "Klimmzugmaschine"))
+        assertEquals(30.0, gewichtVon("Klimmzugmaschine")!!, 0.0)
+        assertEquals(listOf(30.0), verlaufVon("Klimmzugmaschine"))
+    }
+
+    /**
+     * Bei 0 kg ist unten Schluss: Der Druck auf den Pfeil bewirkt dann nichts, statt ein
+     * negatives Gewicht zu schreiben oder denselben Wert ein zweites Mal in den Verlauf zu legen.
+     */
+    @Test
+    fun untenIstBeiNullSchluss() = runBlocking {
+        anlegen(name = "Bandunterstützung", weightKg = 2.0, stepKg = 2.5, progressionDown = true)
+
+        assertEquals(0.0, repository.progressWeight("Bandunterstützung")!!.newKg, 0.0)
+        assertNull(repository.progressWeight("Bandunterstützung"))
+        assertEquals(listOf(2.0, 0.0), verlaufVon("Bandunterstützung"))
+    }
+
+    // --- Ausblenden --------------------------------------------------------
+
+    /**
+     * Ausblenden nimmt nichts weg: Die Zeile, ihre geteilten Werte und der Verlauf bleiben
+     * stehen, es merkt sich nur den Namen – und gibt ihn wieder her.
+     */
+    @Test
+    fun ausblendenLaesstZeileUndVerlaufStehen() = runBlocking {
+        anlegen(name = "Beinpresse", weightKg = 80.0, stepKg = 5.0)
+
+        repository.setExerciseHidden("Beinpresse", hidden = true)
+        assertEquals(setOf("Beinpresse"), repository.hiddenExerciseNames.first())
+        assertEquals(80.0, gewichtVon("Beinpresse")!!, 0.0)
+        assertEquals(1, database.exerciseDao().listByDay(1).count { it.name == "Beinpresse" })
+
+        repository.setExerciseHidden("Beinpresse", hidden = false)
+        assertEquals(emptySet<String>(), repository.hiddenExerciseNames.first())
+    }
+
+    /**
+     * Eine gelöschte Übung darf nicht als ausgeblendeter Name zurückbleiben – sonst wäre eine
+     * später neu angelegte Übung gleichen Namens von Anfang an unsichtbar.
+     */
+    @Test
+    fun einGeloeschterNameBleibtNichtAusgeblendet() = runBlocking {
+        anlegen(name = "Wadenheben", weightKg = 40.0, stepKg = 2.5)
+        repository.setExerciseHidden("Wadenheben", hidden = true)
+
+        repository.deleteExercisesEverywhere(setOf("Wadenheben"))
+
+        assertEquals(emptySet<String>(), repository.hiddenExerciseNames.first())
+    }
+
+    /**
+     * Umsortieren, während eine Übung ausgeblendet ist: Die sichtbaren nehmen die neue
+     * Reihenfolge an, die ausgeblendete bleibt an ihrem Platz zwischen ihnen.
+     *
+     * Die Oberfläche kennt die ausgeblendete Zeile gar nicht und schickt sie deshalb nicht mit –
+     * ohne diese Regel behielte sie ihre alte Nummer und läge damit doppelt.
+     */
+    @Test
+    fun umsortierenLaesstAusgeblendeteAnIhremPlatz() = runBlocking {
+        val erste = anlegen(name = "Rudern KH", weightKg = 20.0, stepKg = 2.5)
+        val versteckt = anlegen(name = "Face Pull", weightKg = 15.0, stepKg = 1.25)
+        val dritte = anlegen(name = "Reverse Fly", weightKg = 10.0, stepKg = 1.25)
+        repository.setExerciseHidden("Face Pull", hidden = true)
+
+        // Die Oberfläche schickt nur die sichtbaren Zeilen – in umgekehrter Reihenfolge.
+        repository.reorderExercises(dayId = 1, orderedIds = listOf(dritte, erste))
+
+        assertEquals(
+            listOf("Reverse Fly", "Face Pull", "Rudern KH"),
+            database.exerciseDao().listByDay(1).map { it.name }
+        )
+        assertEquals(listOf(0, 1, 2), database.exerciseDao().listByDay(1).map { it.position })
+        assertEquals(versteckt, database.exerciseDao().listByDay(1)[1].id)
+    }
+
+    /** Umbenennen zieht die Ausblendung mit, statt sie am alten Namen hängen zu lassen. */
+    @Test
+    fun umbenennenNimmtDieAusblendungMit() = runBlocking {
+        val id = anlegen(name = "Butterfly", weightKg = 25.0, stepKg = 2.5)
+        repository.setExerciseHidden("Butterfly", hidden = true)
+
+        umbenennen(id = id, von = "Butterfly", nach = "Brustmaschine", weightKg = 25.0)
+
+        assertEquals(setOf("Brustmaschine"), repository.hiddenExerciseNames.first())
     }
 
     // --- Umbenennen --------------------------------------------------------
@@ -183,7 +292,8 @@ class TrainingRepositoryTest {
         name: String,
         weightKg: Double,
         stepKg: Double,
-        dayId: Int = 1
+        dayId: Int = 1,
+        progressionDown: Boolean = false
     ): Long {
         repository.saveExercise(
             id = null,
@@ -194,7 +304,8 @@ class TrainingRepositoryTest {
             sets = 3,
             repsMin = 4,
             repsMax = 6,
-            progressionStepKg = stepKg
+            progressionStepKg = stepKg,
+            progressionDown = progressionDown
         )
         return database.exerciseDao().listByDay(dayId).first { it.name == name }.id
     }
@@ -214,7 +325,8 @@ class TrainingRepositoryTest {
             sets = vorher.sets,
             repsMin = vorher.repsMin,
             repsMax = vorher.repsMax,
-            progressionStepKg = 2.5
+            progressionStepKg = 2.5,
+            progressionDown = false
         )
     }
 
@@ -222,7 +334,7 @@ class TrainingRepositoryTest {
         repository.revertWeight(
             name = name,
             previousKg = change.previousKg,
-            increasedToKg = change.newKg,
+            changedToKg = change.newKg,
             logId = change.logId
         )
 

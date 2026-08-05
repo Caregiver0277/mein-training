@@ -44,7 +44,9 @@ class RestTimerReceiver : BroadcastReceiver() {
                 // auf 0:00. Ohne Kennung ist nicht zu erkennen, welche Uhr gemeint war; der Ton
                 // kommt trotzdem, denn genau dafür gibt es den Wecker.
                 if (index >= 0) store.clearRun(index)
-                if (store.isSoundEnabled()) RestTimerSound.play(context)
+                if (store.isSoundEnabled()) {
+                    RestTimerSound.play(context, store.currentSoundVolume())
+                }
             } finally {
                 pending.finish()
             }

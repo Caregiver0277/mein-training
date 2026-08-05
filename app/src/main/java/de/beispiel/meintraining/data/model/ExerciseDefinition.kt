@@ -14,5 +14,14 @@ import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 data class ExerciseDefinition(
     @PrimaryKey val name: String,
     val weightKg: Double? = null,
-    val progressionStepKg: Double = DEFAULT_PROGRESSION_STEP_KG
+    val progressionStepKg: Double = DEFAULT_PROGRESSION_STEP_KG,
+    /**
+     * Richtung der Progression: `true` heißt, der Pfeil in der Liste *senkt* das Gewicht um den
+     * Schritt, statt es zu erhöhen.
+     *
+     * Steht bei den geteilten Werten und nicht an der einzelnen Zeile, aus demselben Grund wie
+     * der Schritt selbst: Beides beschreibt, wie sich das gemeinsame Gewicht bewegt – und das
+     * gilt an allen Tagen, an denen die Übung vorkommt.
+     */
+    val progressionDown: Boolean = false
 )

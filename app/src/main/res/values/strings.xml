@@ -17,6 +17,7 @@
     <!-- Barrierefreiheit -->
     <string name="cd_open_menu">Menü öffnen</string>
     <string name="cd_increase_weight">Gewicht erhöhen</string>
+    <string name="cd_decrease_weight">Gewicht senken</string>
     <string name="cd_add_exercise">Übung hinzufügen</string>
 
     <!-- Bearbeiten-Sheet -->
@@ -33,6 +34,8 @@
     <string name="field_reps_max">Wiederh. bis</string>
     <string name="field_progression_step">Progressionsschritt (kg)</string>
     <string name="hint_progression_step">Um diesen Wert erhöht der Pfeil das Gewicht.</string>
+    <string name="hint_progression_step_down">Um diesen Wert senkt der Pfeil das Gewicht.</string>
+    <string name="cd_progression_down">Gewicht senken statt erhöhen</string>
     <string name="quick_select_label">Schnellauswahl</string>
     <string name="error_name_required">Bitte einen Namen eingeben.</string>
 
@@ -87,6 +90,9 @@
     <string name="settings_timers">Pausenuhren</string>
     <string name="settings_timer_sound">Ton am Ende der Pause</string>
     <string name="settings_timer_sound_hint">Zwei kurze Töne, sobald die Pause um ist – über Kopfhörer, wenn welche angeschlossen sind. Vibriert wird unabhängig davon immer.</string>
+    <string name="settings_timer_volume">Lautstärke</string>
+    <string name="settings_timer_volume_value">%1$d %%</string>
+    <string name="settings_timer_volume_hint">Zum Probehören einmal loslassen. Die Obergrenze setzt weiterhin der Wecker-Regler des Handys.</string>
     <string name="settings_days">Trainingstage</string>
     <string name="settings_day_label">Tag %1$d</string>
     <string name="settings_days_hint">Wie viele Tage eine Runde hat und wie sie heißen. Eine Runde ist durch, wenn jeder Tag einmal abgehakt wurde.</string>
@@ -103,8 +109,11 @@
         <item quantity="other">%1$d Übungen</item>
     </plurals>
     <string name="settings_exercises_title">Übungen verwalten</string>
-    <string name="settings_exercises_hint">Hier entfernst du eine Übung endgültig – von allen Trainingstagen, aus den Vorschlägen und aus dem Tracking.</string>
+    <string name="settings_exercises_hint">Das Auge blendet eine Übung an allen Trainingstagen aus, ohne etwas zu löschen – Gewicht und Verlauf bleiben. Der Papierkorb entfernt sie endgültig: von allen Trainingstagen, aus den Vorschlägen und aus dem Tracking.</string>
     <string name="settings_no_exercises">Es gibt noch keine Übungen.</string>
+    <string name="settings_hide">An den Trainingstagen ausblenden</string>
+    <string name="settings_show">An den Trainingstagen wieder einblenden</string>
+    <string name="settings_hidden_note">%1$s · ausgeblendet</string>
     <string name="settings_delete_everywhere">Überall löschen</string>
     <string name="settings_delete_title">„%1$s“ überall löschen?</string>
     <string name="settings_delete_body">Die Übung verschwindet von allen Trainingstagen, aus den Namensvorschlägen und samt Gewichtsverlauf aus dem Tracking. Das lässt sich nicht rückgängig machen.</string>
@@ -189,6 +198,7 @@
 
     <!-- Snackbars -->
     <string name="snackbar_weight_increased">Gewicht auf %1$s erhöht</string>
+    <string name="snackbar_weight_decreased">Gewicht auf %1$s gesenkt</string>
     <string name="snackbar_exercise_deleted">„%1$s“ gelöscht</string>
     <string name="snackbar_cycle_started">Neue Runde begonnen</string>
     <plurals name="snackbar_exercises_deleted">

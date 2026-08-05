@@ -37,7 +37,8 @@ data class SettingsSnapshot(
     val deloadCycleWeeks: Int,
     val dayCount: Int,
     val selectedDayId: Int,
-    val hiddenTrackingNames: Set<String>
+    val hiddenTrackingNames: Set<String>,
+    val hiddenExerciseNames: Set<String>
 )
 
 /** Kleine Einstellungen, die nicht in die Datenbank gehören (aktuell nur der gewählte Tag). */
@@ -67,7 +68,7 @@ class SettingsStore(context: Context) {
     /**
      * Alle für die Sicherung nötigen Werte in einem Zug.
      *
-     * Sonst würde jeder Wert einzeln abgefragt: sechs Lesevorgänge, zwischen die sich eine
+     * Sonst würde jeder Wert einzeln abgefragt: ein Lesevorgang je Wert, zwischen die sich eine
      * Änderung schieben kann – die Sicherung enthielte dann einen Zustand, den es so nie gab.
      * Gelesen wird über dieselben Funktionen wie die Flüsse darunter, damit Vorgabewerte und
      * Grenzen nur an einer Stelle stehen.
@@ -78,7 +79,8 @@ class SettingsStore(context: Context) {
             deloadCycleWeeks = readDeloadWeeks(prefs),
             dayCount = readDayCount(prefs),
             selectedDayId = readSelectedDay(prefs),
-            hiddenTrackingNames = readHiddenTracking(prefs)
+            hiddenTrackingNames = readHiddenTracking(prefs),
+            hiddenExerciseNames = readHiddenExercises(prefs)
         )
     }
 
@@ -148,6 +150,26 @@ class SettingsStore(context: Context) {
 
     suspend fun setHiddenTrackingNames(names: Set<String>) {
         store.edit { prefs -> prefs[KEY_HIDDEN_TRACKING] = names }
+    }
+
+    /**
+     * An den Trainingstagen ausgeblendete Übungen.
+     *
+     * Getrennt von den im Tracking ausgeblendeten: Das eine ist eine Übung, die gerade nicht
+     * trainiert wird, das andere eine Kurve, die den Graphen zustellt – wer eine Übung pausiert,
+     * will ihren Verlauf gerade *nicht* verlieren.
+     *
+     * Gespeichert wird auch hier das Ausgeblendete und nicht das Sichtbare, damit eine neu
+     * angelegte Übung von selbst in ihrem Tag auftaucht. Die Zeilen selbst bleiben unangetastet
+     * in der Datenbank stehen – Ausblenden ist kein Löschen und jederzeit umkehrbar.
+     */
+    private fun readHiddenExercises(prefs: Preferences): Set<String> =
+        prefs[KEY_HIDDEN_EXERCISES].orEmpty()
+
+    val hiddenExerciseNames: Flow<Set<String>> = preference(::readHiddenExercises)
+
+    suspend fun setHiddenExerciseNames(names: Set<String>) {
+        store.edit { prefs -> prefs[KEY_HIDDEN_EXERCISES] = names }
     }
 
     private fun readDeloadWeeks(prefs: Preferences): Int =
@@ -247,6 +269,7 @@ class SettingsStore(context: Context) {
         val KEY_DAY_COUNT = intPreferencesKey("day_count")
         val KEY_APP_TITLE = stringPreferencesKey("app_title")
         val KEY_HIDDEN_TRACKING = stringSetPreferencesKey("hidden_tracking_names")
+        val KEY_HIDDEN_EXERCISES = stringSetPreferencesKey("hidden_exercise_names")
         val KEY_LAST_DAY_ADVANCE = longPreferencesKey("last_day_advance")
         val KEY_ROTATION_CUTS = stringPreferencesKey("rotation_cuts")
 

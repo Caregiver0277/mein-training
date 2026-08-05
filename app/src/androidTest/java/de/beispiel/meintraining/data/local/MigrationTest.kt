@@ -196,6 +196,35 @@ class MigrationTest {
         }
     }
 
+    /**
+     * Die Richtung der Progression kommt dazu. Für jede bestehende Übung muss dabei „nach oben“
+     * herauskommen – bis hierher gab es nichts anderes, und ein Pfeil, der nach dem Update
+     * plötzlich Gewicht abnimmt, wäre der ärgerlichste denkbare Nebeneffekt.
+     */
+    @Test
+    fun dieRichtungKommtDazuUndZeigtWeiterNachOben() {
+        helper.createDatabase(TEST_DB, 6).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO ExerciseDefinition (name, weightKg, progressionStepKg)
+                VALUES ('Bankdrücken', 60.0, 2.5)
+                """.trimIndent()
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 7, true, *AppDatabase.MIGRATIONS)
+        db.use {
+            it.query("SELECT weightKg, progressionStepKg, progressionDown FROM ExerciseDefinition")
+                .use { cursor ->
+                    assertEquals(1, cursor.count)
+                    assertTrue(cursor.moveToFirst())
+                    assertEquals(60.0, cursor.getDouble(0), TOLERANCE)
+                    assertEquals(2.5, cursor.getDouble(1), TOLERANCE)
+                    assertEquals(0, cursor.getInt(2))
+                }
+        }
+    }
+
     /** Legt die Datenbank so an, wie Version 1 der App sie hinterlassen hat. */
     private fun createVersion1(fill: (SQLiteDatabase) -> Unit) {
         val db = SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(TEST_DB), null)

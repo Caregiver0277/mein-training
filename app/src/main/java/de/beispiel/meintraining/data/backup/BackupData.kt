@@ -52,7 +52,9 @@ data class BackupExercise(
 data class BackupDefinition(
     val name: String,
     val weightKg: Double? = null,
-    val progressionStepKg: Double
+    val progressionStepKg: Double,
+    /** Fehlt in Dateien aus älteren Fassungen; dort erhöhte der Pfeil immer. */
+    val progressionDown: Boolean = false
 )
 
 @Serializable
@@ -72,7 +74,8 @@ data class BackupSettings(
     val deloadCycleWeeks: Int? = null,
     val dayCount: Int? = null,
     val selectedDayId: Int? = null,
-    val hiddenTrackingNames: List<String> = emptyList()
+    val hiddenTrackingNames: List<String> = emptyList(),
+    val hiddenExerciseNames: List<String> = emptyList()
 )
 
 /** Aktuelle Fassung des Dateiformats. */

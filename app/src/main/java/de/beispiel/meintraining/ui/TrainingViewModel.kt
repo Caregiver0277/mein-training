@@ -125,8 +125,9 @@ class TrainingViewModel(
      */
     private val preferences = combine(
         repository.dayCount,
-        repository.appTitle
-    ) { dayCount, title -> Preferences(dayCount, title) }
+        repository.appTitle,
+        repository.hiddenExerciseNames
+    ) { dayCount, title, hiddenExercises -> Preferences(dayCount, title, hiddenExercises) }
 
     /**
      * Der teure Teil, getrennt gehalten: Er hängt nur an den Sitzungen, der Rundenlänge, der
@@ -181,7 +182,9 @@ class TrainingViewModel(
 
     private data class Preferences(
         val dayCount: Int,
-        val title: String
+        val title: String,
+        /** Übungen, die an ihren Trainingstagen gerade nicht mitlaufen sollen. */
+        val hiddenExerciseNames: Set<String>
     )
 
     private data class SessionSummary(
@@ -202,6 +205,7 @@ class TrainingViewModel(
     private data class Surroundings(
         val dayCount: Int,
         val title: String,
+        val hiddenExerciseNames: Set<String>,
         val completedDayIds: Set<Int>,
         val canReturnToPreviousCycle: Boolean,
         val todaysDayIds: Set<Int>,
@@ -212,6 +216,7 @@ class TrainingViewModel(
         Surroundings(
             dayCount = prefs.dayCount,
             title = prefs.title,
+            hiddenExerciseNames = prefs.hiddenExerciseNames,
             completedDayIds = summary.completedDayIds,
             canReturnToPreviousCycle = summary.canReturnToPreviousCycle,
             todaysDayIds = summary.todaysDayIds,
@@ -229,7 +234,13 @@ class TrainingViewModel(
         // Tag und zugehörige Liste entstehen hier gemeinsam aus *einer* Aussendung – nur so
         // springen Reiter und Übungen im selben Frame um.
         // `observeAll` sortiert bereits nach Tag, Position und id; das Filtern erhält das.
-        val exerciseList = all.filter { it.dayId == day.selectedDayId }
+        //
+        // Ausgeblendete Übungen fallen hier heraus und nicht schon in der Datenbank: Sie stehen
+        // dort unverändert samt Position und Gewicht, das Ausblenden bleibt damit eine Frage der
+        // Anzeige und ist jederzeit umkehrbar (siehe TrainingRepository.setExerciseHidden).
+        val exerciseList = all.filter {
+            it.dayId == day.selectedDayId && it.name !in around.hiddenExerciseNames
+        }
         // Über die eingestellte Anzahl hinausgehende Tage bleiben in der Datenbank stehen,
         // werden aber nicht angezeigt – so ist eine verkürzte Runde jederzeit umkehrbar.
         val visibleDays = day.days.filter { it.id <= around.dayCount }
@@ -473,7 +484,8 @@ class TrainingViewModel(
                 sets = parseOptionalInt(form.sets),
                 repsMin = repsMin,
                 repsMax = repsMax,
-                progressionStepKg = parseProgressionStep(form.progressionStep)
+                progressionStepKg = parseProgressionStep(form.progressionStep),
+                progressionDown = form.progressionDown
             )
             formState.value = null
         }
@@ -507,11 +519,12 @@ class TrainingViewModel(
     // --- Progression -------------------------------------------------------
 
     /**
-     * Erhöht das Gewicht um den bei dieser Übung hinterlegten Schritt – an allen Tagen,
-     * an denen sie vorkommt. Ohne gesetztes Gewicht öffnet sich stattdessen das Sheet.
+     * Verschiebt das Gewicht um den bei dieser Übung hinterlegten Schritt – an allen Tagen, an
+     * denen sie vorkommt, und in der bei ihr eingestellten Richtung. Ohne gesetztes Gewicht
+     * öffnet sich stattdessen das Sheet.
      *
      * Gerechnet wird im Repository auf dem gespeicherten Stand; die Zeile entscheidet hier nur,
-     * ob es überhaupt etwas zu erhöhen gibt – siehe [TrainingRepository.progressWeight].
+     * ob es überhaupt etwas zu verschieben gibt – siehe [TrainingRepository.progressWeight].
      */
     fun onProgressClick(exercise: ExerciseItem) {
         if (exercise.weightKg == null) {
@@ -521,7 +534,7 @@ class TrainingViewModel(
         viewModelScope.launch {
             val change = repository.progressWeight(exercise.name) ?: return@launch
             eventChannel.send(
-                TrainingEvent.WeightIncreased(
+                TrainingEvent.WeightChanged(
                     exerciseName = exercise.name,
                     previousWeightKg = change.previousKg,
                     newWeightKg = change.newKg,
@@ -536,10 +549,10 @@ class TrainingViewModel(
     fun onUndo(event: TrainingEvent) {
         viewModelScope.launch {
             when (event) {
-                is TrainingEvent.WeightIncreased -> repository.revertWeight(
+                is TrainingEvent.WeightChanged -> repository.revertWeight(
                     name = event.exerciseName,
                     previousKg = event.previousWeightKg,
-                    increasedToKg = event.newWeightKg,
+                    changedToKg = event.newWeightKg,
                     logId = event.logId
                 )
                 is TrainingEvent.ExercisesDeleted ->
@@ -550,9 +563,9 @@ class TrainingViewModel(
     }
 
     /**
-     * Füllt Gewicht und Progressionsschritt aus der bekannten Übung, wenn der Name passt.
-     * Die Schreibweise wird dabei auf die gespeicherte angeglichen – sonst entstünde aus
-     * „bankdrücken“ eine zweite Übung neben „Bankdrücken“.
+     * Füllt Gewicht, Progressionsschritt und dessen Richtung aus der bekannten Übung, wenn der
+     * Name passt. Die Schreibweise wird dabei auf die gespeicherte angeglichen – sonst entstünde
+     * aus „bankdrücken“ eine zweite Übung neben „Bankdrücken“.
      */
     private fun ExerciseForm.withSharedValues(): ExerciseForm {
         val match = definitions.value.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }
@@ -560,7 +573,8 @@ class TrainingViewModel(
         return copy(
             name = match.name,
             weight = match.weightKg?.toDecimalString().orEmpty(),
-            progressionStep = match.progressionStepKg.toDecimalString()
+            progressionStep = match.progressionStepKg.toDecimalString(),
+            progressionDown = match.progressionDown
         )
     }
 
@@ -574,7 +588,8 @@ class TrainingViewModel(
         sets = sets?.toString().orEmpty(),
         repsMin = repsMin?.toString().orEmpty(),
         repsMax = repsMax?.toString().orEmpty(),
-        progressionStep = progressionStepKg.toDecimalString()
+        progressionStep = progressionStepKg.toDecimalString(),
+        progressionDown = progressionDown
     )
 
     companion object {

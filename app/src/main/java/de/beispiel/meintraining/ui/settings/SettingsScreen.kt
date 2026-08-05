@@ -33,6 +33,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -40,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -60,6 +64,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.widget.Toast
 import de.beispiel.meintraining.R
+import de.beispiel.meintraining.data.local.MAX_TIMER_SOUND_VOLUME
+import de.beispiel.meintraining.data.local.MIN_TIMER_SOUND_VOLUME
 import de.beispiel.meintraining.data.model.MAX_DAY_COUNT
 import de.beispiel.meintraining.data.model.MIN_DAY_COUNT
 import de.beispiel.meintraining.data.model.TrainingDay
@@ -78,6 +84,7 @@ import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.MAX_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MIN_CYCLE_WEEKS
 import de.beispiel.meintraining.util.toDecimalString
+import kotlin.math.roundToInt
 
 /** Die Ebenen der Einstellungen; die Untermenüs sind eigene Seiten. */
 private enum class SettingsSection { OVERVIEW, DAYS, EXERCISES, BACKUP }
@@ -110,6 +117,7 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         SettingsSection.EXERCISES -> ManageExercisesScreen(
             exercises = uiState.exercises,
             onDeleteExercises = viewModel::onDeleteExercises,
+            onToggleHidden = viewModel::onExerciseHiddenToggled,
             onBack = { section = SettingsSection.OVERVIEW },
             modifier = modifier
         )
@@ -118,6 +126,7 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
             onAppTitleChange = viewModel::onAppTitleChange,
             onDeloadCycleChange = viewModel::onDeloadCycleChange,
             onTimerSoundToggled = viewModel::onTimerSoundToggled,
+            onTimerVolumeChange = viewModel::onTimerVolumeChange,
             onManageDays = { section = SettingsSection.DAYS },
             onManageExercises = { section = SettingsSection.EXERCISES },
             onManageBackup = { section = SettingsSection.BACKUP },
@@ -134,6 +143,7 @@ fun SettingsScreen(
     onAppTitleChange: (String) -> Unit,
     onDeloadCycleChange: (String) -> Unit,
     onTimerSoundToggled: (Boolean) -> Unit,
+    onTimerVolumeChange: (Float) -> Unit,
     onManageDays: () -> Unit,
     onManageExercises: () -> Unit,
     onManageBackup: () -> Unit,
@@ -184,6 +194,13 @@ fun SettingsScreen(
                     hint = stringResource(R.string.settings_timer_sound_hint),
                     checked = uiState.timerSoundEnabled,
                     onCheckedChange = onTimerSoundToggled
+                )
+                VolumeRow(
+                    volume = uiState.timerSoundVolume,
+                    // Ohne Ton gibt es keine Lautstärke; der Regler bleibt sichtbar, damit
+                    // erkennbar ist, wohin der Schalter führt.
+                    enabled = uiState.timerSoundEnabled,
+                    onVolumeChange = onTimerVolumeChange
                 )
             }
 
@@ -424,9 +441,11 @@ private fun ManageDaysScreen(
 /**
  * Übungsverwaltung als eigene Ebene.
  *
- * Anders als das Löschen einer Zeile im Trainingsplan trifft das alles auf einmal – jeden
- * Trainingstag, die Übungsdatenbank und den Gewichtsverlauf. Deshalb geht es hier immer über
- * eine Rückfrage, auch bei einer einzelnen Übung.
+ * Zwei Wege, eine Übung aus den Trainingstagen zu bekommen: Das Auge blendet sie aus – sie
+ * verschwindet aus den Tagen, steht hier ausgegraut weiter da und kommt auf denselben Weg
+ * zurück. Der Papierkorb löscht sie, und zwar überall auf einmal: an jedem Trainingstag, in der
+ * Übungsdatenbank und im Gewichtsverlauf. Deshalb geht Löschen immer über eine Rückfrage, auch
+ * bei einer einzelnen Übung, Ausblenden dagegen nie – es nimmt nichts weg.
  *
  * Langer Druck startet die Auswahl, danach schaltet ein Tippen sie um – dieselbe Geste wie in
  * der Trainingsliste.
@@ -435,6 +454,7 @@ private fun ManageDaysScreen(
 private fun ManageExercisesScreen(
     exercises: List<ManagedExercise>,
     onDeleteExercises: (Set<String>) -> Unit,
+    onToggleHidden: (String, Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -505,6 +525,7 @@ private fun ManageExercisesScreen(
                             selection + exercise.name
                         }
                     },
+                    onToggleHidden = { onToggleHidden(exercise.name, !exercise.isHidden) },
                     onDelete = {
                         selected = setOf(exercise.name)
                         confirmDeletion = true
@@ -687,6 +708,70 @@ private fun SwitchRow(
     }
 }
 
+/**
+ * Regler für die Lautstärke des Tons am Pausenende, mit Prozentzahl daneben.
+ *
+ * Der Regler führt seinen Stand selbst und meldet ihn erst beim Loslassen nach oben. Beides
+ * hängt zusammen: Gespeichert wird in die Einstellungen, und jede Fingerbewegung
+ * einzeln zu schreiben hieße ein Dutzend Schreibvorgänge je Zug – dazu käme je Zwischenstellung
+ * ein Ton, der über dem vorigen anläuft (siehe [SettingsViewModel.onTimerVolumeChange]).
+ *
+ * Die Stufen sind bewusst grob: Zwischen 62 % und 64 % hört niemand einen Unterschied, und in
+ * Fünfern rastet der Regler an Zahlen ein, die man wiederfindet.
+ */
+@Composable
+private fun VolumeRow(volume: Float, enabled: Boolean, onVolumeChange: (Float) -> Unit) {
+    // Kommt ein anderer Stand von außen – gespeichert oder eingelesen –, gilt wieder er.
+    var position by remember(volume) { mutableFloatStateOf(volume) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.settings_timer_volume),
+                style = AppTextStyles.Body,
+                color = if (enabled) TextPrimary else TextDisabled,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = stringResource(
+                    R.string.settings_timer_volume_value,
+                    (position * PERCENT).roundToInt()
+                ),
+                style = AppTextStyles.Body,
+                color = if (enabled) TextSecondary else TextDisabled
+            )
+        }
+        Slider(
+            value = position,
+            onValueChange = { position = it },
+            onValueChangeFinished = { onVolumeChange(position) },
+            valueRange = MIN_TIMER_SOUND_VOLUME..MAX_TIMER_SOUND_VOLUME,
+            steps = VOLUME_STEPS,
+            enabled = enabled,
+            colors = SliderDefaults.colors(
+                thumbColor = AccentBlue,
+                activeTrackColor = AccentBlue,
+                inactiveTrackColor = OutlineColor,
+                disabledThumbColor = TextDisabled,
+                disabledActiveTrackColor = TextDisabled,
+                disabledInactiveTrackColor = OutlineColor
+            )
+        )
+        Text(
+            text = stringResource(R.string.settings_timer_volume_hint),
+            style = AppTextStyles.ColumnLabel,
+            color = if (enabled) TextSecondary else TextDisabled
+        )
+    }
+}
+
+/**
+ * Rastpunkte des Lautstärkereglers: 19 zwischen den Enden ergeben Fünferschritte.
+ */
+private const val VOLUME_STEPS = 19
+
+private const val PERCENT = 100
+
 @Composable
 private fun SubmenuRow(title: String, subtitle: String, onClick: () -> Unit) {
     Row(
@@ -773,6 +858,12 @@ internal fun SettingsField(
     )
 }
 
+/**
+ * Eine Zeile der Übungsverwaltung.
+ *
+ * Eine ausgeblendete Übung steht ausgegraut da und trägt es in ihrer Zeile: Sonst wäre nicht zu
+ * unterscheiden, ob sie an keinem Tag mehr steht oder dort nur gerade nicht mitläuft.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ExerciseRow(
@@ -780,6 +871,7 @@ private fun ExerciseRow(
     isSelectionMode: Boolean,
     isSelected: Boolean,
     onToggleSelection: () -> Unit,
+    onToggleHidden: () -> Unit,
     onDelete: () -> Unit
 ) {
     Row(
@@ -815,31 +907,55 @@ private fun ExerciseRow(
             Text(
                 text = exercise.name,
                 style = AppTextStyles.ExerciseName,
-                color = TextPrimary,
+                color = if (exercise.isHidden) TextDisabled else TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            val where = if (exercise.dayCount == 0) {
+                pluralStringResource(
+                    R.plurals.settings_only_history,
+                    exercise.historyEntries,
+                    exercise.historyEntries
+                )
+            } else {
+                pluralStringResource(
+                    R.plurals.settings_day_count,
+                    exercise.dayCount,
+                    exercise.dayCount
+                )
+            }
             Text(
-                text = if (exercise.dayCount == 0) {
-                    pluralStringResource(
-                        R.plurals.settings_only_history,
-                        exercise.historyEntries,
-                        exercise.historyEntries
-                    )
+                text = if (exercise.isHidden) {
+                    stringResource(R.string.settings_hidden_note, where)
                 } else {
-                    pluralStringResource(
-                        R.plurals.settings_day_count,
-                        exercise.dayCount,
-                        exercise.dayCount
-                    )
+                    where
                 },
                 style = AppTextStyles.ColumnLabel,
                 color = TextSecondary,
                 modifier = Modifier.padding(top = Dimens.SectionSpacingSmall / 2)
             )
         }
-        // Im Auswahlmodus wäre ein zweiter Löschweg je Zeile nur verwirrend.
+        // Im Auswahlmodus wären ein zweiter Löschweg und ein Auge je Zeile nur verwirrend:
+        // Dort geht es um die Auswahl.
         if (!isSelectionMode) {
+            IconButton(onClick = onToggleHidden, modifier = Modifier.size(Dimens.TouchTargetSize)) {
+                // Das Symbol zeigt, was ein Tippen bewirkt: durchgestrichenes Auge zum
+                // Ausblenden, offenes Auge zum Zurückholen.
+                Icon(
+                    painter = painterResource(
+                        if (exercise.isHidden) {
+                            R.drawable.ic_visibility
+                        } else {
+                            R.drawable.ic_visibility_off
+                        }
+                    ),
+                    contentDescription = stringResource(
+                        if (exercise.isHidden) R.string.settings_show else R.string.settings_hide
+                    ),
+                    tint = if (exercise.isHidden) AccentBlue else TextSecondary,
+                    modifier = Modifier.size(Dimens.MenuIconSize)
+                )
+            }
             IconButton(onClick = onDelete, modifier = Modifier.size(Dimens.TouchTargetSize)) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
@@ -867,6 +983,7 @@ private fun SettingsScreenPreview() {
             onAppTitleChange = {},
             onDeloadCycleChange = {},
             onTimerSoundToggled = {},
+            onTimerVolumeChange = {},
             onManageDays = {},
             onManageExercises = {},
             onManageBackup = {},

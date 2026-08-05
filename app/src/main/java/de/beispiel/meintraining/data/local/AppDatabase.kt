@@ -13,7 +13,7 @@ import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 
 /** Aktuelle Schemaversion; steht hier, damit auch die Tests sie benennen können. */
-const val DATABASE_VERSION = 6
+const val DATABASE_VERSION = 7
 
 @Database(
     entities = [
@@ -189,13 +189,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Die Richtung der Progression kommt dazu.
+         *
+         * Vorgabe 0: Bisher erhöhte der Pfeil immer, und genau dabei bleibt es für jede schon
+         * angelegte Übung.
+         */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `ExerciseDefinition` " +
+                        "ADD COLUMN `progressionDown` INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         /** Alle Migrationen in der Reihenfolge ihrer Versionen – auch für die Tests. */
         val MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2,
             MIGRATION_2_3,
             MIGRATION_3_4,
             MIGRATION_4_5,
-            MIGRATION_5_6
+            MIGRATION_5_6,
+            MIGRATION_6_7
         )
 
         @Volatile

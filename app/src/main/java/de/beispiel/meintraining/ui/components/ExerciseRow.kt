@@ -46,8 +46,9 @@ import de.beispiel.meintraining.ui.theme.TextSecondary
  * der Name in dessen Spalte vor; die Sätze-Spalte bleibt dabei an ihrem Platz, weil sie
  * rechts am Pfeilbutton hängt. Sind beide leer, entfällt der Wertebereich ganz.
  *
- * Den blauen Pfeil gibt es nur mit Gewicht – ohne Gewicht gäbe es nichts zu erhöhen. Sein
+ * Den blauen Pfeil gibt es nur mit Gewicht – ohne Gewicht gäbe es nichts zu verschieben. Sein
  * Platz bleibt trotzdem frei, solange die Zeile Werte zeigt, damit die Spalten stehen bleiben.
+ * Mit [progressionDown] zeigt er nach unten und senkt das Gewicht, statt es zu erhöhen.
  *
  * [dragModifier] wird im Auswahlmodus auf die markierte Zeile gelegt: Wer ausgewählt hat,
  * kann direkt schieben. [isDragging] hebt die Karte dabei optisch ab.
@@ -66,6 +67,7 @@ fun ExerciseRow(
     onLongClick: () -> Unit,
     onProgressClick: () -> Unit,
     modifier: Modifier = Modifier,
+    progressionDown: Boolean = false,
     isDragging: Boolean = false,
     isSelectable: Boolean = false,
     isSelected: Boolean = false,
@@ -136,15 +138,27 @@ fun ExerciseRow(
                 ValueSlot(label = setsLabel, width = Dimens.ChipSetsWidth)
             }
             when {
-                // Erhöhen kann man nur, was ein Gewicht hat.
+                // Verschieben kann man nur, was ein Gewicht hat.
                 weightLabel != null -> IconButton(
                     onClick = onProgressClick,
                     enabled = !isSelectable,
                     modifier = Modifier.size(Dimens.TouchTargetSize)
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_arrow_upward),
-                        contentDescription = stringResource(R.string.cd_increase_weight),
+                        painter = painterResource(
+                            if (progressionDown) {
+                                R.drawable.ic_arrow_downward
+                            } else {
+                                R.drawable.ic_arrow_upward
+                            }
+                        ),
+                        contentDescription = stringResource(
+                            if (progressionDown) {
+                                R.string.cd_decrease_weight
+                            } else {
+                                R.string.cd_increase_weight
+                            }
+                        ),
                         tint = AccentBlue,
                         modifier = Modifier.size(Dimens.ArrowIconSize)
                     )

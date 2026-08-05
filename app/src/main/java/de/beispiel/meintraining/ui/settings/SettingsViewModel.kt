@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.ui.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -7,12 +8,14 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
 import de.beispiel.meintraining.data.backup.BackupRepository
+import de.beispiel.meintraining.data.local.DEFAULT_TIMER_SOUND_VOLUME
 import de.beispiel.meintraining.data.local.RestTimerStore
 import de.beispiel.meintraining.data.model.DEFAULT_DAY_COUNT
 import de.beispiel.meintraining.data.model.MAX_DAY_COUNT
 import de.beispiel.meintraining.data.model.MIN_DAY_COUNT
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.repository.TrainingRepository
+import de.beispiel.meintraining.timer.RestTimerSound
 import de.beispiel.meintraining.util.DEFAULT_DELOAD_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MAX_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MIN_CYCLE_WEEKS
@@ -27,12 +30,14 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Eine Übung, wie sie in den Einstellungen zum Löschen angeboten wird. */
+/** Eine Übung, wie sie in den Einstellungen zum Ausblenden und Löschen angeboten wird. */
 data class ManagedExercise(
     val name: String,
     /** An wie vielen Trainingstagen sie vorkommt; 0 heißt: nur noch im Verlauf. */
     val dayCount: Int,
-    val historyEntries: Int
+    val historyEntries: Int,
+    /** Ausgeblendet heißt: Sie steht an keinem Trainingstag mehr in der Liste. */
+    val isHidden: Boolean = false
 )
 
 data class SettingsUiState(
@@ -43,11 +48,18 @@ data class SettingsUiState(
     val deloadCycleWeeks: Int = DEFAULT_DELOAD_CYCLE_WEEKS,
     /** Klingt am Ende einer Pause ein Ton? Vibriert wird unabhängig davon immer. */
     val timerSoundEnabled: Boolean = true,
+    /** Wie laut dieser Ton ist, 0 bis 1. */
+    val timerSoundVolume: Float = DEFAULT_TIMER_SOUND_VOLUME,
     val exercises: List<ManagedExercise> = emptyList()
 )
 
 @OptIn(FlowPreview::class)
 class SettingsViewModel(
+    /**
+     * Nur zum Vorspielen des Tons beim Einstellen der Lautstärke – siehe [onTimerVolumeChange].
+     * Es ist der Anwendungskontext, der überlebt dieses ViewModel ohnehin.
+     */
+    private val appContext: Context,
     private val repository: TrainingRepository,
     /** Nur fürs Zurücksetzen: Die automatische Sicherung muss dabei mit abbestellt werden. */
     private val backups: BackupRepository,
@@ -76,19 +88,30 @@ class SettingsViewModel(
      *  bearbeitete Tage sich nicht gegenseitig verdrängen. */
     private val dayNameInput = MutableStateFlow<Map<Int, String>>(emptyMap())
 
+    /**
+     * Die Werte aus den Einstellungen und von den Uhren, gebündelt.
+     *
+     * Zwei Ebenen, weil `combine` höchstens fünf Zuflüsse nimmt und der Ton zwei davon braucht:
+     * Schalter und Regler gehören zusammen und kommen deshalb als Paar herein.
+     */
+    private val general = combine(
+        repository.appTitle,
+        repository.deloadCycleWeeks,
+        repository.dayCount,
+        repository.hiddenExerciseNames,
+        combine(timers.soundEnabled, timers.soundVolume) { enabled, volume ->
+            TimerSound(enabled, volume)
+        }
+    ) { title, weeks, dayCount, hidden, sound ->
+        GeneralSettings(title, weeks, dayCount, hidden, sound)
+    }
+
     val uiState = combine(
         repository.observeAllExercises(),
         repository.observeDefinitions(),
         repository.observeWeightLogs(),
         repository.observeDays(),
-        combine(
-            repository.appTitle,
-            repository.deloadCycleWeeks,
-            repository.dayCount,
-            timers.soundEnabled
-        ) { title, weeks, dayCount, sound ->
-            GeneralSettings(title, weeks, dayCount, sound)
-        }
+        general
     ) { exercises, definitions, logs, days, general ->
         val historyCounts = logs.groupingBy { it.exerciseName }.eachCount()
         val dayCounts = exercises.groupBy { it.name }
@@ -103,12 +126,14 @@ class SettingsViewModel(
             dayCount = general.dayCount,
             appTitle = general.title,
             deloadCycleWeeks = general.cycleWeeks,
-            timerSoundEnabled = general.timerSoundEnabled,
+            timerSoundEnabled = general.sound.enabled,
+            timerSoundVolume = general.sound.volume,
             exercises = names.map { name ->
                 ManagedExercise(
                     name = name,
                     dayCount = dayCounts[name] ?: 0,
-                    historyEntries = historyCounts[name] ?: 0
+                    historyEntries = historyCounts[name] ?: 0,
+                    isHidden = name in general.hiddenExerciseNames
                 )
             }
         )
@@ -184,6 +209,29 @@ class SettingsViewModel(
     }
 
     /**
+     * Übernimmt die Lautstärke des Tons – und spielt ihn gleich einmal vor.
+     *
+     * Ohne das Vorspielen wäre der Regler nicht einzustellen: Man hört das Ergebnis erst am Ende
+     * der nächsten Pause, also Minuten später und mitten im Training. Angemeldet wird der Ton
+     * dabei als Wecker wie beim Klingeln selbst, damit hier genau das zu hören ist, was später
+     * auch aus dem Gerät kommt.
+     *
+     * Erwartet wird ein losgelassener Regler, nicht jede Zwischenstellung: Sonst schriebe jede
+     * Fingerbewegung in die Einstellungen und ließe einen Ton über dem vorigen anlaufen.
+     */
+    fun onTimerVolumeChange(volume: Float) {
+        viewModelScope.launch {
+            timers.setSoundVolume(volume)
+            RestTimerSound.play(appContext, volume)
+        }
+    }
+
+    /** Blendet eine Übung an allen Trainingstagen aus oder wieder ein. */
+    fun onExerciseHiddenToggled(name: String, hidden: Boolean) {
+        viewModelScope.launch { repository.setExerciseHidden(name, hidden) }
+    }
+
+    /**
      * Nimmt die Zykluslänge nur an, wenn sie schon im erlaubten Bereich liegt.
      *
      * Würde stattdessen jede Eingabe zurechtgebogen, käme der gekappte Wert sofort ins
@@ -201,8 +249,12 @@ class SettingsViewModel(
         val title: String,
         val cycleWeeks: Int,
         val dayCount: Int,
-        val timerSoundEnabled: Boolean
+        val hiddenExerciseNames: Set<String>,
+        val sound: TimerSound
     )
+
+    /** Schalter und Regler des Tons am Pausenende. */
+    private data class TimerSound(val enabled: Boolean, val volume: Float)
 
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L
@@ -212,7 +264,12 @@ class SettingsViewModel(
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as MeinTrainingApp
-                SettingsViewModel(app.repository, app.backupRepository, app.restTimerStore)
+                SettingsViewModel(
+                    appContext = app,
+                    repository = app.repository,
+                    backups = app.backupRepository,
+                    timers = app.restTimerStore
+                )
             }
         }
     }

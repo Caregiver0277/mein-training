@@ -21,6 +21,7 @@ import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
 import de.beispiel.meintraining.util.RotationEntry
 import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
+import de.beispiel.meintraining.util.decreaseWeight
 import de.beispiel.meintraining.util.increaseWeight
 import de.beispiel.meintraining.util.nextDayId
 import de.beispiel.meintraining.util.rotations
@@ -36,10 +37,10 @@ import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 
 /**
- * Ergebnis einer Gewichtserhöhung.
+ * Ergebnis einer Gewichtsänderung – je nach Richtung der Übung eine Erhöhung oder eine Senkung.
  *
  * [previousKg] ist der Stand davor, [logId] der dabei geschriebene Verlaufseintrag – beides
- * zusammen macht die Erhöhung rücknehmbar, ohne dabei zu raten (siehe [TrainingRepository.revertWeight]).
+ * zusammen macht die Änderung rücknehmbar, ohne dabei zu raten (siehe [TrainingRepository.revertWeight]).
  */
 data class WeightChange(val previousKg: Double, val newKg: Double, val logId: Long)
 
@@ -288,6 +289,21 @@ class TrainingRepository(
     /** Im Tracking ausgeblendete Übungen. */
     val hiddenTrackingNames: Flow<Set<String>> = settingsStore.hiddenTrackingNames
 
+    /** An den Trainingstagen ausgeblendete Übungen – siehe [SettingsStore.hiddenExerciseNames]. */
+    val hiddenExerciseNames: Flow<Set<String>> = settingsStore.hiddenExerciseNames
+
+    /**
+     * Blendet eine Übung an allen Trainingstagen aus oder wieder ein.
+     *
+     * Gelöscht wird dabei nichts: Zeile, geteilte Werte und Gewichtsverlauf bleiben, wo sie sind
+     * – und stehen beim Einblenden unverändert wieder da, samt Position im Tag.
+     */
+    suspend fun setExerciseHidden(name: String, hidden: Boolean) {
+        val current = settingsStore.hiddenExerciseNames.first()
+        val updated = if (hidden) current + name else current - name
+        if (updated != current) settingsStore.setHiddenExerciseNames(updated)
+    }
+
     /** Die von Hand gezogenen Rundenschnitte – siehe [startNextRotation]. */
     val rotationCuts: Flow<List<Long>> = settingsStore.rotationCuts
 
@@ -363,11 +379,21 @@ class TrainingRepository(
             weightLogDao.deleteByNames(names)
             affectedDays.distinct().forEach { normalizeSupersets(it) }
         }
-        // Sonst blieben die Namen im Tracking ausgeblendet und später neu angelegte
-        // Übungen gleichen Namens wären von Anfang an unsichtbar.
-        val hidden = settingsStore.hiddenTrackingNames.first()
-        val remaining = hidden - names.toSet()
-        if (remaining.size != hidden.size) settingsStore.setHiddenTrackingNames(remaining)
+        // Sonst blieben die Namen ausgeblendet und später neu angelegte Übungen gleichen
+        // Namens wären von Anfang an unsichtbar – im Graphen wie an ihrem Trainingstag.
+        val gone = names.toSet()
+        dropNames(settingsStore.hiddenTrackingNames.first(), gone, settingsStore::setHiddenTrackingNames)
+        dropNames(settingsStore.hiddenExerciseNames.first(), gone, settingsStore::setHiddenExerciseNames)
+    }
+
+    /** Nimmt die gelöschten Namen aus einer Ausblendliste; schreibt nur, wenn welche darin standen. */
+    private suspend fun dropNames(
+        hidden: Set<String>,
+        gone: Set<String>,
+        write: suspend (Set<String>) -> Unit
+    ) {
+        val remaining = hidden - gone
+        if (remaining.size != hidden.size) write(remaining)
     }
 
     /**
@@ -434,9 +460,10 @@ class TrainingRepository(
     /**
      * Legt eine Übung an oder aktualisiert sie.
      *
-     * [weightKg] und [progressionStepKg] landen in der gemeinsamen Definition und gelten damit
-     * an *allen* Tagen, an denen [name] vorkommt. Sätze, Wiederholungen und [variation] bleiben
-     * bei dieser einen Zeile. Ein geändertes Gewicht wandert zusätzlich in den Verlauf.
+     * [weightKg], [progressionStepKg] und [progressionDown] landen in der gemeinsamen Definition
+     * und gelten damit an *allen* Tagen, an denen [name] vorkommt. Sätze, Wiederholungen und
+     * [variation] bleiben bei dieser einen Zeile. Ein geändertes Gewicht wandert zusätzlich in
+     * den Verlauf.
      *
      * Ein leeres Gewichtsfeld – [weightKg] ist dann `null` – lässt den geteilten Wert stehen,
      * statt ihn zu löschen: Er gilt an allen Tagen, an denen die Übung vorkommt, und wäre sonst
@@ -456,7 +483,8 @@ class TrainingRepository(
         sets: Int?,
         repsMin: Int?,
         repsMax: Int?,
-        progressionStepKg: Double
+        progressionStepKg: Double,
+        progressionDown: Boolean
     ) {
         val renamedFrom = database.withTransaction {
             // Zuerst prüfen, ob es die zu ändernde Zeile überhaupt noch gibt – sonst bliebe
@@ -475,7 +503,8 @@ class TrainingRepository(
                 ExerciseDefinition(
                     name = name,
                     weightKg = effectiveWeight,
-                    progressionStepKg = progressionStepKg
+                    progressionStepKg = progressionStepKg,
+                    progressionDown = progressionDown
                 )
             )
             if (effectiveWeight != null && effectiveWeight != previous?.weightKg) {
@@ -508,15 +537,33 @@ class TrainingRepository(
             renameHistory(oldName = oldName, newName = name, wasKnown = underNewName != null)
         }
         // Außerhalb der Transaktion, weil die Einstellungen in einer eigenen Datei liegen: Eine
-        // im Tracking ausgeblendete Übung bleibt auch unter ihrem neuen Namen ausgeblendet, und
-        // der alte Name verschwindet – sonst wäre eine später neu angelegte Übung gleichen
-        // Namens von Anfang an unsichtbar.
+        // ausgeblendete Übung bleibt auch unter ihrem neuen Namen ausgeblendet, und der alte Name
+        // verschwindet – sonst wäre eine später neu angelegte Übung gleichen Namens von Anfang
+        // an unsichtbar. Das gilt für beide Ausblendlisten, im Graphen wie am Trainingstag.
         if (renamedFrom != null) {
-            val hidden = settingsStore.hiddenTrackingNames.first()
-            if (renamedFrom in hidden) {
-                settingsStore.setHiddenTrackingNames(hidden - renamedFrom + name)
-            }
+            renameName(
+                settingsStore.hiddenTrackingNames.first(),
+                renamedFrom,
+                name,
+                settingsStore::setHiddenTrackingNames
+            )
+            renameName(
+                settingsStore.hiddenExerciseNames.first(),
+                renamedFrom,
+                name,
+                settingsStore::setHiddenExerciseNames
+            )
         }
+    }
+
+    /** Zieht einen umbenannten Namen in einer Ausblendliste mit; schreibt nur, wenn er darin stand. */
+    private suspend fun renameName(
+        hidden: Set<String>,
+        from: String,
+        to: String,
+        write: suspend (Set<String>) -> Unit
+    ) {
+        if (from in hidden) write(hidden - from + to)
     }
 
     /**
@@ -542,39 +589,51 @@ class TrainingRepository(
     }
 
     /**
-     * Erhöht die Last der Übung um ihren Progressionsschritt – an jedem Tag, an dem sie
+     * Verschiebt die Last der Übung um ihren Progressionsschritt – an jedem Tag, an dem sie
      * vorkommt – und hält die Änderung im Verlauf fest.
+     *
+     * In welche Richtung, sagt die Übung selbst
+     * ([ExerciseDefinition.progressionDown][de.beispiel.meintraining.data.model.ExerciseDefinition.progressionDown]):
+     * Beim Aufbau geht es nach oben, bei allem, was sich abtrainiert – etwa Unterstützung an der
+     * Klimmzugmaschine –, nach unten.
      *
      * Gerechnet wird auf dem gespeicherten Stand, nicht auf einem von der Oberfläche
      * mitgegebenen Wert: Zwei schnelle Drücke auf den Pfeil lesen sonst beide dieselbe noch
-     * nicht nachgezogene Anzeige, erhöhen zweimal auf dasselbe Ergebnis und schreiben zwei
+     * nicht nachgezogene Anzeige, rechnen zweimal dasselbe Ergebnis aus und schreiben zwei
      * gleiche Punkte in den Verlauf – der zweite Druck bliebe wirkungslos, der Graph bekäme
      * trotzdem einen Ausreißer. Innerhalb der Transaktion sieht der zweite Druck das Ergebnis
      * des ersten.
      *
-     * Liefert `null`, wenn die Übung kein Gewicht hat; dann gibt es nichts zu erhöhen.
+     * Liefert `null`, wenn die Übung kein Gewicht hat oder sich nichts ändern würde – letzteres
+     * bei 0 kg und einem Pfeil nach unten, denn tiefer geht es nicht (siehe [decreaseWeight]).
+     * Ein Verlaufspunkt, der denselben Wert noch einmal festhält, entsteht so nicht.
      */
     suspend fun progressWeight(name: String): WeightChange? = database.withTransaction {
         val definition = definitionDao.find(name) ?: return@withTransaction null
         val current = definition.weightKg ?: return@withTransaction null
-        val next = increaseWeight(current, definition.progressionStepKg)
+        val next = if (definition.progressionDown) {
+            decreaseWeight(current, definition.progressionStepKg)
+        } else {
+            increaseWeight(current, definition.progressionStepKg)
+        }
+        if (next == current) return@withTransaction null
         definitionDao.updateWeight(name, next)
         WeightChange(previousKg = current, newKg = next, logId = logWeight(name, next))
     }
 
     /**
-     * Nimmt eine Erhöhung zurück: Das Gewicht geht auf den alten Wert und der dabei
+     * Nimmt eine Änderung zurück: Das Gewicht geht auf den alten Wert und der dabei
      * geschriebene Verlaufseintrag verschwindet wieder – sonst zeigte der Graph
-     * einen Ausschlag nach oben und sofort wieder zurück.
+     * einen Ausschlag und sofort wieder zurück.
      *
-     * Zurückgenommen wird genau *diese* Erhöhung, erkennbar an [WeightChange.logId], und nur
-     * solange sie noch der aktuelle Stand ist. Beides ist nötig, weil zwischen Erhöhung und
+     * Zurückgenommen wird genau *diese* Änderung, erkennbar an [WeightChange.logId], und nur
+     * solange sie noch der aktuelle Stand ist. Beides ist nötig, weil zwischen Änderung und
      * „Rückgängig“ die nächste liegen kann – der Pfeil ist schneller angetippt, als die Meldung
      * am unteren Rand verschwindet:
      *
      * Ohne die Kennung träfe es „den jüngsten Eintrag dieser Übung“ und damit den der *zweiten*
-     * Erhöhung; zurück bliebe ein Punkt im Graphen für eine Erhöhung, die zurückgenommen wurde.
-     * Ohne die Prüfung auf den aktuellen Stand setzte das Zurücknehmen der ersten Erhöhung das
+     * Änderung; zurück bliebe ein Punkt im Graphen für eine Änderung, die zurückgenommen wurde.
+     * Ohne die Prüfung auf den aktuellen Stand setzte das Zurücknehmen der ersten Änderung das
      * Gewicht auf den Stand von vor beiden – und die zweite stünde als Punkt ohne Gewicht da.
      *
      * Liefert `false`, wenn seither etwas anderes passiert ist; dann gibt es hier nichts mehr
@@ -584,10 +643,10 @@ class TrainingRepository(
     suspend fun revertWeight(
         name: String,
         previousKg: Double,
-        increasedToKg: Double,
+        changedToKg: Double,
         logId: Long
     ): Boolean = database.withTransaction {
-        if (definitionDao.find(name)?.weightKg != increasedToKg) return@withTransaction false
+        if (definitionDao.find(name)?.weightKg != changedToKg) return@withTransaction false
         definitionDao.updateWeight(name, previousKg)
         weightLogDao.deleteById(logId)
         true
@@ -624,9 +683,19 @@ class TrainingRepository(
      * Schreibt die Reihenfolge nach dem Umsortieren zurück: [orderedIds] enthält die Übungen
      * eines Tages in der gewünschten Reihenfolge, die Positionen werden auf 0..n-1 normalisiert.
      * Alles in einer Transaktion, damit die Liste nie in einem halb sortierten Zustand auftaucht.
+     *
+     * Ausgeblendete Übungen kommen dabei nicht mit – sie stehen ja in keiner Liste, die sich
+     * schieben ließe. Sie behalten ihren Platz *zwischen* den sichtbaren: Durchnummeriert wird der
+     * ganze Tag, und die Plätze der sichtbaren Zeilen bekommen die neue Reihenfolge. Nur die
+     * sichtbaren neu zu nummerieren wäre nicht genug – die Ausgeblendeten behielten ihre alten
+     * Nummern, läge damit doppelt und rutschten beim Einblenden irgendwohin.
      */
     suspend fun reorderExercises(dayId: Int, orderedIds: List<Long>) = database.withTransaction {
-        orderedIds.forEachIndexed { index, id -> exerciseDao.updatePosition(id, index) }
+        val existing = exerciseDao.listByDay(dayId).map { it.id }
+        val moved = orderedIds.filter { it in existing }
+        val nextMoved = moved.iterator()
+        val complete = existing.map { id -> if (id in moved) nextMoved.next() else id }
+        complete.forEachIndexed { index, id -> exerciseDao.updatePosition(id, index) }
         normalizeSupersets(dayId)
     }
 

@@ -5,6 +5,13 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!--
+        Fuer den LoudnessEnhancer hinter dem Pausenton (siehe RestTimerSound): Er hebt den Ton
+        ueber die Aussteuerungsgrenze, und Klangeffekte verlangen dieses Recht. Es wird beim
+        Installieren erteilt, ohne Nachfrage beim Benutzer.
+    -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!--
         Der Wecker muss auf die Sekunde kommen; ein verschobener beendet die Pause zu spät.
         Ab Android 13 gilt dafür USE_EXACT_ALARM (wird beim Installieren erteilt), darunter
         SCHEDULE_EXACT_ALARM. Beides zusammen deckt alle unterstützten Versionen ab.

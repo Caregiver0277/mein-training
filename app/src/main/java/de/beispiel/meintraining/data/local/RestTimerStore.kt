@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -34,6 +35,16 @@ const val MAX_REST_TIMER_SECONDS = 59 * 60 + 59
 
 /** Vorgabe: kurz für Isolationsübungen, lang für schwere Grundübungen. */
 val DEFAULT_REST_TIMER_SECONDS = listOf(90, 180)
+
+/**
+ * Lautstärke des Tons am Pausenende, 0 bis 1.
+ *
+ * Vorgabe ist voll aufgedreht: Der Ton war bis hierher immer so laut, und im Studio ist das
+ * meistens auch nötig. Wer es leiser braucht, zieht den Regler in den Einstellungen zurück.
+ */
+const val DEFAULT_TIMER_SOUND_VOLUME = 1f
+const val MIN_TIMER_SOUND_VOLUME = 0f
+const val MAX_TIMER_SOUND_VOLUME = 1f
 
 const val SECONDS_PER_MINUTE = 60
 
@@ -122,6 +133,28 @@ class RestTimerStore(context: Context) {
 
     private fun readSoundEnabled(prefs: Preferences): Boolean = prefs[KEY_SOUND_ENABLED] ?: true
 
+    /**
+     * Wie laut der Ton am Pausenende klingt, 0 bis 1.
+     *
+     * Liegt aus demselben Grund hier wie der Schalter daneben: Gelesen wird der Wert vom
+     * Wecker-Empfänger, und der läuft, während die App geschlossen ist.
+     */
+    val soundVolume: Flow<Float> = preferences.map(::readSoundVolume).distinctUntilChanged()
+
+    /** Einmalige Abfrage für den Wecker-Empfänger; dort gibt es nichts zu beobachten. */
+    suspend fun currentSoundVolume(): Float = readSoundVolume(preferences.first())
+
+    suspend fun setSoundVolume(volume: Float) {
+        store.edit { prefs ->
+            prefs[KEY_SOUND_VOLUME] =
+                volume.coerceIn(MIN_TIMER_SOUND_VOLUME, MAX_TIMER_SOUND_VOLUME)
+        }
+    }
+
+    private fun readSoundVolume(prefs: Preferences): Float =
+        (prefs[KEY_SOUND_VOLUME] ?: DEFAULT_TIMER_SOUND_VOLUME)
+            .coerceIn(MIN_TIMER_SOUND_VOLUME, MAX_TIMER_SOUND_VOLUME)
+
     private fun readTimers(prefs: Preferences): List<RestTimer> = List(REST_TIMER_COUNT) { index ->
         RestTimer(
             durationSeconds = (prefs[durationKey(index)] ?: defaultSeconds(index))
@@ -172,6 +205,9 @@ class RestTimerStore(context: Context) {
 
         /** Gilt für beide Uhren – zwei getrennte Töne wären nur eine Einstellung mehr. */
         val KEY_SOUND_ENABLED = booleanPreferencesKey("timer_sound_enabled")
+
+        /** Ebenfalls für beide Uhren; siehe [KEY_SOUND_ENABLED]. */
+        val KEY_SOUND_VOLUME = floatPreferencesKey("timer_sound_volume")
 
         /**
          * Eigener Name statt des früheren `timer_N_paused`: Dort liegen ganze Sekunden als Int,

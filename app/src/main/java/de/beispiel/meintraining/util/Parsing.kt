@@ -50,3 +50,18 @@ fun parseOptionalInt(input: String): Int? {
  */
 fun increaseWeight(currentKg: Double, stepKg: Double): Double =
     BigDecimal.valueOf(currentKg).add(BigDecimal.valueOf(stepKg)).toDouble()
+
+/**
+ * Senkt ein Gewicht um den Progressionsschritt – für Übungen, deren Pfeil nach unten zeigt
+ * (siehe [de.beispiel.meintraining.data.model.ExerciseDefinition.progressionDown]).
+ *
+ * Bei 0 kg ist Schluss: Negative Gewichte gibt es nicht, sie kämen an keinem Eingabefeld
+ * vorbei ([parseOptionalDecimal]) und der Verlaufsgraph zeichnete sie klaglos mit. Wer schon
+ * bei 0 steht, bleibt dort – der Druck auf den Pfeil bewirkt dann nichts.
+ *
+ * Gerechnet wird mit [BigDecimal] wie beim Erhöhen, damit aus `22,5 − 2,5` nicht
+ * `19,999999…` wird.
+ */
+fun decreaseWeight(currentKg: Double, stepKg: Double): Double =
+    BigDecimal.valueOf(currentKg).subtract(BigDecimal.valueOf(stepKg)).toDouble()
+        .coerceAtLeast(0.0)

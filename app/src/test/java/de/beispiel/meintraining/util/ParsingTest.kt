@@ -95,6 +95,28 @@ class ParsingTest {
     }
 
     @Test
+    fun senkenOhneFliesskommaFehler() {
+        assertEquals(20.0, decreaseWeight(22.5, 2.5), 0.0)
+        assertEquals("19,375 Kg", decreaseWeight(20.0, 0.625).toWeightLabel(UNIT))
+    }
+
+    /** Unten ist bei 0 Schluss: Negative Gewichte gibt es nicht. */
+    @Test
+    fun senkenBleibtBeiNullStehen() {
+        assertEquals(0.0, decreaseWeight(2.0, 2.5), 0.0)
+        assertEquals(0.0, decreaseWeight(0.0, 2.5), 0.0)
+    }
+
+    /** Hinauf und zurück ergibt genau den Ausgangswert – auch beim feinsten Schritt. */
+    @Test
+    fun erhoehenUndSenkenHebenSichAuf() {
+        var weight = 20.0
+        repeat(4) { weight = increaseWeight(weight, 0.625) }
+        repeat(4) { weight = decreaseWeight(weight, 0.625) }
+        assertEquals("20 Kg", weight.toWeightLabel(UNIT))
+    }
+
+    @Test
     fun derFeinsteSchrittKommtVollstaendigAn() {
         // Viermal 0,625 kg ergeben genau 2,5 kg – und zwar auf dem Weg dorthin ohne einen
         // einzigen gerundeten Zwischenstand, sonst zeigte die Liste eine andere Zahl als die,

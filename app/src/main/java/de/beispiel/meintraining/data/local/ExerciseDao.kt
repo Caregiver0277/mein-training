@@ -23,7 +23,8 @@ private const val ITEM_COLUMNS = """
     e.sets AS sets, e.repsMin AS repsMin, e.repsMax AS repsMax, e.position AS position,
     e.supersetId AS supersetId,
     d.weightKg AS weightKg,
-    COALESCE(d.progressionStepKg, $DEFAULT_PROGRESSION_STEP_KG) AS progressionStepKg
+    COALESCE(d.progressionStepKg, $DEFAULT_PROGRESSION_STEP_KG) AS progressionStepKg,
+    COALESCE(d.progressionDown, 0) AS progressionDown
 """
 
 @Dao

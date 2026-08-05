@@ -144,8 +144,12 @@ fun TrainingScreen(
     LaunchedEffect(events) {
         events.collectLatest { event ->
             val message = when (event) {
-                is TrainingEvent.WeightIncreased -> context.getString(
-                    R.string.snackbar_weight_increased,
+                is TrainingEvent.WeightChanged -> context.getString(
+                    if (event.isDecrease) {
+                        R.string.snackbar_weight_decreased
+                    } else {
+                        R.string.snackbar_weight_increased
+                    },
                     event.newWeightKg.toWeightLabel(unit)
                 )
                 is TrainingEvent.ExercisesDeleted -> if (event.exercises.size == 1) {
@@ -415,6 +419,7 @@ private fun TrainingContent(
                                 },
                                 onLongClick = { actions.onExerciseLongClick(exercise) },
                                 onProgressClick = { actions.onProgressClick(exercise) },
+                                progressionDown = exercise.progressionDown,
                                 modifier = Modifier.semantics {
                                     customActions = buildList {
                                         if (index > 0) {

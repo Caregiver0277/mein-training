@@ -134,7 +134,15 @@ data class ExerciseForm(
     val sets: String = "",
     val repsMin: String = "",
     val repsMax: String = "",
-    val progressionStep: String = DEFAULT_PROGRESSION_STEP_KG.toDecimalString()
+    val progressionStep: String = DEFAULT_PROGRESSION_STEP_KG.toDecimalString(),
+    /**
+     * Zeigt der Pfeil in der Liste nach unten? Dann senkt er das Gewicht um den Schritt, statt
+     * es zu erhöhen – für alles, was sich abtrainiert statt aufbaut.
+     *
+     * Anders als die übrigen Felder kein Text: Hier gibt es keine Teileingabe, nur zwei
+     * Richtungen.
+     */
+    val progressionDown: Boolean = false
 ) {
     val isEditMode: Boolean get() = id != null
     val canSave: Boolean get() = name.isNotBlank()
@@ -149,20 +157,26 @@ data class ExerciseForm(
 sealed interface TrainingEvent {
 
     /**
-     * Gewicht wurde per Pfeil erhöht – und zwar an allen Tagen, an denen [exerciseName]
+     * Gewicht wurde per Pfeil verschoben – und zwar an allen Tagen, an denen [exerciseName]
      * vorkommt.
      *
-     * [previousWeightKg] und [logId] beschreiben zusammen genau diese eine Erhöhung: wohin
+     * Ob nach oben oder nach unten, steht nicht als eigenes Feld dabei: Es ergibt sich aus den
+     * beiden Gewichten (siehe [isDecrease]), und ein zweiter Weg, dasselbe zu sagen, könnte ihm
+     * widersprechen.
+     *
+     * [previousWeightKg] und [logId] beschreiben zusammen genau diese eine Änderung: wohin
      * zurück und welcher Verlaufspunkt dabei wieder verschwindet. Beides ist nötig, weil vor
-     * dem „Rückgängig“ schon die nächste Erhöhung stehen kann – siehe
+     * dem „Rückgängig“ schon die nächste Änderung stehen kann – siehe
      * [de.beispiel.meintraining.data.repository.TrainingRepository.revertWeight].
      */
-    data class WeightIncreased(
+    data class WeightChanged(
         val exerciseName: String,
         val previousWeightKg: Double,
         val newWeightKg: Double,
         val logId: Long
-    ) : TrainingEvent
+    ) : TrainingEvent {
+        val isDecrease: Boolean get() = newWeightKg < previousWeightKg
+    }
 
     /** Übungen wurden gelöscht; die Kopien erlauben das Wiederherstellen. */
     data class ExercisesDeleted(val exercises: List<ExerciseItem>) : TrainingEvent

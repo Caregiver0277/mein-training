@@ -1,8 +1,10 @@
 package de.beispiel.meintraining.ui.screen
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
@@ -203,7 +206,13 @@ private fun ExerciseEditSheetContent(
             onValueChange = { onFormChange(form.copy(progressionStep = it)) },
             label = stringResource(R.string.field_progression_step),
             keyboardType = KeyboardType.Decimal,
-            supportingText = stringResource(R.string.hint_progression_step)
+            supportingText = stringResource(
+                if (form.progressionDown) {
+                    R.string.hint_progression_step_down
+                } else {
+                    R.string.hint_progression_step
+                }
+            )
         )
 
         Text(
@@ -211,10 +220,23 @@ private fun ExerciseEditSheetContent(
             style = AppTextStyles.ColumnLabel,
             color = TextSecondary
         )
-        ProgressionStepChips(
-            value = form.progressionStep,
-            onSelect = { onFormChange(form.copy(progressionStep = it)) }
-        )
+        // Die Richtung steht neben der Schnellauswahl und nicht darunter: Schritt und Richtung
+        // beschreiben zusammen eine Bewegung, und der Knopf sitzt damit auf derselben Höhe wie
+        // die Stufen, auf die er sich bezieht.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ProgressionStepChips(
+                value = form.progressionStep,
+                onSelect = { onFormChange(form.copy(progressionStep = it)) },
+                modifier = Modifier.weight(1f)
+            )
+            ProgressionDirectionToggle(
+                down = form.progressionDown,
+                onClick = { onFormChange(form.copy(progressionDown = !form.progressionDown)) }
+            )
+        }
 
         Row(
             modifier = Modifier
@@ -254,12 +276,17 @@ private fun ExerciseEditSheetContent(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ProgressionStepChips(value: String, onSelect: (String) -> Unit) {
+private fun ProgressionStepChips(
+    value: String,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val activeStep = remember(value) { parseProgressionStep(value) }
 
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall),
-        verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall)
+        verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall),
+        modifier = modifier
     ) {
         PROGRESSION_STEP_SUGGESTIONS.forEach { suggestion ->
             val label = suggestion.toDecimalString()
@@ -281,6 +308,41 @@ private fun ProgressionStepChips(value: String, onSelect: (String) -> Unit) {
                 }
             )
         }
+    }
+}
+
+/**
+ * Kleiner Kasten mit Pfeil nach unten, rechts neben der Schnellauswahl: Angetippt steht er blau
+ * da und der Pfeil in der Liste senkt das Gewicht, statt es zu erhöhen.
+ *
+ * Der Pfeil im Kasten zeigt immer nach unten – er sagt, was der Knopf bewirkt, nicht was gerade
+ * gilt. Was gerade gilt, sagt die blaue Markierung, genau wie bei der gewählten Stufe daneben.
+ */
+@Composable
+private fun ProgressionDirectionToggle(down: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(Dimens.TouchTargetSize)
+            .clip(Dimens.CornerChip)
+            .background(if (down) AccentBlueSurface else ChipBackground)
+            .border(
+                width = Dimens.AddButtonBorderWidth,
+                color = if (down) AccentBlue else OutlineColor,
+                shape = Dimens.CornerChip
+            )
+            .toggleable(
+                value = down,
+                role = Role.Checkbox,
+                onValueChange = { onClick() }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_arrow_downward),
+            contentDescription = stringResource(R.string.cd_progression_down),
+            tint = if (down) AccentBlue else TextPrimary,
+            modifier = Modifier.size(Dimens.MenuIconSize)
+        )
     }
 }
 
