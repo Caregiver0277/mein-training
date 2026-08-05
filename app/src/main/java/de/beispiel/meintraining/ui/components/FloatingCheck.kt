@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.toSize
 import de.beispiel.meintraining.ui.theme.CardDraggedBackground
 import de.beispiel.meintraining.ui.theme.Dimens
+import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.roundToInt
 
 /**
@@ -45,7 +47,8 @@ import kotlin.math.roundToInt
 @Stable
 class FloatingCheck internal constructor(
     private val dock: Animatable<Float, AnimationVector1D>,
-    initialFloating: Boolean
+    initialFloating: Boolean,
+    initialTarget: Float
 ) {
 
     /**
@@ -57,6 +60,23 @@ class FloatingCheck internal constructor(
      */
     var isFloating: Boolean by mutableStateOf(initialFloating)
         internal set
+
+    /** Wohin der Haken gerade unterwegs ist. Getrieben von [rememberFloatingCheck]. */
+    internal var target: Float by mutableStateOf(initialTarget)
+
+    /**
+     * Der Haken wurde angetippt – der Anflug beginnt sofort.
+     *
+     * Nicht erst, wenn die Datenbank den Eintrag bestätigt: Bis dahin vergehen Schreibvorgang,
+     * Room-Benachrichtigung und ein paar Zwischenschritte, zusammen leicht ein Zehntel einer
+     * Sekunde. Genau diese Pause zwischen Druck und Bewegung ist es, die den Anflug hakelig
+     * wirken lässt – die Funken stieben schon, der Haken steht aber noch. Bestätigt die
+     * Datenbank kurz darauf, ist er längst auf dem Weg zum selben Ziel; im unwahrscheinlichen
+     * Fall, dass der Eintrag scheitert, dreht er wieder um.
+     */
+    fun onPressed() {
+        target = DOCKED
+    }
 
     /** Der Platz am Listenende in Bildschirmkoordinaten; `null`, solange er nie gemessen wurde. */
     internal var slot: Rect? by mutableStateOf(null)
@@ -87,12 +107,18 @@ class FloatingCheck internal constructor(
         return lerp(floating, dockedBounds(area, density), progress)
     }
 
+    /**
+     * Ein Quadrat in der Bildmitte, gedeckelt auf einen Anteil der kürzeren Bildkante: Auf
+     * einem schmalen Bildschirm stünde die feste Kantenlänge sonst von Rand zu Rand.
+     */
     private fun floatingBounds(area: Size, density: Density): Rect {
-        val width = area.width * FLOATING_WIDTH_FRACTION
-        val height = with(density) { Dimens.FloatingCheckHeight.toPx() }
+        val side = minOf(
+            with(density) { Dimens.FloatingCheckSize.toPx() },
+            minOf(area.width, area.height) * FLOATING_MAX_FRACTION
+        )
         return Rect(
-            offset = Offset((area.width - width) / 2f, (area.height - height) / 2f),
-            size = Size(width, height)
+            offset = Offset((area.width - side) / 2f, (area.height - side) / 2f),
+            size = Size(side, side)
         )
     }
 
@@ -142,28 +168,42 @@ fun rememberFloatingCheck(
         Animatable(if (isConfirmed) DOCKED else FLOATING)
     }
     val state = remember(dock) {
-        FloatingCheck(dock = dock, initialFloating = isReady && !isConfirmed)
+        FloatingCheck(
+            dock = dock,
+            initialFloating = isReady && !isConfirmed,
+            initialTarget = if (isConfirmed) DOCKED else FLOATING
+        )
     }
 
+    // Die Datenbank hat das letzte Wort: Sie bestätigt die Vormerkung des Drucks – oder holt
+    // den Haken zurück, wenn daraus nichts geworden ist.
     LaunchedEffect(state, isConfirmed, isReady) {
-        if (!isReady) {
-            state.isFloating = false
-            return@LaunchedEffect
+        if (isReady) state.target = if (isConfirmed) DOCKED else FLOATING
+    }
+
+    // Ein einziger Treiber für die Bewegung, gleich woher das Ziel kommt. `collectLatest`
+    // bricht einen laufenden Anflug ab, wenn sich das Ziel ändert; weitergeflogen wird dann
+    // vom aktuellen Stand aus, ohne Sprung.
+    LaunchedEffect(state, isReady) {
+        snapshotFlow { state.target }.collectLatest { target ->
+            if (!isReady) {
+                state.isFloating = false
+                return@collectLatest
+            }
+            // Am Ziel gibt es nichts zu fliegen: Nach einem Tageswechsel steht der frische
+            // Verlauf schon dort, und eine Animation darauf rechnete eine halbe Sekunde lang
+            // denselben Wert aus und forderte dafür jedes Bild an.
+            if (dock.value != target) {
+                // Bis zur Landung bleibt der schwebende Haken zuständig; erst danach übernimmt
+                // der Knopf in der Liste. Ohne dieses Nachlaufen verschwände er mitten im Flug.
+                state.isFloating = true
+                dock.animateTo(
+                    targetValue = target,
+                    animationSpec = tween(DOCK_MILLIS, easing = FastOutSlowInEasing)
+                )
+            }
+            state.isFloating = target == FLOATING
         }
-        val target = if (isConfirmed) DOCKED else FLOATING
-        // Am Ziel gibt es nichts zu fliegen: Nach einem Tageswechsel steht der frische Verlauf
-        // schon dort, und eine Animation darauf rechnete eine halbe Sekunde lang denselben Wert
-        // aus und forderte dafür jedes Bild an.
-        if (dock.value != target) {
-            // Bis zur Landung bleibt der schwebende Haken zuständig; erst danach übernimmt der
-            // Knopf in der Liste. Ohne dieses Nachlaufen verschwände er mitten im Flug.
-            state.isFloating = true
-            dock.animateTo(
-                targetValue = target,
-                animationSpec = tween(DOCK_MILLIS, easing = FastOutSlowInEasing)
-            )
-        }
-        state.isFloating = target == FLOATING
     }
 
     return state
@@ -203,9 +243,12 @@ fun FloatingCheckOverlay(
     CompleteWorkoutButton(
         onClick = onClick,
         isCompleted = isCompleted,
+        onPressed = state::onPressed,
         iconScale = {
             // In der Mitte ist der Haken groß, am Listenende wieder so groß wie eh und je.
-            FLOATING_ICON_SCALE + (1f - FLOATING_ICON_SCALE) * state.dockProgress()
+            // Größer als [MAX_ICON_SCALE] wird er nicht, sonst müsste sein Vektorbild
+            // hochgerechnet werden und wäre weich.
+            MAX_ICON_SCALE + (1f - MAX_ICON_SCALE) * state.dockProgress()
         },
         modifier = modifier
             .layout { measurable, constraints ->
@@ -239,7 +282,7 @@ fun FloatingCheckOverlay(
                 if (fade <= 0f) return@drawBehind
                 drawRoundRect(
                     color = CardDraggedBackground,
-                    alpha = fade,
+                    alpha = fade * FLOATING_SURFACE_ALPHA,
                     cornerRadius = CornerRadius(Dimens.CornerAddButton.topStart.toPx(size, this))
                 )
             }
@@ -249,11 +292,14 @@ fun FloatingCheckOverlay(
 private const val FLOATING = 0f
 private const val DOCKED = 1f
 
-/** Breite des schwebenden Hakens als Anteil der Fläche – so bleibt links und rechts Liste sichtbar. */
-private const val FLOATING_WIDTH_FRACTION = 0.56f
+/** Obergrenze für die Kantenlänge, gemessen an der kürzeren Bildkante. */
+private const val FLOATING_MAX_FRACTION = 0.62f
 
-/** Wie viel größer der Haken in der Bildmitte ausfällt. */
-private const val FLOATING_ICON_SCALE = 2.1f
+/**
+ * Deckkraft der Fläche im Quadrat. Der Rahmen bleibt voll deckend – der Haken steht damit klar
+ * umrissen im Bild, und trotzdem scheinen die Übungen darunter noch durch.
+ */
+private const val FLOATING_SURFACE_ALPHA = 0.88f
 
 /**
  * Lang genug, um dem Auge zu folgen, und knapp länger als der Funkenflug beim Druck – der wird

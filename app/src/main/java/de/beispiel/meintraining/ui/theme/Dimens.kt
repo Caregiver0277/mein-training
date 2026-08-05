@@ -72,12 +72,12 @@ object Dimens {
     val AddButtonWidth = 56.dp
 
     /**
-     * Höhe des Hakens, solange er in der Bildmitte steht.
+     * Kantenlänge des Hakens, solange er als Quadrat in der Bildmitte steht.
      *
-     * Deutlich höher als am Listenende – er soll nicht zu übersehen sein –, aber niedrig genug,
-     * dass links, rechts, oben und unten noch Übungen durchscheinen.
+     * Deutlich größer als am Listenende – er soll nicht zu übersehen sein –, aber klein genug,
+     * dass ringsum noch Übungen durchscheinen.
      */
-    val FloatingCheckHeight = 112.dp
+    val FloatingCheckSize = 156.dp
 
     // Statistiken
     val WeekdayChartHeight = 132.dp

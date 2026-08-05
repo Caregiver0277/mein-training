@@ -1,13 +1,11 @@
 package de.beispiel.meintraining.ui.components
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,19 +30,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.VectorPainter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Constraints
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.ui.theme.AccentGreen
 import de.beispiel.meintraining.ui.theme.AccentGreenSurface
@@ -54,7 +61,6 @@ import de.beispiel.meintraining.ui.theme.OutlineColor
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import kotlin.math.cos
-import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -115,18 +121,41 @@ fun ListActionButtons(
  * steht einmal schmal am Listenende und einmal groß in der Bildmitte, und dazwischen wächst er
  * Bild für Bild – siehe [FloatingCheckOverlay].
  *
- * @param iconScale wie groß der Haken darin ausfällt, 1 heißt: wie am Listenende. Eine
- *   Funktion, weil der Wert sich während des Anflugs mit jedem Bild ändert und deshalb erst
- *   beim Messen gelesen gehört – sonst würde der ganze Knopf ebenso oft neu zusammengesetzt.
+ * Fläche, Rahmen und Haken werden deshalb gezeichnet statt zusammengesetzt: Kein einziger Wert
+ * dieses Knopfes wird beim Zusammensetzen gelesen, und während Anflug, Farbwechsel und
+ * Federn wird nichts neu zusammengesetzt – es wird nur neu gezeichnet. Mit `background`,
+ * `border` und einem `Icon` lief dagegen jedes Bild des Farbübergangs durch die ganze
+ * Composable samt neuer Modifier-Kette, und das ausgerechnet in den ersten Millisekunden des
+ * Anflugs, wo gleichzeitig der Schleier von der Liste zieht.
+ *
+ * @param iconScale wie groß der Haken darin ausfällt, 1 heißt: wie am Listenende, höchstens
+ *   [MAX_ICON_SCALE]. Eine Funktion, weil der Wert sich während des Anflugs mit jedem Bild
+ *   ändert und deshalb erst beim Zeichnen gelesen gehört.
  */
 @Composable
 internal fun CompleteWorkoutButton(
     onClick: () -> Unit,
     isCompleted: Boolean,
     modifier: Modifier = Modifier,
+    /**
+     * Läuft im Moment des Drucks, noch vor [onClick] – für alles, was nicht auf die Antwort
+     * der Datenbank warten soll.
+     */
+    onPressed: () -> Unit = {},
     iconScale: () -> Float = { 1f }
 ) {
     val haptics = LocalHapticFeedback.current
+
+    /**
+     * Der Haken als Malwerkzeug statt als Composable.
+     *
+     * Ein Vektorbild rastert sich in der Größe, in der es gezeichnet wird, und legt das
+     * Ergebnis ab. Wuchs der Haken über seine gemessene Größe, entstand dieses Zwischenbild
+     * bei *jedem* Bild des Anflugs neu – der teuerste Posten der ganzen Bewegung. Gerastert
+     * wird deshalb einmal in der größten vorkommenden Größe; kleiner wird er über die
+     * Zeichenfläche, und das bleibt scharf.
+     */
+    val check = rememberVectorPainter(Icons.Filled.Check)
 
     // Beide zählen Drücke hoch. Ein `Boolean` täte es nicht: Er müsste nach der Animation
     // wieder zurückgesetzt werden, und bis dahin liefe kein zweiter Druck an. Eine Zahl ist
@@ -163,20 +192,21 @@ internal fun CompleteWorkoutButton(
         )
     }
 
-    val accent by animateColorAsState(
-        targetValue = if (isCompleted) AccentGreen else TextSecondary,
-        animationSpec = tween(COLOR_MILLIS),
-        label = "completeAccent"
-    )
-    val fill by animateColorAsState(
-        targetValue = if (isCompleted) AccentGreenSurface else Color.Transparent,
-        animationSpec = tween(COLOR_MILLIS),
-        label = "completeFill"
-    )
-    val border by animateColorAsState(
-        targetValue = if (isCompleted) AccentGreen else OutlineColor,
-        animationSpec = tween(COLOR_MILLIS),
-        label = "completeBorder"
+    /**
+     * Ein einziger Verlauf für alle drei Farben – Haken, Fläche und Rahmen wechseln ohnehin
+     * gemeinsam. Gelesen wird er erst beim Zeichnen; ein `animateColorAsState` je Farbe hätte
+     * denselben Wert dreimal geführt und dafür jedes Bild lang neu zusammengesetzt.
+     *
+     * 0 heißt offen, 1 abgehakt.
+     */
+    val tone = remember { Animatable(if (isCompleted) DONE else OPEN) }
+    LaunchedEffect(isCompleted) {
+        val target = if (isCompleted) DONE else OPEN
+        if (tone.value != target) tone.animateTo(target, tween(COLOR_MILLIS))
+    }
+
+    val description = stringResource(
+        if (isCompleted) R.string.cd_workout_completed else R.string.cd_complete_workout
     )
 
     // Der äußere Kasten wird bewusst nicht zugeschnitten: Ring und Funken dürfen über die
@@ -196,47 +226,65 @@ internal fun CompleteWorkoutButton(
                     scaleY = scale.value
                 }
                 .clip(Dimens.CornerAddButton)
-                .background(fill)
-                .border(
-                    width = Dimens.AddButtonBorderWidth,
-                    color = border,
-                    shape = Dimens.CornerAddButton
-                )
                 // Kein zweiter Eintrag für denselben Tag: Das zweite Tippen nimmt zurück.
                 .clickable(role = Role.Button) {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     pressCount++
                     if (!isCompleted) burstCount++
+                    onPressed()
                     onClick()
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Check,
-                contentDescription = stringResource(
-                    if (isCompleted) R.string.cd_workout_completed else R.string.cd_complete_workout
-                ),
-                tint = accent,
-                modifier = Modifier
-                    // Gemessen statt skaliert: Ein per Zeichenebene aufgeblasener Haken wäre
-                    // in der Bildmitte dauerhaft weich, weil das Vektorbild in seiner kleinen
-                    // Größe gerastert bliebe. Über die Messung entsteht er direkt in der
-                    // Größe, in der er gezeichnet wird.
-                    .layout { measurable, _ ->
-                        val side = (Dimens.MenuIconSize.toPx() * iconScale())
-                            .roundToInt()
-                            .coerceAtLeast(0)
-                        val placeable = measurable.measure(Constraints.fixed(side, side))
-                        layout(side, side) { placeable.place(0, 0) }
-                    }
-                    // Der Haken schlägt kräftiger aus als der Knopf, sonst ginge er im
-                    // Federn des Rahmens unter.
-                    .graphicsLayer {
-                        val extra = 1f + (scale.value - 1f) * ICON_SCALE_BOOST
-                        scaleX = extra
-                        scaleY = extra
-                    }
-            )
+                }
+                // Der Haken ist gezeichnet und nicht mehr als eigenes Element vorhanden; die
+                // Beschriftung gehört damit an die Druckfläche selbst.
+                .semantics { contentDescription = description }
+                .drawBehind {
+                    drawFace(
+                        tone = tone.value,
+                        // Der Haken schlägt kräftiger aus als der Knopf, sonst ginge er im
+                        // Federn des Rahmens unter. Gezeichnet wird innerhalb der schon
+                        // gefederten Ebene, deshalb zählt hier nur der Aufschlag.
+                        iconScale = iconScale() * (1f + (scale.value - 1f) * ICON_SCALE_BOOST),
+                        check = check
+                    )
+                }
+        )
+    }
+}
+
+/**
+ * Fläche, Rahmen und Haken des Knopfes in einem Zug.
+ *
+ * [tone] blendet von offen (0) nach abgehakt (1); der Rahmen liegt wie bei `Modifier.border`
+ * innen an der Kante, deshalb der halbe Strich Einzug.
+ */
+private fun DrawScope.drawFace(tone: Float, iconScale: Float, check: VectorPainter) {
+    val radius = Dimens.CornerAddButton.topStart.toPx(size, this)
+    val fill = lerp(Color.Transparent, AccentGreenSurface, tone)
+    if (fill.alpha > 0f) {
+        drawRoundRect(color = fill, cornerRadius = CornerRadius(radius))
+    }
+
+    val stroke = Dimens.AddButtonBorderWidth.toPx()
+    drawRoundRect(
+        color = lerp(OutlineColor, AccentGreen, tone),
+        topLeft = Offset(stroke / 2f, stroke / 2f),
+        size = Size(size.width - stroke, size.height - stroke),
+        cornerRadius = CornerRadius((radius - stroke / 2f).coerceAtLeast(0f)),
+        style = Stroke(width = stroke)
+    )
+
+    // Immer in derselben Größe gerastert und nur über die Zeichenfläche verkleinert – so
+    // entsteht das Zwischenbild des Vektors ein einziges Mal statt bei jedem Bild neu.
+    val side = Dimens.MenuIconSize.toPx() * MAX_ICON_SCALE
+    val factor = iconScale.coerceIn(0f, MAX_ICON_SCALE) / MAX_ICON_SCALE
+    scale(scale = factor, pivot = center) {
+        translate(left = center.x - side / 2f, top = center.y - side / 2f) {
+            with(check) {
+                draw(
+                    size = Size(side, side),
+                    colorFilter = ColorFilter.tint(lerp(TextSecondary, AccentGreen, tone))
+                )
+            }
         }
     }
 }
@@ -297,6 +345,18 @@ private fun AddExerciseButton(onClick: () -> Unit, modifier: Modifier = Modifier
         )
     }
 }
+
+/**
+ * Die größte Größe, in der der Haken vorkommt – als Vielfaches von [Dimens.MenuIconSize].
+ *
+ * In dieser Größe wird sein Vektorbild gerastert. Wer ihn größer zeichnen ließe, bekäme ein
+ * hochgerechnetes und damit weiches Bild; der schwebende Haken hält sich deshalb genau daran.
+ */
+internal const val MAX_ICON_SCALE = 2.1f
+
+// Farbverlauf des Knopfes: offen und abgehakt.
+private const val OPEN = 0f
+private const val DONE = 1f
 
 // Maße des Effekts als Vielfache der Knopfhöhe, damit er auf jedem Gerät gleich wirkt.
 private const val BURST_DONE = 1f
