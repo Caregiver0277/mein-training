@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import de.beispiel.meintraining.ui.theme.Dimens
+import kotlin.math.round
 
 /**
  * Der leichte Schleier über den Übungen, solange das Training des Tages nicht abgehakt ist.
@@ -96,7 +97,8 @@ fun Modifier.unconfirmedBlur(blur: UnconfirmedBlur): Modifier = graphicsLayer {
     val amount = blur.current().coerceIn(SHARP, VEILED)
     if (amount <= SHARP) return@graphicsLayer
 
-    val radius = Dimens.ExerciseBlurRadius.toPx() * amount
+    // Der Radius geht in Stufen, die Abblendung darunter weiter stufenlos – siehe [BLUR_STEPS].
+    val radius = Dimens.ExerciseBlurRadius.toPx() * (round(amount * BLUR_STEPS) / BLUR_STEPS)
     // Clamp setzt die Randpixel fort, das Beschneiden hält das Weiche in der eigenen Fläche.
     // Ohne beides franste die Zeile an den Rändern aus und liefe in ihre Nachbarn.
     if (radius > 0f) {
@@ -124,6 +126,19 @@ private val VEILED_ALPHA = if (CAN_BLUR) 0.82f else 0.5f
 
 private const val SHARP = 0f
 private const val VEILED = 1f
+
+/**
+ * In wie vielen Stufen der Radius von scharf nach verschleiert geht.
+ *
+ * Stufenlos ist er teurer, als er aussieht: Für den Weichzeichner zeichnet sich jede Zeile in
+ * eine eigene Ebene, und ein neuer Radius wirft dieses Zwischenbild weg – bei jedem Bild, für
+ * jede Zeile. Gemessen ist das der größte Posten der ganzen Blende, und zwar ausgerechnet in
+ * den Millisekunden, in denen der Haken durchs Bild fliegt: Die Bildzeit stieg dadurch von
+ * gut 8 auf knapp 12 ms, bei 16,7 ms Budget. In Stufen bleibt das Zwischenbild dazwischen
+ * stehen. Bei 1,8 dp Gesamtradius liegt eine Stufe unter einem Pixel und ist nicht zu sehen –
+ * und die Abblendung läuft ohnehin stufenlos weiter und trägt den Übergang.
+ */
+private const val BLUR_STEPS = 5f
 
 /** Kurz genug, um als Antwort auf den Haken durchzugehen, lang genug, um ihn zu quittieren. */
 private const val FADE_MILLIS = 420

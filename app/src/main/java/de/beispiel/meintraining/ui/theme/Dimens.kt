@@ -77,7 +77,7 @@ object Dimens {
      * Deutlich größer als am Listenende – er soll nicht zu übersehen sein –, aber klein genug,
      * dass ringsum noch Übungen durchscheinen.
      */
-    val FloatingCheckSize = 156.dp
+    val FloatingCheckSize = 128.dp
 
     // Statistiken
     val WeekdayChartHeight = 132.dp
