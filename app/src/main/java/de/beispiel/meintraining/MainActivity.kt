@@ -95,6 +95,7 @@ class MainActivity : ComponentActivity() {
                     uiState = uiState,
                     editorForm = editorForm,
                     events = viewModel.events,
+                    celebrations = viewModel.celebrations,
                     actions = actions
                 )
             }

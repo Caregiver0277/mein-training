@@ -187,6 +187,18 @@
     <string name="history_yesterday">gestern</string>
     <string name="history_delete_title">Eintrag löschen?</string>
     <string name="history_delete_body">Das Training vom %1$s wird aus dem Verlauf entfernt. Das beeinflusst auch die Deload-Berechnung.</string>
+    <string name="history_delete_pick">Am %1$s stehen mehrere Trainings. Tippe das an, das raus soll – es verschwindet sofort.</string>
+
+    <!-- Training nachtragen -->
+    <string name="history_add_title">Training nachtragen</string>
+    <string name="cd_add_session">Training nachtragen</string>
+    <string name="history_add_hint">Für ein Training, das du abzuhaken vergessen hast. Es zählt danach wie jedes andere – in Runde, Verlauf und Deload-Zyklus.</string>
+    <string name="history_add_day">Trainingstag</string>
+    <string name="history_add_date">Datum</string>
+    <string name="history_add_time">Uhrzeit</string>
+    <string name="history_add_future">Dieser Zeitpunkt liegt in der Zukunft. Nachtragen lässt sich nur, was schon stattgefunden hat.</string>
+    <string name="history_add_no_days">Es gibt noch keine Trainingstage.</string>
+    <string name="history_add_confirm">Eintragen</string>
     <plurals name="history_days_ago">
         <item quantity="one">vor %1$d Tag</item>
         <item quantity="other">vor %1$d Tagen</item>

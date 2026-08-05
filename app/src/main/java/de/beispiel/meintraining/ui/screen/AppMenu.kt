@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.ui.theme.AccentBlue
@@ -83,9 +85,20 @@ fun AppMenu(
     }
 }
 
-/** Kopfzeile der Unterseiten: Zurück-Pfeil und Titel. */
+/**
+ * Kopfzeile der Unterseiten: Zurück-Pfeil und Titel.
+ *
+ * [actions] steht ganz rechts, falls die Seite eigene Knöpfe mitbringt – der Verlauf etwa das
+ * „+“ zum Nachtragen. Ein leerer Bereich kostet nichts, deshalb gibt es dafür keine zweite
+ * Kopfzeile.
+ */
 @Composable
-fun SubScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun SubScreenHeader(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {}
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -104,8 +117,13 @@ fun SubScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modi
             text = title,
             style = AppTextStyles.Title,
             color = TextPrimary,
-            modifier = Modifier.padding(start = Dimens.SectionSpacingSmall)
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = Dimens.SectionSpacingSmall)
         )
+        actions()
     }
 }
 

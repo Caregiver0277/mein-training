@@ -12,6 +12,7 @@ import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
+import de.beispiel.meintraining.util.RotationEntry
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.deloadStatus
 import de.beispiel.meintraining.util.parseOptionalDecimal
@@ -53,6 +54,18 @@ class TrainingViewModel(
 
     private val eventChannel = Channel<TrainingEvent>(Channel.BUFFERED)
     val events: Flow<TrainingEvent> = eventChannel.receiveAsFlow()
+
+    /**
+     * Der Applaus für eine volle Runde – ein Signal ohne Inhalt, der Bildschirm weiß selbst,
+     * was er damit anfängt.
+     *
+     * Bewusst kein [TrainingEvent]: Die tragen Meldungen samt „Rückgängig“ am unteren Rand,
+     * und genau das soll hier nicht passieren. `CONFLATED` statt gepuffert, weil ein
+     * nachgeholter Konfetti-Regen niemandem mehr etwas sagt – lag der Bildschirm währenddessen
+     * im Hintergrund, ist der Moment vorbei.
+     */
+    private val celebrationChannel = Channel<Unit>(Channel.CONFLATED)
+    val celebrations: Flow<Unit> = celebrationChannel.receiveAsFlow()
 
     /**
      * Alle Übungen aller Tage, einmal abonniert und im Speicher nach Tag geschnitten.
@@ -125,11 +138,18 @@ class TrainingViewModel(
         repository.deloadCycleWeeks,
         currentDate.flow
     ) { sessionList, dayCount, cycleWeeks, today ->
+        // Die Sitzungen kommen neueste zuerst; die Rotation zählt in Eintragsreihenfolge. Das
+        // Datum wird dabei einmal ausgerechnet und weitergereicht: Runde und Deload-Rechnung
+        // brauchen dieselben Tage, und aus einem Zeitstempel eines zu machen ist mit Zeitzone
+        // und Instant der teuerste Schritt der ganzen Zusammenfassung.
+        val entriesOldestFirst = sessionList.asReversed().map { session ->
+            RotationEntry(dayId = session.dayId, date = session.completedAt.toLocalDate())
+        }
         SessionSummary(
-            // Die Sitzungen kommen neueste zuerst; die Rotation zählt in Eintragsreihenfolge.
             completedDayIds = completedDaysInRotation(
-                dayIdsOldestFirst = sessionList.asReversed().map { it.dayId },
-                dayCount = dayCount
+                entriesOldestFirst = entriesOldestFirst,
+                dayCount = dayCount,
+                today = today
             ),
             // Neueste zuerst heißt: Was heute eingetragen wurde, steht vorn. `takeWhile` hört
             // beim ersten älteren Eintrag auf und rechnet nicht den ganzen Verlauf durch.
@@ -137,7 +157,7 @@ class TrainingViewModel(
                 .takeWhile { it.completedAt.toLocalDate() == today }
                 .mapTo(mutableSetOf()) { it.dayId },
             deload = deloadStatus(
-                sessionDates = sessionList.map { it.completedAt.toLocalDate() },
+                sessionDates = entriesOldestFirst.map { it.date },
                 today = today,
                 cycleWeeks = cycleWeeks
             )
@@ -263,15 +283,23 @@ class TrainingViewModel(
      * unteren Rand, die sich genau über den Knopf schob und dessen Effekt verdeckte.
      *
      * Was ein Tippen bewirkt, entscheidet das Repository in einer Transaktion und nicht der
-     * hier sichtbare Zustand: Der hinkt der Datenbank um mehrere Bilder hinterher, und die
-     * angezeigte Runde beginnt nach ihrem letzten Tag ohnehin wieder von vorn – siehe
+     * hier sichtbare Zustand: Der hinkt der Datenbank um mehrere Bilder hinterher – siehe
      * [TrainingRepository.toggleWorkout].
+     *
+     * War es das letzte offene Training der Runde, meldet das Repository das zurück und der
+     * Bildschirm lässt es kurz Konfetti regnen.
      */
     fun onToggleWorkoutCompleted() {
         viewModelScope.launch {
             // Der Tag kommt aus dem Repository, nicht aus dem angezeigten Zustand: Wer den
             // Reiter wechselt und sofort abhakt, träfe sonst noch das vorige Training.
-            repository.toggleWorkout(repository.currentSelectedDay())
+            val result = repository.toggleWorkout(
+                dayId = repository.currentSelectedDay(),
+                // Dasselbe „heute“ wie überall sonst: Über Nacht offen geblieben, nähme eine
+                // frisch abgefragte Uhr den Eintrag von gestern nicht mehr zurück.
+                today = currentDate.value
+            )
+            if (result.completesRotation) celebrationChannel.trySend(Unit)
         }
     }
 

@@ -20,8 +20,16 @@ import java.time.LocalDate
 data class HistoryUiState(
     /** Abgehakte Trainings, das jüngste zuerst. */
     val sessions: List<WorkoutSession> = emptyList(),
-    /** Für die Namen der Trainingstage in den Einträgen. */
+    /**
+     * Für die Namen der Trainingstage in den Einträgen – hier stehen auch die hinter der
+     * eingestellten Rundenlänge verborgenen, sonst verlöre ein älterer Eintrag seinen Namen.
+     */
     val days: List<TrainingDay> = emptyList(),
+    /**
+     * Die Tage, die zum Nachtragen zur Wahl stehen: nur die sichtbaren. Ein Eintrag auf einem
+     * verborgenen Tag zählte in keiner Runde mit und wäre nirgends abzuhaken.
+     */
+    val selectableDays: List<TrainingDay> = emptyList(),
     /** Kommt von außen, damit „heute“ auch nach Mitternacht noch heute ist. */
     val today: LocalDate = LocalDate.now()
 )
@@ -42,9 +50,15 @@ class HistoryViewModel(
     val uiState = combine(
         repository.observeSessions(),
         repository.observeDays(),
+        repository.dayCount,
         currentDate.flow
-    ) { sessions, days, today ->
-        HistoryUiState(sessions = sessions, days = days, today = today)
+    ) { sessions, days, dayCount, today ->
+        HistoryUiState(
+            sessions = sessions,
+            days = days,
+            selectableDays = days.filter { it.id <= dayCount },
+            today = today
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
@@ -54,6 +68,18 @@ class HistoryViewModel(
     /** Entfernt einen versehentlich abgehakten Eintrag aus dem Verlauf. */
     fun onDeleteSession(sessionId: Long) {
         viewModelScope.launch { repository.deleteSession(sessionId) }
+    }
+
+    /**
+     * Trägt ein vergessenes Training nach.
+     *
+     * Der Dialog lässt keinen Zeitpunkt in der Zukunft zu; die Prüfung steht hier trotzdem
+     * noch einmal, weil ein solcher Eintrag Runde, Streak und Deload-Rechnung verstellte und
+     * sich hinterher nur über den langen Druck auf die Zeile wieder loswerden ließe.
+     */
+    fun onAddSession(dayId: Int, completedAt: Long) {
+        if (completedAt > System.currentTimeMillis()) return
+        viewModelScope.launch { repository.addSession(dayId, completedAt) }
     }
 
     companion object {

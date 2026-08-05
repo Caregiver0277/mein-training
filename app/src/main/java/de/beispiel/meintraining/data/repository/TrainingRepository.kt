@@ -18,6 +18,8 @@ import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
+import de.beispiel.meintraining.util.RotationEntry
+import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.increaseWeight
 import de.beispiel.meintraining.util.nextDayId
 import de.beispiel.meintraining.util.survivingSupersetMembers
@@ -33,6 +35,22 @@ import java.time.LocalDate
 
 /** Ergebnis einer Gewichtserhöhung – [previousKg] erlaubt das Zurücknehmen. */
 data class WeightChange(val previousKg: Double, val newKg: Double)
+
+/** Ergebnis eines Tippens auf den Haken. */
+data class WorkoutToggle(
+    /** Steht das Training jetzt im Verlauf? `false` heißt: Der Eintrag wurde zurückgenommen. */
+    val isCompleted: Boolean,
+    /**
+     * Mit diesem Eintrag ist die Runde voll geworden.
+     *
+     * Entschieden wird das hier und nicht in der Oberfläche: Der angezeigte Zustand wird erst
+     * ein paar Bilder später nachgezogen, und aus ihm allein ließe sich das Voll*werden* nicht
+     * von einer schon vollen Runde unterscheiden – die bleibt seit Neuestem bis Mitternacht
+     * stehen (siehe [completedDaysInRotation]). Der Applaus käme dann bei jedem Start der App
+     * noch einmal.
+     */
+    val completesRotation: Boolean
+)
 
 /**
  * Einzige Datenquelle für die ViewModels; kapselt Room und die Einstellungen.
@@ -112,6 +130,23 @@ class TrainingRepository(
     )
 
     /**
+     * Trägt ein vergessenes Training nach – mit frei gewähltem Tag und Zeitpunkt.
+     *
+     * Geprüft wird hier nur, was die Datenbank selbst nicht abfängt: ein Trainingstag, den es
+     * gar nicht gibt. Der Zeitpunkt kommt aus dem Verlauf schon geprüft an; ein Eintrag in der
+     * Zukunft würde Streak, Deload-Rechnung und Runde durcheinanderbringen, deshalb steht die
+     * Grenze auch hier noch einmal.
+     *
+     * Liefert `false`, wenn nichts eingetragen wurde.
+     */
+    suspend fun addSession(dayId: Int, completedAt: Long): Boolean {
+        if (completedAt > System.currentTimeMillis()) return false
+        if (dayDao.findById(dayId) == null) return false
+        sessionDao.insert(WorkoutSession(dayId = dayId, completedAt = completedAt))
+        return true
+    }
+
+    /**
      * Hakt das Training eines Tages ab oder nimmt das Abhaken zurück; liefert den neuen Stand.
      *
      * Zurückgenommen wird nur ein Eintrag von *heute*. Das ist der Fall, für den es das
@@ -133,17 +168,42 @@ class TrainingRepository(
      * ersten: Ohne WAL hat die Datenbank genau einen Schreiber, Transaktionen laufen also
      * nacheinander.
      */
-    suspend fun toggleWorkout(dayId: Int, today: LocalDate = LocalDate.now()): Boolean =
-        database.withTransaction {
+    suspend fun toggleWorkout(dayId: Int, today: LocalDate = LocalDate.now()): WorkoutToggle {
+        // Die Rundenlänge steht in DataStore und wird deshalb *vor* der Transaktion geholt:
+        // Room hat genau einen Transaktions-Thread, und ein Warten auf einen anderen Zufluss
+        // mitten drin blockiert ihn – im schlechtesten Fall, bis DataStore seinerseits auf die
+        // Platte wartet.
+        val dayCount = settingsStore.dayCount.first()
+        return database.withTransaction {
             val latest = sessionDao.latestForDay(dayId)
             if (latest != null && latest.completedAt.toLocalDate() == today) {
                 sessionDao.deleteById(latest.id)
-                false
+                WorkoutToggle(isCompleted = false, completesRotation = false)
             } else {
                 completeWorkout(dayId)
-                true
+                WorkoutToggle(
+                    isCompleted = true,
+                    completesRotation = isRotationFull(dayCount, today)
+                )
             }
         }
+    }
+
+    /**
+     * Ist die Runde mit dem eben geschriebenen Eintrag voll?
+     *
+     * Gerechnet wird auf dem gespeicherten Verlauf und innerhalb derselben Transaktion, aus
+     * demselben Grund wie beim Abhaken selbst: Zwei schnelle Tipps sähen sonst beide denselben
+     * Stand. Der Verlauf ist dabei klein – ein Eintrag je Training –, ein Durchlauf kostet
+     * nichts Nennenswertes und passiert nur beim Abhaken.
+     */
+    private suspend fun isRotationFull(dayCount: Int, today: LocalDate): Boolean {
+        if (dayCount <= 0) return false
+        val entries = sessionDao.listAll().map { session ->
+            RotationEntry(dayId = session.dayId, date = session.completedAt.toLocalDate())
+        }
+        return completedDaysInRotation(entries, dayCount, today).size >= dayCount
+    }
 
     suspend fun deleteSession(id: Long) = sessionDao.deleteById(id)
 

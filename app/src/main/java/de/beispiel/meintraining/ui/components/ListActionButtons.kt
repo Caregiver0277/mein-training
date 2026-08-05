@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,11 +38,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.ui.theme.AccentGreen
 import de.beispiel.meintraining.ui.theme.AccentGreenSurface
@@ -51,6 +54,7 @@ import de.beispiel.meintraining.ui.theme.OutlineColor
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -61,23 +65,37 @@ import kotlin.math.sin
  * sieht man auf einen Blick, welche noch offen sind. Ein zweites Tippen nimmt das Abhaken
  * wieder zurück; der Haken ist damit sein eigenes „Rückgängig“ und braucht keine Meldung, die
  * sich über ihn schiebt.
+ *
+ * Solange das Training aussteht, ist der Haken gar nicht hier, sondern schwebt groß über der
+ * Liste – siehe [FloatingCheck]. [isCheckFloating] sagt, ob das gerade so ist; sein Platz
+ * bleibt dann trotzdem stehen, damit die Zeile nicht springt und der Anflug ein Ziel hat.
  */
 @Composable
 fun ListActionButtons(
     onToggleWorkoutCompleted: () -> Unit,
     onAddExercise: () -> Unit,
     isCompleted: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isCheckFloating: Boolean = false,
+    /** Kommt von außen, weil nur der schwebende Haken wissen muss, wo sein Platz liegt. */
+    checkSlotModifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
     ) {
-        CompleteWorkoutButton(
-            onClick = onToggleWorkoutCompleted,
-            isCompleted = isCompleted,
-            modifier = Modifier.weight(1f)
-        )
+        val slot = checkSlotModifier
+            .weight(1f)
+            .height(Dimens.AddButtonHeight)
+        if (isCheckFloating) {
+            Box(modifier = slot)
+        } else {
+            CompleteWorkoutButton(
+                onClick = onToggleWorkoutCompleted,
+                isCompleted = isCompleted,
+                modifier = slot
+            )
+        }
         AddExerciseButton(onClick = onAddExercise)
     }
 }
@@ -92,12 +110,21 @@ fun ListActionButtons(
  *
  * Beim Zurücknehmen federt der Knopf nur; Ring und Funken bleiben dem Abhaken vorbehalten.
  * Ein Feuerwerk fürs Rückgängigmachen wäre am Anlass vorbei.
+ *
+ * Seine Größe bringt der Knopf nicht selbst mit, sie kommt über [modifier]: Derselbe Knopf
+ * steht einmal schmal am Listenende und einmal groß in der Bildmitte, und dazwischen wächst er
+ * Bild für Bild – siehe [FloatingCheckOverlay].
+ *
+ * @param iconScale wie groß der Haken darin ausfällt, 1 heißt: wie am Listenende. Eine
+ *   Funktion, weil der Wert sich während des Anflugs mit jedem Bild ändert und deshalb erst
+ *   beim Messen gelesen gehört – sonst würde der ganze Knopf ebenso oft neu zusammengesetzt.
  */
 @Composable
-private fun CompleteWorkoutButton(
+internal fun CompleteWorkoutButton(
     onClick: () -> Unit,
     isCompleted: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    iconScale: () -> Float = { 1f }
 ) {
     val haptics = LocalHapticFeedback.current
 
@@ -163,8 +190,7 @@ private fun CompleteWorkoutButton(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(Dimens.AddButtonHeight)
+                .fillMaxSize()
                 .graphicsLayer {
                     scaleX = scale.value
                     scaleY = scale.value
@@ -192,7 +218,17 @@ private fun CompleteWorkoutButton(
                 ),
                 tint = accent,
                 modifier = Modifier
-                    .size(Dimens.MenuIconSize)
+                    // Gemessen statt skaliert: Ein per Zeichenebene aufgeblasener Haken wäre
+                    // in der Bildmitte dauerhaft weich, weil das Vektorbild in seiner kleinen
+                    // Größe gerastert bliebe. Über die Messung entsteht er direkt in der
+                    // Größe, in der er gezeichnet wird.
+                    .layout { measurable, _ ->
+                        val side = (Dimens.MenuIconSize.toPx() * iconScale())
+                            .roundToInt()
+                            .coerceAtLeast(0)
+                        val placeable = measurable.measure(Constraints.fixed(side, side))
+                        layout(side, side) { placeable.place(0, 0) }
+                    }
                     // Der Haken schlägt kräftiger aus als der Knopf, sonst ginge er im
                     // Federn des Rahmens unter.
                     .graphicsLayer {

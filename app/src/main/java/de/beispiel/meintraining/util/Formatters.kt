@@ -5,6 +5,7 @@ import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -43,6 +44,9 @@ fun Long.toLocalDate(zone: ZoneId = ZoneId.systemDefault()): LocalDate =
 /** `"18:42"` – Uhrzeit eines Zeitstempels in der Zeitzone des Geräts. */
 fun Long.toClockTime(zone: ZoneId = ZoneId.systemDefault()): String =
     CLOCK_TIME.format(Instant.ofEpochMilli(this).atZone(zone))
+
+/** `"18:42"` – dieselbe Schreibweise für eine Uhrzeit ohne Datum. */
+fun formatClockTime(time: LocalTime): String = CLOCK_TIME.format(time)
 
 /** `"Sa, 2. August 2026"` – für den Verlauf. */
 fun formatFullDate(date: LocalDate): String = FULL_DATE.format(date)

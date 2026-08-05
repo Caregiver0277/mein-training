@@ -16,6 +16,10 @@ interface TrainingDayDao {
     @Query("SELECT * FROM TrainingDay ORDER BY id ASC")
     suspend fun listAll(): List<TrainingDay>
 
+    /** Gibt es diesen Trainingstag? Prüfung, bevor ein Training darauf eingetragen wird. */
+    @Query("SELECT * FROM TrainingDay WHERE id = :id")
+    suspend fun findById(id: Int): TrainingDay?
+
     @Query("UPDATE TrainingDay SET name = :name WHERE id = :id")
     suspend fun updateName(id: Int, name: String)
 
