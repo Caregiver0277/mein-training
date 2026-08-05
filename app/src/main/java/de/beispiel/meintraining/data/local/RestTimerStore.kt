@@ -3,6 +3,7 @@ package de.beispiel.meintraining.data.local
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -11,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
@@ -98,6 +100,28 @@ class RestTimerStore(context: Context) {
 
     val timers: Flow<List<RestTimer>> = preferences.map(::readTimers).distinctUntilChanged()
 
+    /**
+     * Ob am Ende einer Pause ein Ton erklingt.
+     *
+     * Steht hier und nicht bei den übrigen Einstellungen, obwohl er dort umgeschaltet wird: Der
+     * Wecker-Empfänger muss ihn lesen, während die App geschlossen ist, und soll dafür nicht den
+     * ganzen Einstellungsbestand aufziehen müssen – aus demselben Grund, aus dem diese Datei
+     * überhaupt getrennt liegt.
+     *
+     * Vorgabe ist an: Ein Ton, den niemand kennt, weil er erst eingeschaltet werden müsste,
+     * hilft im Studio nicht.
+     */
+    val soundEnabled: Flow<Boolean> = preferences.map(::readSoundEnabled).distinctUntilChanged()
+
+    /** Einmalige Abfrage für den Wecker-Empfänger; dort gibt es nichts zu beobachten. */
+    suspend fun isSoundEnabled(): Boolean = readSoundEnabled(preferences.first())
+
+    suspend fun setSoundEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SOUND_ENABLED] = enabled }
+    }
+
+    private fun readSoundEnabled(prefs: Preferences): Boolean = prefs[KEY_SOUND_ENABLED] ?: true
+
     private fun readTimers(prefs: Preferences): List<RestTimer> = List(REST_TIMER_COUNT) { index ->
         RestTimer(
             durationSeconds = (prefs[durationKey(index)] ?: defaultSeconds(index))
@@ -145,6 +169,9 @@ class RestTimerStore(context: Context) {
 
         fun durationKey(index: Int) = intPreferencesKey("timer_${index}_duration")
         fun endAtKey(index: Int) = longPreferencesKey("timer_${index}_end_at")
+
+        /** Gilt für beide Uhren – zwei getrennte Töne wären nur eine Einstellung mehr. */
+        val KEY_SOUND_ENABLED = booleanPreferencesKey("timer_sound_enabled")
 
         /**
          * Eigener Name statt des früheren `timer_N_paused`: Dort liegen ganze Sekunden als Int,

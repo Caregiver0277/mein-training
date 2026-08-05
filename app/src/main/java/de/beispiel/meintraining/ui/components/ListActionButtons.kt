@@ -6,11 +6,12 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
@@ -25,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,6 +48,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.VectorPainter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
@@ -61,6 +65,7 @@ import de.beispiel.meintraining.ui.theme.OutlineColor
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -75,6 +80,13 @@ import kotlin.math.sin
  * Solange das Training aussteht, ist der Haken gar nicht hier, sondern schwebt groß über der
  * Liste – siehe [FloatingCheck]. [isCheckFloating] sagt, ob das gerade so ist; sein Platz
  * bleibt dann trotzdem stehen, damit die Zeile nicht springt und der Anflug ein Ziel hat.
+ *
+ * Am Ende einer Runde schiebt sich zwischen beide der Pfeil in die nächste ([showNextCycle]).
+ * Er steht dort und nicht anderswo, weil er zum Haken gehört: erst abhaken, dann weiterziehen.
+ *
+ * Die Zeile setzt ihre Abstände selbst statt über `Arrangement.spacedBy`. Der Pfeil kommt und
+ * geht, und ein Zwischenraum, den die Anordnung setzt, bliebe stehen, sobald der Platz dafür
+ * überhaupt vorgesehen ist – die Zeile spränge beim Erscheinen um genau diesen Abstand.
  */
 @Composable
 fun ListActionButtons(
@@ -84,12 +96,11 @@ fun ListActionButtons(
     modifier: Modifier = Modifier,
     isCheckFloating: Boolean = false,
     /** Kommt von außen, weil nur der schwebende Haken wissen muss, wo sein Platz liegt. */
-    checkSlotModifier: Modifier = Modifier
+    checkSlotModifier: Modifier = Modifier,
+    showNextCycle: Boolean = false,
+    onNextCycle: () -> Unit = {}
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
-    ) {
+    Row(modifier = modifier.fillMaxWidth()) {
         val slot = checkSlotModifier
             .weight(1f)
             .height(Dimens.AddButtonHeight)
@@ -102,7 +113,62 @@ fun ListActionButtons(
                 modifier = slot
             )
         }
+        NextCycleSlot(isVisible = showNextCycle, onClick = onNextCycle)
+        Spacer(modifier = Modifier.width(Dimens.CardSpacing))
         AddExerciseButton(onClick = onAddExercise)
+    }
+}
+
+/**
+ * Der Pfeil in die nächste Runde, der sich seinen Platz selbst schafft.
+ *
+ * Er taucht auf, sobald das letzte Training der Runde eingetragen ist – also mitten in der
+ * Bewegung, mit der der Haken an sein Ziel fliegt. Erschiene er dabei schlagartig, machte die
+ * Zeile einen Satz zur Seite und der Haken flöge auf ein Ziel zu, das sich unter ihm
+ * wegbewegt. Deshalb wächst er auf: Breite und Deckkraft hängen an einem einzigen Verlauf.
+ *
+ * Gelesen wird der erst beim Messen und beim Zeichnen. Der Knopf wird während des Aufziehens
+ * kein einziges Mal neu zusammengesetzt – nur neu vermessen, und das muss die Zeile ohnehin.
+ * Zusammengesetzt wird zweimal je Wechsel: einmal, wenn er dazukommt, einmal, wenn er nach dem
+ * Einklappen ganz verschwindet.
+ */
+@Composable
+private fun NextCycleSlot(isVisible: Boolean, onClick: () -> Unit) {
+    // Anwesend bleibt er, bis das Einklappen durch ist – sonst verschwände er unvermittelt.
+    var isPresent by remember { mutableStateOf(isVisible) }
+    val reveal = remember { Animatable(if (isVisible) SHOWN else HIDDEN) }
+
+    LaunchedEffect(isVisible) {
+        if (isVisible) isPresent = true
+        reveal.animateTo(
+            targetValue = if (isVisible) SHOWN else HIDDEN,
+            animationSpec = tween(REVEAL_MILLIS, easing = FastOutSlowInEasing)
+        )
+        if (!isVisible) isPresent = false
+    }
+
+    if (!isPresent) return
+
+    Box(
+        modifier = Modifier
+            // Beschneiden und Ausblenden über derselben Ebene: Was noch nicht Platz hat, wird
+            // abgeschnitten, statt den Nachbarn zu überlappen.
+            .graphicsLayer {
+                clip = true
+                alpha = reveal.value
+            }
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                val width = (placeable.width * reveal.value).roundToInt().coerceAtLeast(0)
+                // Von rechts hervor: Die rechte Kante steht von Anfang an dort, wo sie
+                // hingehört, und der Knopf wächst nach links aus dem „+“ heraus.
+                layout(width, placeable.height) { placeable.place(width - placeable.width, 0) }
+            }
+    ) {
+        Row {
+            Spacer(modifier = Modifier.width(Dimens.CardSpacing))
+            NextCycleButton(onClick = onClick)
+        }
     }
 }
 
@@ -325,6 +391,34 @@ private fun DrawScope.drawBurst(progress: Float) {
     }
 }
 
+/**
+ * Derselbe Knopf wie das „+“, nur mit einem Pfeil nach rechts und in Grün.
+ *
+ * Grün, weil er zum abgehakten Training gehört und nicht zur Liste: Er erscheint erst, wenn der
+ * Haken daneben grün ist, und führt weiter. Ein zweites graues Kästchen neben dem „+“ sähe
+ * dagegen aus, als gäbe es hier zwei Wege, eine Übung anzulegen.
+ */
+@Composable
+private fun NextCycleButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .width(Dimens.AddButtonWidth)
+            .height(Dimens.AddButtonHeight)
+            .clip(Dimens.CornerAddButton)
+            .background(AccentGreenSurface)
+            .border(Dimens.AddButtonBorderWidth, AccentGreen, Dimens.CornerAddButton)
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = stringResource(R.string.cd_next_cycle),
+            tint = AccentGreen,
+            modifier = Modifier.size(Dimens.MenuIconSize)
+        )
+    }
+}
+
 /** Transparenter Button mit 1dp-Rahmen und zentriertem „+“. */
 @Composable
 private fun AddExerciseButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -360,7 +454,25 @@ private const val DONE = 1f
 
 // Maße des Effekts als Vielfache der Knopfhöhe, damit er auf jedem Gerät gleich wirkt.
 private const val BURST_DONE = 1f
-private const val BURST_MILLIS = 620
+
+/**
+ * Wie lange Ring und Funken brauchen.
+ *
+ * Nicht nur hier gebraucht: Der schwebende Haken wartet damit ab, bis der Effekt durch ist,
+ * bevor er losfliegt – siehe [rememberFloatingCheck].
+ */
+internal const val BURST_MILLIS = 620
+
+/**
+ * Wie lange der Pfeil zur nächsten Runde zum Aufziehen braucht.
+ *
+ * Kürzer als [BURST_MILLIS]: Er steht fertig da, bevor der Haken losfliegt. Ein Ziel, das sich
+ * während des Anflugs noch verschiebt, macht die Bewegung unruhig.
+ */
+private const val REVEAL_MILLIS = 280
+private const val HIDDEN = 0f
+private const val SHOWN = 1f
+
 private const val PRESS_MILLIS = 90
 private const val COLOR_MILLIS = 260
 private const val PRESS_SCALE = 0.92f
@@ -382,7 +494,9 @@ private fun ListActionButtonsPreview() {
             onToggleWorkoutCompleted = {},
             onAddExercise = {},
             isCompleted = true,
-            modifier = Modifier.padding(Dimens.ScreenPaddingHorizontal)
+            modifier = Modifier.padding(Dimens.ScreenPaddingHorizontal),
+            // Wie am Ende einer Runde: Haken, Pfeil in die nächste, „+“.
+            showNextCycle = true
         )
     }
 }

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
 import de.beispiel.meintraining.data.backup.BackupRepository
+import de.beispiel.meintraining.data.local.RestTimerStore
 import de.beispiel.meintraining.data.model.DEFAULT_DAY_COUNT
 import de.beispiel.meintraining.data.model.MAX_DAY_COUNT
 import de.beispiel.meintraining.data.model.MIN_DAY_COUNT
@@ -40,6 +41,8 @@ data class SettingsUiState(
     val dayCount: Int = DEFAULT_DAY_COUNT,
     val appTitle: String = "",
     val deloadCycleWeeks: Int = DEFAULT_DELOAD_CYCLE_WEEKS,
+    /** Klingt am Ende einer Pause ein Ton? Vibriert wird unabhängig davon immer. */
+    val timerSoundEnabled: Boolean = true,
     val exercises: List<ManagedExercise> = emptyList()
 )
 
@@ -47,7 +50,13 @@ data class SettingsUiState(
 class SettingsViewModel(
     private val repository: TrainingRepository,
     /** Nur fürs Zurücksetzen: Die automatische Sicherung muss dabei mit abbestellt werden. */
-    private val backups: BackupRepository
+    private val backups: BackupRepository,
+    /**
+     * Der Ton am Ende einer Pause wird hier umgeschaltet, liegt aber bei den Uhren: Der
+     * Wecker-Empfänger muss ihn lesen, ohne die übrigen Einstellungen zu öffnen – siehe
+     * [RestTimerStore.soundEnabled].
+     */
+    private val timers: RestTimerStore
 ) : ViewModel() {
 
     /**
@@ -75,9 +84,10 @@ class SettingsViewModel(
         combine(
             repository.appTitle,
             repository.deloadCycleWeeks,
-            repository.dayCount
-        ) { title, weeks, dayCount ->
-            GeneralSettings(title, weeks, dayCount)
+            repository.dayCount,
+            timers.soundEnabled
+        ) { title, weeks, dayCount, sound ->
+            GeneralSettings(title, weeks, dayCount, sound)
         }
     ) { exercises, definitions, logs, days, general ->
         val historyCounts = logs.groupingBy { it.exerciseName }.eachCount()
@@ -93,6 +103,7 @@ class SettingsViewModel(
             dayCount = general.dayCount,
             appTitle = general.title,
             deloadCycleWeeks = general.cycleWeeks,
+            timerSoundEnabled = general.timerSoundEnabled,
             exercises = names.map { name ->
                 ManagedExercise(
                     name = name,
@@ -166,6 +177,17 @@ class SettingsViewModel(
     }
 
     /**
+     * Schaltet den Ton am Ende einer Pause um.
+     *
+     * Ohne Zwischenspeichern der Eingabe wie bei den Textfeldern: Ein Schalter kippt einmal,
+     * nicht bei jedem Tastendruck, und der Weg zurück in die Anzeige führt ohnehin über den
+     * gespeicherten Wert.
+     */
+    fun onTimerSoundToggled(enabled: Boolean) {
+        viewModelScope.launch { timers.setSoundEnabled(enabled) }
+    }
+
+    /**
      * Nimmt die Zykluslänge nur an, wenn sie schon im erlaubten Bereich liegt.
      *
      * Würde stattdessen jede Eingabe zurechtgebogen, käme der gekappte Wert sofort ins
@@ -182,7 +204,8 @@ class SettingsViewModel(
     private data class GeneralSettings(
         val title: String,
         val cycleWeeks: Int,
-        val dayCount: Int
+        val dayCount: Int,
+        val timerSoundEnabled: Boolean
     )
 
     companion object {
@@ -193,7 +216,7 @@ class SettingsViewModel(
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as MeinTrainingApp
-                SettingsViewModel(app.repository, app.backupRepository)
+                SettingsViewModel(app.repository, app.backupRepository, app.restTimerStore)
             }
         }
     }

@@ -447,7 +447,11 @@ private fun TrainingContent(
                         isCompleted = uiState.isSelectedDayCompleted,
                         modifier = Modifier.padding(bottom = Dimens.ListBottomPadding),
                         isCheckFloating = floatingCheck.isFloating,
-                        checkSlotModifier = checkSlot
+                        checkSlotModifier = checkSlot,
+                        // Im Auswahlmodus geht es ums Markieren von Übungen; ein Sprung in die
+                        // nächste Runde hätte dort nichts zu suchen.
+                        showNextCycle = uiState.canStartNextCycle && !uiState.isSelectionMode,
+                        onNextCycle = actions.onStartNextCycle
                     )
                 }
             }

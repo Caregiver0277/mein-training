@@ -33,6 +33,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -115,6 +117,7 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
             uiState = uiState,
             onAppTitleChange = viewModel::onAppTitleChange,
             onDeloadCycleChange = viewModel::onDeloadCycleChange,
+            onTimerSoundToggled = viewModel::onTimerSoundToggled,
             onManageDays = { section = SettingsSection.DAYS },
             onManageExercises = { section = SettingsSection.EXERCISES },
             onManageBackup = { section = SettingsSection.BACKUP },
@@ -130,6 +133,7 @@ fun SettingsScreen(
     uiState: SettingsUiState,
     onAppTitleChange: (String) -> Unit,
     onDeloadCycleChange: (String) -> Unit,
+    onTimerSoundToggled: (Boolean) -> Unit,
     onManageDays: () -> Unit,
     onManageExercises: () -> Unit,
     onManageBackup: () -> Unit,
@@ -171,6 +175,15 @@ fun SettingsScreen(
                     // Eine Zahl außerhalb des erlaubten Bereichs wird nicht gespeichert und
                     // soll deshalb auch nicht im Feld stehen bleiben.
                     resetOnFocusLoss = true
+                )
+            }
+
+            SettingsCard(title = stringResource(R.string.settings_timers)) {
+                SwitchRow(
+                    label = stringResource(R.string.settings_timer_sound),
+                    hint = stringResource(R.string.settings_timer_sound_hint),
+                    checked = uiState.timerSoundEnabled,
+                    onCheckedChange = onTimerSoundToggled
                 )
             }
 
@@ -636,6 +649,44 @@ internal fun SettingsCard(title: String, content: @Composable ColumnScope.() -> 
     }
 }
 
+/**
+ * Ein Schalter mit Erklärung darunter.
+ *
+ * Die ganze Zeile schaltet um, nicht nur der Schalter selbst: Der Text sagt, worum es geht, und
+ * ein Ziel von 48 dp Höhe trifft man auch mit klammen Fingern.
+ */
+@Composable
+private fun SwitchRow(
+    label: String,
+    hint: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(Dimens.CornerChip)
+            .clickable(role = Role.Switch) { onCheckedChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = label, style = AppTextStyles.Body, color = TextPrimary)
+            Text(
+                text = hint,
+                style = AppTextStyles.ColumnLabel,
+                color = TextSecondary,
+                modifier = Modifier.padding(top = Dimens.SectionSpacingSmall / 2)
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = AccentBlue),
+            modifier = Modifier.padding(start = Dimens.SectionSpacingMedium)
+        )
+    }
+}
+
 @Composable
 private fun SubmenuRow(title: String, subtitle: String, onClick: () -> Unit) {
     Row(
@@ -815,6 +866,7 @@ private fun SettingsScreenPreview() {
             ),
             onAppTitleChange = {},
             onDeloadCycleChange = {},
+            onTimerSoundToggled = {},
             onManageDays = {},
             onManageExercises = {},
             onManageBackup = {},

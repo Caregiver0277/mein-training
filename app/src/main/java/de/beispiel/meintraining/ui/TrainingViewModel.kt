@@ -136,20 +136,28 @@ class TrainingViewModel(
         sessions,
         repository.dayCount,
         repository.deloadCycleWeeks,
-        currentDate.flow
-    ) { sessionList, dayCount, cycleWeeks, today ->
+        currentDate.flow,
+        repository.rotationStartAfter
+    ) { sessionList, dayCount, cycleWeeks, today, rotationStartAfter ->
         // Die Sitzungen kommen neueste zuerst; die Rotation zählt in Eintragsreihenfolge. Das
         // Datum wird dabei einmal ausgerechnet und weitergereicht: Runde und Deload-Rechnung
         // brauchen dieselben Tage, und aus einem Zeitstempel eines zu machen ist mit Zeitzone
         // und Instant der teuerste Schritt der ganzen Zusammenfassung.
         val entriesOldestFirst = sessionList.asReversed().map { session ->
-            RotationEntry(dayId = session.dayId, date = session.completedAt.toLocalDate())
+            RotationEntry(
+                dayId = session.dayId,
+                date = session.completedAt.toLocalDate(),
+                completedAt = session.completedAt
+            )
         }
         SessionSummary(
             completedDayIds = completedDaysInRotation(
                 entriesOldestFirst = entriesOldestFirst,
                 dayCount = dayCount,
-                today = today
+                today = today,
+                // Nur die Runde hört auf den Schnitt. Verlauf, Statistik und Deload-Rechnung
+                // gehen weiter über alles – dort ist nichts zu Ende, nur eine Runde.
+                startAfter = rotationStartAfter
             ),
             // Neueste zuerst heißt: Was heute eingetragen wurde, steht vorn. `takeWhile` hört
             // beim ersten älteren Eintrag auf und rechnet nicht den ganzen Verlauf durch.
@@ -300,6 +308,29 @@ class TrainingViewModel(
                 today = currentDate.value
             )
             if (result.completesRotation) celebrationChannel.trySend(Unit)
+        }
+    }
+
+    /**
+     * Beginnt die nächste Runde von Hand – der Pfeil neben dem Haken am letzten Tag.
+     *
+     * Sonst wartet die App auf den nächsten Kalendertag, bevor sie weiterschaltet, und das ist
+     * auch richtig so: Wer am Abend fertig ist, will am selben Abend keinen neuen Trainingstag
+     * vorgesetzt bekommen. Wer aber gleich weitermachen will – zwei Einheiten an einem Tag,
+     * oder ein Training kurz vor Mitternacht –, kommt hier ohne Umweg in die neue Runde.
+     *
+     * Anders als bei [onDaySelected] wird der Tag hier *nicht* vorab umgeschaltet, sondern erst
+     * nach dem Schnitt: Sonst zeigte die Anzeige für ein paar Bilder den ersten Tag mit den
+     * Haken der alten Runde, und der eben gelandete Haken flöge sofort wieder in die Bildmitte
+     * zurück. Der Schnitt ist ein einzelner Schreibvorgang – das Warten darauf ist kürzer als
+     * jede Bewegung auf dem Bildschirm.
+     */
+    fun onStartNextCycle() {
+        val firstDay = uiState.value.days.firstOrNull()?.id ?: return
+        selectedIds.value = emptySet()
+        viewModelScope.launch {
+            repository.startNextRotation()
+            repository.selectDay(firstDay)
         }
     }
 

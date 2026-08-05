@@ -2,7 +2,6 @@ package de.beispiel.meintraining.ui.screen
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.beispiel.meintraining.R
@@ -56,8 +54,14 @@ import de.beispiel.meintraining.util.toLocalDate
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-/** Ein Trainingstag im Verlauf mit allen an diesem Tag abgehakten Einheiten. */
-private data class HistoryDay(val date: LocalDate, val sessions: List<WorkoutSession>)
+/**
+ * Ein abgehaktes Training im Verlauf – eine Zeile, ein Kasten.
+ *
+ * Das Datum steht mit dabei, statt bei jedem Zeichnen aus dem Zeitstempel gerechnet zu werden:
+ * Aus einem Zeitstempel ein Datum zu machen kostet Zeitzone und Instant, und gebraucht wird es
+ * für Überschrift und Abstand zu heute gleich zweimal.
+ */
+private data class HistoryEntry(val session: WorkoutSession, val date: LocalDate)
 
 @Composable
 fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -78,9 +82,18 @@ fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
 /**
  * Verlauf: welche Trainings wann abgehakt wurden.
  *
- * Oben eine kurze Bilanz – so sieht man auf einen Blick, ob man dran ist –, darunter die
- * Tage von heute rückwärts. Das „+“ in der Kopfzeile trägt ein vergessenes Training nach,
- * der lange Druck auf eine Zeile nimmt eines wieder heraus.
+ * Oben eine kurze Bilanz – so sieht man auf einen Blick, ob man dran ist –, darunter jedes
+ * Training von heute rückwärts. Jedes bekommt seinen eigenen Kasten, auch wenn an einem Tag
+ * mehrere stehen: Zusammengefasst waren sie eine Aufzählung in einer Zeile, in der weder zu
+ * erkennen war, welches wann stattfand, noch welches ein langer Druck erwischt.
+ *
+ * Die Bilanz oben zählt Trainings, nicht Trainingstage: „7 Tage“ ist die Spanne, gezählt wird
+ * darin jedes Training. Vorher zählte sie Tage, was zu je einem Kasten pro Tag passte – neben
+ * getrennten Kästen stünde dort eine Zahl, die sich nicht mehr nachzählen lässt. Es ist auch
+ * dieselbe Zählweise wie unter „Statistiken“, wo „Trainings“ seit jeher die Einträge meint.
+ *
+ * Das „+“ in der Kopfzeile trägt ein vergessenes Training nach, der lange Druck auf eine Zeile
+ * nimmt genau dieses eine wieder heraus.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -96,13 +109,12 @@ fun HistoryScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    /** Der Tag, dessen Einträge gerade zum Löschen anstehen. */
-    var pendingDeletion by remember { mutableStateOf<HistoryDay?>(null) }
+    /** Der Eintrag, der gerade zum Löschen ansteht. */
+    var pendingDeletion by remember { mutableStateOf<HistoryEntry?>(null) }
     var isAdding by rememberSaveable { mutableStateOf(false) }
-    val historyDays = remember(sessions) {
-        sessions.groupBy { it.completedAt.toLocalDate() }
-            .map { (date, entries) -> HistoryDay(date, entries) }
-            .sortedByDescending { it.date }
+    // Die Sitzungen kommen schon neueste zuerst; hier wird nur je einmal das Datum ausgerechnet.
+    val entries = remember(sessions) {
+        sessions.map { HistoryEntry(session = it, date = it.completedAt.toLocalDate()) }
     }
     val dayNames = remember(days) { days.associate { it.id to it.name } }
 
@@ -129,7 +141,7 @@ fun HistoryScreen(
             }
         }
 
-        if (historyDays.isEmpty()) {
+        if (entries.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     text = stringResource(R.string.history_empty),
@@ -140,22 +152,29 @@ fun HistoryScreen(
             return@Column
         }
 
-        val last7 = historyDays.count { ChronoUnit.DAYS.between(it.date, today) < 7 }
-        val last30 = historyDays.count { ChronoUnit.DAYS.between(it.date, today) < 30 }
+        // Gemerkt, weil hier über den ganzen Verlauf gezählt wird und die Zahlen sich nur
+        // ändern, wenn ein Training dazukommt oder der Kalendertag wechselt.
+        val summary = remember(entries, today) {
+            HistorySummary(
+                last7 = entries.count { ChronoUnit.DAYS.between(it.date, today) < DAYS_WEEK },
+                last30 = entries.count { ChronoUnit.DAYS.between(it.date, today) < DAYS_MONTH },
+                total = entries.size
+            )
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)) {
             SummaryTile(
-                value = last7.toString(),
+                value = summary.last7.toString(),
                 label = stringResource(R.string.history_last_week),
                 modifier = Modifier.weight(1f)
             )
             SummaryTile(
-                value = last30.toString(),
+                value = summary.last30.toString(),
                 label = stringResource(R.string.history_last_month),
                 modifier = Modifier.weight(1f)
             )
             SummaryTile(
-                value = historyDays.size.toString(),
+                value = summary.total.toString(),
                 label = stringResource(R.string.history_total),
                 modifier = Modifier.weight(1f)
             )
@@ -167,22 +186,16 @@ fun HistoryScreen(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
         ) {
-            items(items = historyDays, key = { it.date.toEpochDay() }) { day ->
+            // Die Kennung des Eintrags als Schlüssel: eindeutig auch dann, wenn an einem Tag
+            // mehrere Trainings stehen, und stabil, wenn eines dazwischen gelöscht wird.
+            items(items = entries, key = { it.session.id }) { entry ->
                 HistoryRow(
-                    date = day.date,
+                    date = entry.date,
                     today = today,
-                    labels = day.sessions.sortedBy { it.completedAt }.map { session ->
-                        val name = dayNames[session.dayId]
-                            ?: stringResource(R.string.day_name, session.dayId)
-                        stringResource(
-                            R.string.history_entry,
-                            name,
-                            session.completedAt.toClockTime()
-                        )
-                    },
+                    label = entry.label(dayNames),
                     // Langer Druck fragt nach, statt sofort zu löschen – die Snackbar mit
                     // „Rückgängig“ ist irgendwann weg, ein Fehlgriff soll bleiben können.
-                    onLongClick = { pendingDeletion = day }
+                    onLongClick = { pendingDeletion = entry }
                 )
             }
             item { Spacer(modifier = Modifier.height(Dimens.ListBottomPadding)) }
@@ -201,14 +214,10 @@ fun HistoryScreen(
         )
     }
 
-    pendingDeletion?.let { day ->
-        // Neueste zuerst, wie im Verlauf selbst.
-        val entries = remember(day) { day.sessions.sortedByDescending { it.completedAt } }
-        // Ein einzelnes Training wird bestätigt, mehrere werden ausgewählt: Sonst träfe es
-        // immer nur das jüngste, und ein nachgetragenes Training von vorgestern früh ließe
-        // sich nie wieder loswerden, ohne alles danach mitzunehmen.
-        val isPicking = entries.size > 1
-
+    // Gefragt wird nach genau dem Eintrag, auf den gedrückt wurde – seit jeder seinen eigenen
+    // Kasten hat, gibt es nichts mehr auszuwählen. Vorher stand hier eine Liste zur Wahl, weil
+    // ein Kasten für den ganzen Tag nicht sagen konnte, welches Training gemeint ist.
+    pendingDeletion?.let { entry ->
         AlertDialog(
             onDismissRequest = { pendingDeletion = null },
             containerColor = CardBackground,
@@ -216,31 +225,13 @@ fun HistoryScreen(
             textContentColor = TextSecondary,
             title = { Text(text = stringResource(R.string.history_delete_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)) {
-                    Text(
-                        text = stringResource(
-                            if (isPicking) R.string.history_delete_pick
-                            else R.string.history_delete_body,
-                            formatFullDate(day.date)
-                        )
+                Text(
+                    text = stringResource(
+                        R.string.history_delete_body,
+                        entry.label(dayNames),
+                        formatFullDate(entry.date)
                     )
-                    if (isPicking) {
-                        entries.forEach { session ->
-                            SessionChoice(
-                                label = stringResource(
-                                    R.string.history_entry,
-                                    dayNames[session.dayId]
-                                        ?: stringResource(R.string.day_name, session.dayId),
-                                    session.completedAt.toClockTime()
-                                ),
-                                onClick = {
-                                    pendingDeletion = null
-                                    onDeleteSession(session.id)
-                                }
-                            )
-                        }
-                    }
-                }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { pendingDeletion = null }) {
@@ -248,36 +239,34 @@ fun HistoryScreen(
                 }
             },
             confirmButton = {
-                if (!isPicking) {
-                    TextButton(
-                        onClick = {
-                            pendingDeletion = null
-                            entries.firstOrNull()?.let { onDeleteSession(it.id) }
-                        }
-                    ) {
-                        Text(text = stringResource(R.string.action_delete), color = AccentBlue)
+                TextButton(
+                    onClick = {
+                        pendingDeletion = null
+                        onDeleteSession(entry.session.id)
                     }
+                ) {
+                    Text(text = stringResource(R.string.action_delete), color = AccentBlue)
                 }
             }
         )
     }
 }
 
-/** Ein Eintrag zur Auswahl, wenn an einem Tag mehrere Trainings stehen. */
+/** Die Zahlen der Bilanz über der Liste. */
+private data class HistorySummary(val last7: Int, val last30: Int, val total: Int)
+
+/**
+ * „Tag 2 · 18:30 Uhr“ – Name des Trainingstages und Uhrzeit.
+ *
+ * Fehlt der Name, weil der Tag inzwischen hinter einer verkürzten Runde liegt, tritt die
+ * Nummer an seine Stelle; ein Eintrag ohne Beschriftung wäre nicht wiederzuerkennen.
+ */
 @Composable
-private fun SessionChoice(label: String, onClick: () -> Unit) {
-    Text(
-        text = label,
-        style = AppTextStyles.ExerciseName,
-        color = TextPrimary,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(Dimens.CornerChip)
-            .background(ChipBackground)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(Dimens.SectionSpacingMedium)
-    )
-}
+private fun HistoryEntry.label(dayNames: Map<Int, String>): String = stringResource(
+    R.string.history_entry,
+    dayNames[session.dayId] ?: stringResource(R.string.day_name, session.dayId),
+    session.completedAt.toClockTime()
+)
 
 @Composable
 private fun SummaryTile(value: String, label: String, modifier: Modifier = Modifier) {
@@ -298,12 +287,13 @@ private fun SummaryTile(value: String, label: String, modifier: Modifier = Modif
     }
 }
 
+/** Ein Training als eigener Kasten: Datum, Eintrag und der Abstand zu heute. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HistoryRow(
     date: LocalDate,
     today: LocalDate,
-    labels: List<String>,
+    label: String,
     onLongClick: () -> Unit
 ) {
     Row(
@@ -322,7 +312,7 @@ private fun HistoryRow(
                 color = TextPrimary
             )
             Text(
-                text = labels.joinToString(separator = ", "),
+                text = label,
                 style = AppTextStyles.ColumnLabel,
                 color = TextSecondary,
                 modifier = Modifier.padding(top = Dimens.SectionSpacingSmall / 2)
@@ -348,6 +338,10 @@ private fun HistoryRow(
     }
 }
 
+/** Die Spannen der Bilanz: die letzte Woche und der letzte Monat, jeweils ab heute rückwärts. */
+private const val DAYS_WEEK = 7
+private const val DAYS_MONTH = 30
+
 @Preview(showBackground = true, backgroundColor = 0xFF10141A, widthDp = 360, heightDp = 640)
 @Composable
 private fun HistoryScreenPreview() {
@@ -356,9 +350,11 @@ private fun HistoryScreenPreview() {
     MeinTrainingTheme {
         HistoryScreen(
             sessions = listOf(
+                // Zwei Trainings am selben Tag – jedes bekommt seinen eigenen Kasten.
                 WorkoutSession(id = 1, dayId = 2, completedAt = now),
-                WorkoutSession(id = 2, dayId = 1, completedAt = now - 2 * oneDay),
-                WorkoutSession(id = 3, dayId = 4, completedAt = now - 5 * oneDay)
+                WorkoutSession(id = 2, dayId = 1, completedAt = now - 3 * 60 * 60 * 1000),
+                WorkoutSession(id = 3, dayId = 1, completedAt = now - 2 * oneDay),
+                WorkoutSession(id = 4, dayId = 4, completedAt = now - 5 * oneDay)
             ),
             days = (1..4).map { TrainingDay(id = it, name = "Tag $it") },
             selectableDays = (1..4).map { TrainingDay(id = it, name = "Tag $it") },

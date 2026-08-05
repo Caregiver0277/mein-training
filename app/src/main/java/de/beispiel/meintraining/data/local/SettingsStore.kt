@@ -21,6 +21,7 @@ import de.beispiel.meintraining.data.model.MIN_DAY_COUNT
 import de.beispiel.meintraining.util.DEFAULT_DELOAD_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MAX_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MIN_CYCLE_WEEKS
+import de.beispiel.meintraining.util.NO_ROTATION_CUT
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -97,6 +98,25 @@ class SettingsStore(context: Context) {
 
     suspend fun setLastDayAdvance(epochDay: Long) {
         store.edit { prefs -> prefs[KEY_LAST_DAY_ADVANCE] = epochDay }
+    }
+
+    /**
+     * Grenze der laufenden Runde als Zeitstempel: Nur Trainings *danach* zählen für sie mit.
+     *
+     * Sonst zählt die Runde einfach den Verlauf durch und beginnt von selbst von vorn, sobald
+     * jeder Tag einmal dran war (siehe `completedDaysInRotation`). Wer die nächste Runde von
+     * Hand beginnt, ohne den nächsten Kalendertag abzuwarten, braucht diesen Schnitt – sonst
+     * stünden alle Tage weiter als erledigt da.
+     *
+     * 0 heißt: nie von Hand geschnitten, es zählt der ganze Verlauf.
+     */
+    private fun readRotationStartAfter(prefs: Preferences): Long =
+        prefs[KEY_ROTATION_START_AFTER] ?: NO_ROTATION_CUT
+
+    val rotationStartAfter: Flow<Long> = preference(::readRotationStartAfter)
+
+    suspend fun setRotationStartAfter(timestamp: Long) {
+        store.edit { prefs -> prefs[KEY_ROTATION_START_AFTER] = timestamp }
     }
 
     /**
@@ -210,6 +230,7 @@ class SettingsStore(context: Context) {
         val KEY_APP_TITLE = stringPreferencesKey("app_title")
         val KEY_HIDDEN_TRACKING = stringSetPreferencesKey("hidden_tracking_names")
         val KEY_LAST_DAY_ADVANCE = longPreferencesKey("last_day_advance")
+        val KEY_ROTATION_START_AFTER = longPreferencesKey("rotation_start_after")
         val KEY_BACKUP_URI = stringPreferencesKey("backup_target_uri")
         val KEY_BACKUP_INTERVAL = intPreferencesKey("backup_interval_days")
         val KEY_BACKUP_ENABLED = booleanPreferencesKey("backup_enabled")

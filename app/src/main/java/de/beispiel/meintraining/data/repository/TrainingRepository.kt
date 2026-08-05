@@ -18,6 +18,7 @@ import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
+import de.beispiel.meintraining.util.NO_ROTATION_CUT
 import de.beispiel.meintraining.util.RotationEntry
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.increaseWeight
@@ -169,11 +170,12 @@ class TrainingRepository(
      * nacheinander.
      */
     suspend fun toggleWorkout(dayId: Int, today: LocalDate = LocalDate.now()): WorkoutToggle {
-        // Die Rundenlänge steht in DataStore und wird deshalb *vor* der Transaktion geholt:
-        // Room hat genau einen Transaktions-Thread, und ein Warten auf einen anderen Zufluss
-        // mitten drin blockiert ihn – im schlechtesten Fall, bis DataStore seinerseits auf die
-        // Platte wartet.
+        // Rundenlänge und Rundenschnitt stehen in DataStore und werden deshalb *vor* der
+        // Transaktion geholt: Room hat genau einen Transaktions-Thread, und ein Warten auf einen
+        // anderen Zufluss mitten drin blockiert ihn – im schlechtesten Fall, bis DataStore
+        // seinerseits auf die Platte wartet.
         val dayCount = settingsStore.dayCount.first()
+        val startAfter = settingsStore.rotationStartAfter.first()
         return database.withTransaction {
             val latest = sessionDao.latestForDay(dayId)
             if (latest != null && latest.completedAt.toLocalDate() == today) {
@@ -183,10 +185,26 @@ class TrainingRepository(
                 completeWorkout(dayId)
                 WorkoutToggle(
                     isCompleted = true,
-                    completesRotation = isRotationFull(dayCount, today)
+                    completesRotation = isRotationFull(dayCount, today, startAfter)
                 )
             }
         }
+    }
+
+    /**
+     * Beginnt die nächste Runde sofort, statt auf den nächsten Kalendertag zu warten.
+     *
+     * Gelöscht wird dabei nichts: Der Verlauf bleibt vollständig, und mit ihm Statistik und
+     * Deload-Rechnung. Vermerkt wird nur, ab wann die neue Runde zählt – alles, was jetzt schon
+     * im Verlauf steht, gehört zur vorigen (siehe [completedDaysInRotation]).
+     *
+     * Der Schnitt liegt hinter dem jüngsten Eintrag, mindestens aber im Jetzt: Ein Training, das
+     * durch Zeitumstellung oder eine eingelesene Sicherung in der Zukunft gelandet ist, würde
+     * sonst in der neuen Runde weiterleben und den ersten Tag von vornherein als erledigt zeigen.
+     */
+    suspend fun startNextRotation() {
+        val latest = sessionDao.latest()?.completedAt ?: NO_ROTATION_CUT
+        settingsStore.setRotationStartAfter(maxOf(System.currentTimeMillis(), latest))
     }
 
     /**
@@ -197,18 +215,29 @@ class TrainingRepository(
      * Stand. Der Verlauf ist dabei klein – ein Eintrag je Training –, ein Durchlauf kostet
      * nichts Nennenswertes und passiert nur beim Abhaken.
      */
-    private suspend fun isRotationFull(dayCount: Int, today: LocalDate): Boolean {
+    private suspend fun isRotationFull(
+        dayCount: Int,
+        today: LocalDate,
+        startAfter: Long
+    ): Boolean {
         if (dayCount <= 0) return false
         val entries = sessionDao.listAll().map { session ->
-            RotationEntry(dayId = session.dayId, date = session.completedAt.toLocalDate())
+            RotationEntry(
+                dayId = session.dayId,
+                date = session.completedAt.toLocalDate(),
+                completedAt = session.completedAt
+            )
         }
-        return completedDaysInRotation(entries, dayCount, today).size >= dayCount
+        return completedDaysInRotation(entries, dayCount, today, startAfter).size >= dayCount
     }
 
     suspend fun deleteSession(id: Long) = sessionDao.deleteById(id)
 
     /** Im Tracking ausgeblendete Übungen. */
     val hiddenTrackingNames: Flow<Set<String>> = settingsStore.hiddenTrackingNames
+
+    /** Ab wann die laufende Runde zählt – siehe [startNextRotation]. */
+    val rotationStartAfter: Flow<Long> = settingsStore.rotationStartAfter
 
     // --- Einstellungen -----------------------------------------------------
 

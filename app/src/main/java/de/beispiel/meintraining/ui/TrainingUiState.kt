@@ -45,6 +45,17 @@ data class TrainingUiState(
     val isSelectedDayConfirmed: Boolean
         get() = isSelectedDayCompleted || selectedDayId in todaysDayIds
 
+    /**
+     * Steht der Pfeil zur nächsten Runde bereit?
+     *
+     * Nur am letzten Tag der Runde und erst, wenn er eingetragen ist: Vorher gibt es nichts
+     * abzuschließen, und an jedem anderen Tag wäre der Pfeil ein Sprung mitten in der Runde.
+     * Ist der letzte Tag durch, wartet die App sonst bis Mitternacht – der Pfeil überspringt
+     * dieses Warten (siehe [TrainingViewModel.onStartNextCycle]).
+     */
+    val canStartNextCycle: Boolean
+        get() = isSelectedDayConfirmed && selectedDayId == days.lastOrNull()?.id
+
     val isSelectionMode: Boolean get() = selectedIds.isNotEmpty()
 
     private val selectedExercises: List<ExerciseItem>
@@ -72,6 +83,7 @@ data class TrainingActions(
     val onDaySelected: (Int) -> Unit = {},
     val onAddClick: () -> Unit = {},
     val onToggleWorkoutCompleted: () -> Unit = {},
+    val onStartNextCycle: () -> Unit = {},
     val onExerciseClick: (ExerciseItem) -> Unit = {},
     val onExerciseLongClick: (ExerciseItem) -> Unit = {},
     val onSelectionToggle: (ExerciseItem) -> Unit = {},

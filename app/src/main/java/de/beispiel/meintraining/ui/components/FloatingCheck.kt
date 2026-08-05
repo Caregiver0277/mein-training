@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.toSize
 import de.beispiel.meintraining.ui.theme.CardDraggedBackground
 import de.beispiel.meintraining.ui.theme.Dimens
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.roundToInt
 
@@ -65,16 +66,27 @@ class FloatingCheck internal constructor(
     internal var target: Float by mutableStateOf(initialTarget)
 
     /**
-     * Der Haken wurde angetippt – der Anflug beginnt sofort.
+     * Ob der Anflug auf den Effekt des Drucks warten soll.
+     *
+     * Gilt nur für den einen Anflug, den dieser Druck ausgelöst hat. Kommt das Ziel von
+     * anderswoher – aus der Datenbank oder vom Zurücknehmen –, gibt es nichts abzuwarten.
+     */
+    internal var awaitsPressEffect: Boolean by mutableStateOf(false)
+
+    /**
+     * Der Haken wurde angetippt – der Anflug ist damit beschlossen.
      *
      * Nicht erst, wenn die Datenbank den Eintrag bestätigt: Bis dahin vergehen Schreibvorgang,
      * Room-Benachrichtigung und ein paar Zwischenschritte, zusammen leicht ein Zehntel einer
-     * Sekunde. Genau diese Pause zwischen Druck und Bewegung ist es, die den Anflug hakelig
-     * wirken lässt – die Funken stieben schon, der Haken steht aber noch. Bestätigt die
-     * Datenbank kurz darauf, ist er längst auf dem Weg zum selben Ziel; im unwahrscheinlichen
-     * Fall, dass der Eintrag scheitert, dreht er wieder um.
+     * Sekunde – und ausgerechnet diese Pause zwischen Druck und Bewegung fällt auf. Bestätigt
+     * die Datenbank kurz darauf, ist der Haken längst zum selben Ziel unterwegs; im
+     * unwahrscheinlichen Fall, dass der Eintrag scheitert, dreht er wieder um.
+     *
+     * Losgeflogen wird trotzdem nicht sofort: Erst bekommt der Druck seinen Effekt zu Ende –
+     * siehe [awaitsPressEffect].
      */
     fun onPressed() {
+        awaitsPressEffect = true
         target = DOCKED
     }
 
@@ -197,6 +209,14 @@ fun rememberFloatingCheck(
                 // Bis zur Landung bleibt der schwebende Haken zuständig; erst danach übernimmt
                 // der Knopf in der Liste. Ohne dieses Nachlaufen verschwände er mitten im Flug.
                 state.isFloating = true
+                if (state.awaitsPressEffect) {
+                    // Der Druck bekommt seinen Moment: Der Haken bleibt stehen, bis Ring und
+                    // Funken durch sind, und fliegt erst dann los. Vorgemerkt wird das hier
+                    // gleich abgeräumt – wird das Warten abgebrochen, weil das Ziel wechselt,
+                    // ist es hinfällig.
+                    state.awaitsPressEffect = false
+                    delay(BURST_MILLIS.toLong())
+                }
                 dock.animateTo(
                     targetValue = target,
                     animationSpec = tween(DOCK_MILLIS, easing = FastOutSlowInEasing)
@@ -302,7 +322,11 @@ private const val FLOATING_MAX_FRACTION = 0.62f
 private const val FLOATING_SURFACE_ALPHA = 0.88f
 
 /**
- * Lang genug, um dem Auge zu folgen, und knapp länger als der Funkenflug beim Druck – der wird
- * vom schwebenden Haken gezeichnet und würde beim Landen sonst mitten im Ausklingen abgeschnitten.
+ * Lang genug, um dem Auge zu folgen, kurz genug, um niemanden aufzuhalten.
+ *
+ * Der Funkenflug ist zu diesem Zeitpunkt vorbei – der Anflug wartet ihn ab –, deshalb schneidet
+ * die Landung nichts mehr ab. Nebenbei fällt damit auch die Blende über der Liste nicht mehr in
+ * denselben Moment: Sie ist durch, bevor der Haken losfliegt, und die beiden teuersten Dinge
+ * auf dem Bildschirm teilen sich kein einziges Bild mehr.
  */
 private const val DOCK_MILLIS = 640
