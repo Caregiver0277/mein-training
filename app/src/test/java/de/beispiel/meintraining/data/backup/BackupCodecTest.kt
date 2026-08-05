@@ -68,14 +68,22 @@ class BackupCodecTest {
     @Test
     fun eineNeuereFassungWirdAbgelehnt() {
         val text = """{"version":${BACKUP_VERSION + 1},"createdAt":5}"""
+        assertRejected<BackupProblem.FutureVersion>(text)
+    }
+
+    @Test
+    fun dieAbgelehnteFassungNenntBeideNummern() {
+        // Sie stehen in der Meldung; eine Verwechslung machte sie unverständlich.
+        val text = """{"version":${BACKUP_VERSION + 1},"createdAt":5}"""
         val error = runCatching { BackupCodec.decode(text) }.exceptionOrNull()
-        assertTrue(error is BackupFormatException)
+        val problem = (error as BackupFormatException).problem as BackupProblem.FutureVersion
+        assertEquals(BACKUP_VERSION + 1, problem.fileVersion)
+        assertEquals(BACKUP_VERSION, problem.supported)
     }
 
     @Test
     fun unsinnWirdAbgelehnt() {
-        val error = runCatching { BackupCodec.decode("kein json") }.exceptionOrNull()
-        assertTrue(error is BackupFormatException)
+        assertRejected<BackupProblem.Invalid>("kein json")
     }
 
     @Test
@@ -83,14 +91,14 @@ class BackupCodecTest {
         val text = BackupCodec.encode(
             sampleBackup().copy(days = listOf(BackupDay(1, "Push"), BackupDay(1, "Pull")))
         )
-        assertRejected(text)
+        assertRejected<BackupProblem.DuplicateDays>(text)
     }
 
     @Test
     fun doppelteUebungskennungenWerdenAbgelehnt() {
         // Beim Einspielen ersetzt die zweite Zeile die erste – die Übung wäre still weg.
         val duplicate = sampleBackup().exercises.first().copy(name = "Rudern", position = 1)
-        assertRejected(BackupCodec.encode(sampleBackup().let {
+        assertRejected<BackupProblem.DuplicateExercises>(BackupCodec.encode(sampleBackup().let {
             it.copy(exercises = it.exercises + duplicate)
         }))
     }
@@ -98,7 +106,7 @@ class BackupCodecTest {
     @Test
     fun doppelteUebungsdatenWerdenAbgelehnt() {
         val duplicate = BackupDefinition("Bankdrücken", 40.0, 2.5)
-        assertRejected(BackupCodec.encode(sampleBackup().let {
+        assertRejected<BackupProblem.DuplicateDefinitions>(BackupCodec.encode(sampleBackup().let {
             it.copy(definitions = it.definitions + duplicate)
         }))
     }
@@ -107,7 +115,7 @@ class BackupCodecTest {
     fun eineUebungOhneIhrenTagWirdAbgelehnt() {
         // Sonst läge sie nach dem Einspielen in der Datenbank, ohne je sichtbar zu werden.
         val orphan = BackupExercise(id = 99, dayId = 7, name = "Nirgendwo")
-        assertRejected(BackupCodec.encode(sampleBackup().let {
+        assertRejected<BackupProblem.UnknownDays>(BackupCodec.encode(sampleBackup().let {
             it.copy(exercises = it.exercises + orphan)
         }))
     }
@@ -129,17 +137,24 @@ class BackupCodecTest {
         assertTrue(sampleBackup().hasContent)
     }
 
-    private fun assertRejected(text: String) {
+    /**
+     * Abgelehnt *und* mit dem passenden Grund: Der Grund wird angezeigt, und ein falscher
+     * schickt bei der Fehlersuche in die verkehrte Richtung.
+     */
+    private inline fun <reified T : BackupProblem> assertRejected(text: String) {
         val error = runCatching { BackupCodec.decode(text) }.exceptionOrNull()
         assertTrue("Erwartet wurde eine Ablehnung, bekam: $error", error is BackupFormatException)
+        val problem = (error as BackupFormatException).problem
+        assertTrue(
+            "Erwartet wurde ${T::class.simpleName}, bekam: $problem",
+            problem is T
+        )
     }
 
     @Test
     fun einAbgeschnittenerDateiRestWirdAbgelehnt() {
         // Genau der Fall, der beim Überschreiben einer längeren Datei entstünde.
         val complete = BackupCodec.encode(sampleBackup())
-        val truncated = complete.take(complete.length / 2)
-        val error = runCatching { BackupCodec.decode(truncated) }.exceptionOrNull()
-        assertTrue(error is BackupFormatException)
+        assertRejected<BackupProblem.Invalid>(complete.take(complete.length / 2))
     }
 }

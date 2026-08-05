@@ -50,8 +50,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.runtime.collectAsState
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AccentRed
@@ -77,7 +77,7 @@ import de.beispiel.meintraining.util.toWeightLabel
 @Composable
 fun TrackingRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: TrackingViewModel = viewModel(factory = TrackingViewModel.Factory)
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     TrackingScreen(
         uiState = uiState,
@@ -388,7 +388,7 @@ private fun Legend(series: List<ChartSeries>, modifier: Modifier = Modifier) {
                         start = Offset(0f, size.height / 2f),
                         end = Offset(size.width, size.height / 2f),
                         strokeWidth = 2.dp.toPx(),
-                        pathEffect = appearance.style.pathEffect()
+                        pathEffect = appearance.style.pathEffect
                     )
                     drawCircle(
                         color = appearance.color,

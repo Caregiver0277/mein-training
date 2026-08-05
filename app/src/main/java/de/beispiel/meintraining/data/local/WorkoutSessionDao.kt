@@ -12,9 +12,6 @@ interface WorkoutSessionDao {
     @Query("SELECT * FROM WorkoutSession ORDER BY completedAt DESC, id DESC")
     fun observeAll(): Flow<List<WorkoutSession>>
 
-    @Query("SELECT * FROM WorkoutSession ORDER BY completedAt DESC, id DESC LIMIT 1")
-    suspend fun latest(): WorkoutSession?
-
     /** Alle abgehakten Trainings – für die Sicherung. */
     @Query("SELECT * FROM WorkoutSession ORDER BY completedAt ASC, id ASC")
     suspend fun listAll(): List<WorkoutSession>

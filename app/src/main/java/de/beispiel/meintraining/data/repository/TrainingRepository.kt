@@ -35,8 +35,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 
-/** Ergebnis einer Gewichtserhöhung – [previousKg] erlaubt das Zurücknehmen. */
-data class WeightChange(val previousKg: Double, val newKg: Double)
+/**
+ * Ergebnis einer Gewichtserhöhung.
+ *
+ * [previousKg] ist der Stand davor, [logId] der dabei geschriebene Verlaufseintrag – beides
+ * zusammen macht die Erhöhung rücknehmbar, ohne dabei zu raten (siehe [TrainingRepository.revertWeight]).
+ */
+data class WeightChange(val previousKg: Double, val newKg: Double, val logId: Long)
 
 /** Ergebnis eines Tippens auf den Haken. */
 data class WorkoutToggle(
@@ -341,14 +346,11 @@ class TrainingRepository(
         settingsStore.setHiddenTrackingNames(names)
 
     /**
-     * Löscht eine Übung restlos: aus allen Trainingstagen, aus der Übungsdatenbank und
-     * samt Gewichtsverlauf. Das lässt sich nicht rückgängig machen.
-     */
-    suspend fun deleteExerciseEverywhere(name: String) = deleteExercisesEverywhere(listOf(name))
-
-    /**
-     * Dasselbe für mehrere Übungen auf einmal – alles in einer Transaktion, damit nicht die
-     * halbe Auswahl verschwindet, wenn etwas dazwischenkommt.
+     * Löscht Übungen restlos: aus allen Trainingstagen, aus der Übungsdatenbank und samt
+     * Gewichtsverlauf. Das lässt sich nicht rückgängig machen.
+     *
+     * Alles in einer Transaktion, damit nicht die halbe Auswahl verschwindet, wenn etwas
+     * dazwischenkommt.
      */
     suspend fun deleteExercisesEverywhere(names: Collection<String>) {
         if (names.isEmpty()) return
@@ -441,6 +443,9 @@ class TrainingRepository(
      * mit einem versehentlich geleerten Feld überall weg. Der Verlauf erführe davon nicht
      * einmal etwas, weil sich nur gesetzte Gewichte aufzeichnen lassen – Liste und Graph
      * zeigten anschließend Verschiedenes. Wer die Übung samt Gewicht loswerden will, löscht sie.
+     *
+     * Wird die letzte Zeile eines Namens auf einen noch unbekannten umbenannt, zieht der
+     * Gewichtsverlauf mit um – siehe [renameHistory].
      */
     suspend fun saveExercise(
         id: Long?,
@@ -453,13 +458,18 @@ class TrainingRepository(
         repsMax: Int?,
         progressionStepKg: Double
     ) {
-        database.withTransaction {
+        val renamedFrom = database.withTransaction {
             // Zuerst prüfen, ob es die zu ändernde Zeile überhaupt noch gibt – sonst bliebe
             // beim Abbruch eine schon geschriebene Definition samt Verlaufseintrag zurück.
             val existing = id?.let { exerciseDao.findEntityById(it) }
-            if (id != null && existing == null) return@withTransaction
+            if (id != null && existing == null) return@withTransaction null
 
-            val previous = definitionDao.find(name)
+            val oldName = existing?.name?.takeIf { it != name }
+            val underNewName = definitionDao.find(name)
+            // Beim Umbenennen zählt der Stand unter dem alten Namen als Vorgänger. Sonst wäre
+            // jeder Namenswechsel für sich schon eine Gewichtsänderung und schriebe einen Punkt
+            // in den Verlauf, obwohl auf der Stange dasselbe liegt wie vorher.
+            val previous = underNewName ?: oldName?.let { definitionDao.find(it) }
             val effectiveWeight = weightKg ?: previous?.weightKg
             definitionDao.upsert(
                 ExerciseDefinition(
@@ -495,9 +505,40 @@ class TrainingRepository(
                     )
                 )
             }
-            // Ein umbenannter letzter Eintrag kann die alte Definition verwaist zurücklassen.
-            definitionDao.deleteOrphans()
+            renameHistory(oldName = oldName, newName = name, wasKnown = underNewName != null)
         }
+        // Außerhalb der Transaktion, weil die Einstellungen in einer eigenen Datei liegen: Eine
+        // im Tracking ausgeblendete Übung bleibt auch unter ihrem neuen Namen ausgeblendet, und
+        // der alte Name verschwindet – sonst wäre eine später neu angelegte Übung gleichen
+        // Namens von Anfang an unsichtbar.
+        if (renamedFrom != null) {
+            val hidden = settingsStore.hiddenTrackingNames.first()
+            if (renamedFrom in hidden) {
+                settingsStore.setHiddenTrackingNames(hidden - renamedFrom + name)
+            }
+        }
+    }
+
+    /**
+     * Schreibt den Gewichtsverlauf auf den neuen Namen um, wenn aus einer Übung schlicht eine
+     * anders heißende geworden ist. Liefert den alten Namen, falls das passiert ist.
+     *
+     * Bedingung ist, dass unter dem alten Namen nichts mehr steht *und* der neue vorher
+     * unbekannt war. Beides zusammen heißt: Es ist dieselbe Übung, sie heißt nur anders – und
+     * ihre Kurve gehört zusammen, statt am Namenswechsel in zwei Stücke zu zerfallen.
+     *
+     * Ausdrücklich nicht umgeschrieben wird, wenn der neue Name schon eine Übung war
+     * ([wasKnown]): Dann werden zwei Übungen zusammengelegt, und deren Verläufe ineinander zu
+     * schieben ergäbe eine Kurve, die zwischen zwei verschiedenen Lasten hin und her springt.
+     * Der alte Verlauf bleibt dann unter seinem Namen stehen und ist im Tracking weiter zu
+     * sehen – rückgängig zu machen durch erneutes Umbenennen.
+     */
+    private suspend fun renameHistory(oldName: String?, newName: String, wasKnown: Boolean): String? {
+        val orphaned = oldName?.takeIf { !wasKnown && exerciseDao.countByName(it) == 0 }
+        orphaned?.let { weightLogDao.renameExercise(oldName = it, newName = newName) }
+        // Ein umbenannter letzter Eintrag lässt die alte Definition verwaist zurück.
+        definitionDao.deleteOrphans()
+        return orphaned
     }
 
     /**
@@ -518,18 +559,38 @@ class TrainingRepository(
         val current = definition.weightKg ?: return@withTransaction null
         val next = increaseWeight(current, definition.progressionStepKg)
         definitionDao.updateWeight(name, next)
-        logWeight(name, next)
-        WeightChange(previousKg = current, newKg = next)
+        WeightChange(previousKg = current, newKg = next, logId = logWeight(name, next))
     }
 
     /**
-     * Nimmt eine Erhöhung zurück: Das Gewicht geht auf den alten Wert und der eben
+     * Nimmt eine Erhöhung zurück: Das Gewicht geht auf den alten Wert und der dabei
      * geschriebene Verlaufseintrag verschwindet wieder – sonst zeigte der Graph
      * einen Ausschlag nach oben und sofort wieder zurück.
+     *
+     * Zurückgenommen wird genau *diese* Erhöhung, erkennbar an [WeightChange.logId], und nur
+     * solange sie noch der aktuelle Stand ist. Beides ist nötig, weil zwischen Erhöhung und
+     * „Rückgängig“ die nächste liegen kann – der Pfeil ist schneller angetippt, als die Meldung
+     * am unteren Rand verschwindet:
+     *
+     * Ohne die Kennung träfe es „den jüngsten Eintrag dieser Übung“ und damit den der *zweiten*
+     * Erhöhung; zurück bliebe ein Punkt im Graphen für eine Erhöhung, die zurückgenommen wurde.
+     * Ohne die Prüfung auf den aktuellen Stand setzte das Zurücknehmen der ersten Erhöhung das
+     * Gewicht auf den Stand von vor beiden – und die zweite stünde als Punkt ohne Gewicht da.
+     *
+     * Liefert `false`, wenn seither etwas anderes passiert ist; dann gibt es hier nichts mehr
+     * zurückzunehmen. Verglichen wird exakt: Der Wert kommt unverändert aus derselben Spalte
+     * zurück, in die er geschrieben wurde.
      */
-    suspend fun revertWeight(name: String, weightKg: Double?) = database.withTransaction {
-        definitionDao.updateWeight(name, weightKg)
-        weightLogDao.deleteLatest(name)
+    suspend fun revertWeight(
+        name: String,
+        previousKg: Double,
+        increasedToKg: Double,
+        logId: Long
+    ): Boolean = database.withTransaction {
+        if (definitionDao.find(name)?.weightKg != increasedToKg) return@withTransaction false
+        definitionDao.updateWeight(name, previousKg)
+        weightLogDao.deleteById(logId)
+        true
     }
 
     /**
@@ -612,15 +673,14 @@ class TrainingRepository(
             .forEach { exerciseDao.updateSuperset(it.id, null) }
     }
 
-    private suspend fun logWeight(name: String, weightKg: Double) {
-        weightLogDao.insert(
-            WeightLog(
-                exerciseName = name,
-                weightKg = weightKg,
-                recordedAt = System.currentTimeMillis()
-            )
+    /** Schreibt einen Punkt in den Verlauf und liefert seine Kennung. */
+    private suspend fun logWeight(name: String, weightKg: Double): Long = weightLogDao.insert(
+        WeightLog(
+            exerciseName = name,
+            weightKg = weightKg,
+            recordedAt = System.currentTimeMillis()
         )
-    }
+    )
 
     /**
      * Setzt die App auf den Zustand direkt nach der Installation zurück.

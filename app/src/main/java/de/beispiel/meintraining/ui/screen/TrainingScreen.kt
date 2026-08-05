@@ -100,6 +100,7 @@ import de.beispiel.meintraining.util.exerciseTitle
 import de.beispiel.meintraining.util.toSetsRepsLabel
 import de.beispiel.meintraining.util.toWeightLabel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Hauptscreen. Die Composable hält nur reinen UI-Zustand (Drawer, Listenreihenfolge während
@@ -133,8 +134,15 @@ fun TrainingScreen(
     BackHandler(enabled = menuDestination != null) { menuDestination = null }
 
     // Snackbars für Progression und Löschen, jeweils mit „Rückgängig“.
+    //
+    // `collectLatest` statt `collect`: Eine neue Meldung löst die vorige ab, statt sich hinter
+    // ihr anzustellen. Der Pfeil ist zweimal angetippt, bevor die erste Meldung verschwunden
+    // ist – angeboten gehört dann das Zurücknehmen der *zweiten* Erhöhung. Die erste ist zu
+    // diesem Zeitpunkt ohnehin nicht mehr zurückzunehmen, ohne den Verlauf zu verbiegen (siehe
+    // TrainingRepository.revertWeight); eine Meldung, deren Knopf nichts mehr tut, ist
+    // schlimmer als gar keine. Das Abbrechen von `showSnackbar` blendet die alte gleich mit weg.
     LaunchedEffect(events) {
-        events.collect { event ->
+        events.collectLatest { event ->
             val message = when (event) {
                 is TrainingEvent.WeightIncreased -> context.getString(
                     R.string.snackbar_weight_increased,

@@ -16,7 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +24,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.ui.screen.SubScreenHeader
@@ -50,7 +50,7 @@ import kotlin.math.roundToInt
 @Composable
 fun StatsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: StatsViewModel = viewModel(factory = StatsViewModel.Factory)
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     StatsScreen(uiState = uiState, onBack = onBack, modifier = modifier)
 }
 

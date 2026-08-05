@@ -150,12 +150,18 @@ sealed interface TrainingEvent {
 
     /**
      * Gewicht wurde per Pfeil erhöht – und zwar an allen Tagen, an denen [exerciseName]
-     * vorkommt. [previousWeightKg] erlaubt das Zurücksetzen.
+     * vorkommt.
+     *
+     * [previousWeightKg] und [logId] beschreiben zusammen genau diese eine Erhöhung: wohin
+     * zurück und welcher Verlaufspunkt dabei wieder verschwindet. Beides ist nötig, weil vor
+     * dem „Rückgängig“ schon die nächste Erhöhung stehen kann – siehe
+     * [de.beispiel.meintraining.data.repository.TrainingRepository.revertWeight].
      */
     data class WeightIncreased(
         val exerciseName: String,
-        val previousWeightKg: Double?,
-        val newWeightKg: Double
+        val previousWeightKg: Double,
+        val newWeightKg: Double,
+        val logId: Long
     ) : TrainingEvent
 
     /** Übungen wurden gelöscht; die Kopien erlauben das Wiederherstellen. */

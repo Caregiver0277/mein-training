@@ -133,6 +133,25 @@
     <string name="backup_done">Sicherung geschrieben.</string>
     <string name="backup_imported">Daten eingelesen.</string>
     <string name="backup_failed">Fehlgeschlagen: %1$s</string>
+    <!--
+        Gründe, an denen eine Sicherung scheitert. Sie stehen hier und nicht im Datenbereich:
+        Der weiß, *was* nicht stimmt, aber nicht, in welcher Sprache es dasteht – siehe
+        BackupProblem.
+    -->
+    <string name="backup_error_not_readable">Die Datei lässt sich nicht lesen.</string>
+    <string name="backup_error_not_writable">Die Datei lässt sich nicht beschreiben.</string>
+    <string name="backup_error_too_large">Die Datei ist zu groß für eine Sicherung (über %1$d MB).</string>
+    <string name="backup_error_invalid">Die Datei ist keine gültige Sicherung.</string>
+    <string name="backup_error_future_version">Die Sicherung stammt aus einer neueren Version der App (Format %1$d, hier: %2$d).</string>
+    <string name="backup_error_duplicate_days">Trainingstage doppelt: %1$s.</string>
+    <string name="backup_error_duplicate_exercises">Übungen doppelt: %1$s.</string>
+    <string name="backup_error_duplicate_definitions">Übungsdaten doppelt: %1$s.</string>
+    <string name="backup_error_unknown_days">Übungen an Tagen, die es nicht gibt: %1$s.</string>
+    <string name="backup_error_not_read_back">Die Sicherung ließ sich nach dem Schreiben nicht wieder einlesen.</string>
+    <string name="backup_error_incomplete">Die geschriebene Sicherung ist unvollständig.</string>
+    <string name="backup_error_no_target">Keine Sicherungsdatei ausgewählt.</string>
+    <string name="backup_error_no_content">Keine Daten zum Sichern – die vorhandene Datei bleibt unverändert.</string>
+
     <string name="backup_import_title">Daten wirklich einlesen?</string>
     <string name="backup_import_body">Der gesamte aktuelle Bestand – Übungen, Verlauf, Gewichte und Einstellungen – wird durch den Inhalt der Datei ersetzt. Das lässt sich nicht rückgängig machen.\n\nWenn du den jetzigen Stand behalten willst, sichere ihn vorher.</string>
     <string name="backup_import_confirm">Einlesen</string>

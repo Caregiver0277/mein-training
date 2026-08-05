@@ -8,7 +8,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
+import de.beispiel.meintraining.data.backup.BackupFormatException
+import de.beispiel.meintraining.data.backup.BackupProblem
 import de.beispiel.meintraining.data.backup.BackupWorker
+import de.beispiel.meintraining.data.backup.describe
 import de.beispiel.meintraining.data.backup.DEFAULT_BACKUP_INTERVAL_DAYS
 import de.beispiel.meintraining.data.backup.MAX_BACKUP_INTERVAL_DAYS
 import de.beispiel.meintraining.data.backup.MIN_BACKUP_INTERVAL_DAYS
@@ -144,10 +147,23 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
             messages.value = try {
                 block()
             } catch (throwable: Exception) {
-                BackupMessage.Failed(throwable.message ?: throwable.javaClass.simpleName)
+                BackupMessage.Failed(reasonFor(throwable))
             }
             busy.value = false
         }
+    }
+
+    /**
+     * Der anzeigbare Grund eines Fehlschlags.
+     *
+     * Was die Sicherung selbst ablehnt, kommt als [BackupProblem] und wird hier in einen Satz
+     * gesetzt. Alles andere – wegfallende Berechtigung, volle Platte, abgezogener Speicher –
+     * bringt nur mit, was das System dazu sagt; ein eigener Text dafür wäre geraten und
+     * verdeckte den einzigen Hinweis, den es gibt.
+     */
+    private fun reasonFor(throwable: Exception): String = when (throwable) {
+        is BackupFormatException -> app.describe(throwable.problem)
+        else -> throwable.message ?: throwable.javaClass.simpleName
     }
 
     private fun displayNameFor(uri: String): String =

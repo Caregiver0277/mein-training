@@ -9,6 +9,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import de.beispiel.meintraining.MeinTrainingApp
+import de.beispiel.meintraining.R
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
@@ -33,7 +34,7 @@ class BackupWorker(
 
         if (!settings.backupEnabled.first()) return Result.success()
         val target = settings.backupTargetUri.first()
-            ?: return finish(app, "Keine Sicherungsdatei ausgewählt.")
+            ?: return finish(app, applicationContext.getString(R.string.backup_error_no_target))
 
         return try {
             val backup = backups.createBackup()
@@ -45,16 +46,24 @@ class BackupWorker(
                 backups.writeTo(Uri.parse(target), backup)
                 finish(app, error = null)
             } else {
-                finish(app, "Keine Daten zum Sichern – die vorhandene Datei bleibt unverändert.")
+                finish(app, applicationContext.getString(R.string.backup_error_no_content))
             }
         } catch (throwable: Exception) {
-            finish(app, throwable.message ?: throwable.javaClass.simpleName)
+            // Der Grund landet als fertiger Satz in den Einstellungen und wird dort später
+            // angezeigt – der Worker hat einen Context, die Anzeige kennt den Fehler nicht mehr.
+            finish(app, reasonFor(throwable))
         }
     }
 
     private suspend fun finish(app: MeinTrainingApp, error: String?): Result {
         app.settingsStore.setLastBackupResult(System.currentTimeMillis(), error)
         return Result.success()
+    }
+
+    /** Wie im Sicherungsbereich: Was die Sicherung selbst ablehnt, bekommt seinen eigenen Satz. */
+    private fun reasonFor(throwable: Exception): String = when (throwable) {
+        is BackupFormatException -> applicationContext.describe(throwable.problem)
+        else -> throwable.message ?: throwable.javaClass.simpleName
     }
 
     companion object {

@@ -134,10 +134,6 @@ class SettingsViewModel(
         }
     }
 
-    fun onDeleteExercise(name: String) {
-        viewModelScope.launch { repository.deleteExerciseEverywhere(name) }
-    }
-
     /**
      * Setzt die App vollständig zurück – siehe [TrainingRepository.deleteAllData].
      *

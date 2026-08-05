@@ -111,20 +111,15 @@ class BackupRepository(
         withContext(Dispatchers.IO) {
             appContext.contentResolver.openOutputStream(uri, "rwt")?.use { stream ->
                 stream.write(text.toByteArray())
-            } ?: throw BackupFormatException("Die Datei lässt sich nicht beschreiben.")
+            } ?: throw BackupFormatException(BackupProblem.NotWritable)
         }
 
         val written = try {
             decode(readFrom(uri))
         } catch (throwable: Exception) {
-            throw BackupFormatException(
-                "Die Sicherung ließ sich nach dem Schreiben nicht wieder einlesen.",
-                throwable
-            )
+            throw BackupFormatException(BackupProblem.NotReadBack, throwable)
         }
-        if (written != backup) {
-            throw BackupFormatException("Die geschriebene Sicherung ist unvollständig.")
-        }
+        if (written != backup) throw BackupFormatException(BackupProblem.Incomplete)
     }
 
     /**
@@ -144,13 +139,12 @@ class BackupRepository(
                 collected.write(chunk, 0, read)
                 if (collected.size() > MAX_BACKUP_BYTES) {
                     throw BackupFormatException(
-                        "Die Datei ist zu groß für eine Sicherung " +
-                            "(über ${MAX_BACKUP_BYTES / (1024 * 1024)} MB)."
+                        BackupProblem.TooLarge(MAX_BACKUP_BYTES / (1024 * 1024))
                     )
                 }
             }
             collected.toByteArray().decodeToString()
-        } ?: throw BackupFormatException("Die Datei lässt sich nicht lesen.")
+        } ?: throw BackupFormatException(BackupProblem.NotReadable)
     }
 
     /**

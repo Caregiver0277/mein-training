@@ -524,7 +524,8 @@ class TrainingViewModel(
                 TrainingEvent.WeightIncreased(
                     exerciseName = exercise.name,
                     previousWeightKg = change.previousKg,
-                    newWeightKg = change.newKg
+                    newWeightKg = change.newKg,
+                    logId = change.logId
                 )
             )
         }
@@ -535,8 +536,12 @@ class TrainingViewModel(
     fun onUndo(event: TrainingEvent) {
         viewModelScope.launch {
             when (event) {
-                is TrainingEvent.WeightIncreased ->
-                    repository.revertWeight(event.exerciseName, event.previousWeightKg)
+                is TrainingEvent.WeightIncreased -> repository.revertWeight(
+                    name = event.exerciseName,
+                    previousKg = event.previousWeightKg,
+                    increasedToKg = event.newWeightKg,
+                    logId = event.logId
+                )
                 is TrainingEvent.ExercisesDeleted ->
                     repository.restoreExercises(event.exercises)
                 TrainingEvent.CycleStarted -> returnToPreviousCycle()

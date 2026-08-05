@@ -201,7 +201,7 @@ private fun DrawScope.drawSeries(
             color = appearance.color,
             style = Stroke(
                 width = SERIES_STROKE.toPx(),
-                pathEffect = appearance.style.pathEffect()
+                pathEffect = appearance.style.pathEffect
             )
         )
     }

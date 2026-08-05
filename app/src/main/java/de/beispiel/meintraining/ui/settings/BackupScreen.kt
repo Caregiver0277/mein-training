@@ -21,7 +21,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.net.Uri
 import android.widget.Toast
@@ -56,8 +56,8 @@ import de.beispiel.meintraining.util.toLocalDate
 @Composable
 fun BackupRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: BackupViewModel = viewModel(factory = BackupViewModel.Factory)
-    val uiState by viewModel.uiState.collectAsState()
-    val message by viewModel.message.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val message by viewModel.message.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val defaultName = stringResource(R.string.backup_default_filename)

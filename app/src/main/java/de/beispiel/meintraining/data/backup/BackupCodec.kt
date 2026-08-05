@@ -29,12 +29,11 @@ object BackupCodec {
         val backup = try {
             json.decodeFromString(BackupFile.serializer(), text)
         } catch (throwable: Exception) {
-            throw BackupFormatException("Die Datei ist keine gültige Sicherung.", throwable)
+            throw BackupFormatException(BackupProblem.Invalid, throwable)
         }
         if (backup.version > BACKUP_VERSION) {
             throw BackupFormatException(
-                "Die Sicherung stammt aus einer neueren Version der App " +
-                    "(Format ${backup.version}, hier: $BACKUP_VERSION)."
+                BackupProblem.FutureVersion(backup.version, BACKUP_VERSION)
             )
         }
         validate(backup)
@@ -55,18 +54,18 @@ object BackupCodec {
      */
     private fun validate(backup: BackupFile) {
         duplicatesOf(backup.days.map { it.id })
-            .ifNotEmpty { throw BackupFormatException("Trainingstage doppelt: ${it.list()}.") }
+            .ifNotEmpty { throw BackupFormatException(BackupProblem.DuplicateDays(it.list())) }
         duplicatesOf(backup.exercises.map { it.id })
-            .ifNotEmpty { throw BackupFormatException("Übungen doppelt: ${it.list()}.") }
+            .ifNotEmpty { throw BackupFormatException(BackupProblem.DuplicateExercises(it.list())) }
         duplicatesOf(backup.definitions.map { it.name })
-            .ifNotEmpty { throw BackupFormatException("Übungsdaten doppelt: ${it.list()}.") }
+            .ifNotEmpty {
+                throw BackupFormatException(BackupProblem.DuplicateDefinitions(it.list()))
+            }
 
         val knownDays = backup.days.map { it.id }.toSet()
         backup.exercises.filterNot { it.dayId in knownDays }
             .map { "${it.name} an Tag ${it.dayId}" }
-            .ifNotEmpty {
-                throw BackupFormatException("Übungen an Tagen, die es nicht gibt: ${it.list()}.")
-            }
+            .ifNotEmpty { throw BackupFormatException(BackupProblem.UnknownDays(it.list())) }
     }
 
     private fun <T> duplicatesOf(values: List<T>): List<T> =
@@ -85,6 +84,46 @@ object BackupCodec {
     private const val MAX_LISTED_PROBLEMS = 3
 }
 
+/**
+ * Was an einer Sicherung nicht stimmt.
+ *
+ * Ein Grund statt eines fertigen Satzes: Hier unten ist bekannt, *was* schiefging, aber nicht,
+ * in welchen Worten es auf dem Bildschirm stehen soll – die stehen bei den übrigen Texten in
+ * `strings.xml`. So bleibt [BackupCodec] das, was er sein soll: reines Kotlin, ohne Android und
+ * ohne Gerät zu prüfen.
+ */
+sealed interface BackupProblem {
+
+    /** Die Datei ließ sich nicht öffnen oder nicht bis zum Ende lesen. */
+    data object NotReadable : BackupProblem
+
+    /** Die Datei ließ sich nicht zum Schreiben öffnen. */
+    data object NotWritable : BackupProblem
+
+    /** Größer als jede echte Sicherung – vermutlich hat der Dialog etwas anderes geliefert. */
+    data class TooLarge(val megabytes: Int) : BackupProblem
+
+    /** Kein JSON, oder JSON ohne die Form einer Sicherung. */
+    data object Invalid : BackupProblem
+
+    /** Aus einer neueren Fassung der App; hier wäre nur die Hälfte zu verstehen. */
+    data class FutureVersion(val fileVersion: Int, val supported: Int) : BackupProblem
+
+    /** Doppelte Kennungen – beim Einspielen fiele der zweite Eintrag auf den ersten. */
+    data class DuplicateDays(val listed: String) : BackupProblem
+    data class DuplicateExercises(val listed: String) : BackupProblem
+    data class DuplicateDefinitions(val listed: String) : BackupProblem
+
+    /** Übungen an Trainingstagen, die die Datei gar nicht mitbringt. */
+    data class UnknownDays(val listed: String) : BackupProblem
+
+    /** Geschrieben, aber nicht wieder einlesbar – siehe [BackupRepository.writeTo]. */
+    data object NotReadBack : BackupProblem
+
+    /** Wieder eingelesen, aber nicht dasselbe wie das Geschriebene. */
+    data object Incomplete : BackupProblem
+}
+
 /** Die Sicherungsdatei passt nicht – mit einem Grund, der sich anzeigen lässt. */
-class BackupFormatException(message: String, cause: Throwable? = null) :
-    Exception(message, cause)
+class BackupFormatException(val problem: BackupProblem, cause: Throwable? = null) :
+    Exception(problem.toString(), cause)

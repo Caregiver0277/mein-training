@@ -15,7 +15,20 @@ enum class SeriesStyle(private val intervals: FloatArray?) {
     DASH_DOT(floatArrayOf(22f, 9f, 4f, 9f)),
     LONG_DASH(floatArrayOf(38f, 14f));
 
-    fun pathEffect(): PathEffect? = intervals?.let { PathEffect.dashPathEffect(it) }
+    /**
+     * Einmal angelegt statt bei jedem Zeichnen: Ein [PathEffect] hängt allein an den Intervallen
+     * und ist damit so unveränderlich wie die Linienart selbst. Vorher entstand er in jedem
+     * Zeichendurchgang neu, je Kurve einer – und die Legende darunter zog sich denselben noch
+     * einmal.
+     *
+     * `by lazy` und nicht direkt zugewiesen: Ein [PathEffect] ist unter der Oberfläche ein
+     * `android.graphics.DashPathEffect`. Beim Anlegen der Konstanten entstanden, zöge er Android
+     * schon in dem Moment herein, in dem diese Aufzählung geladen wird – und ein Test, der bloß
+     * die Reihenfolge der Linienarten prüft, liefe ohne Gerät nicht mehr (siehe
+     * `ChartModelsTest`). So entsteht er erst beim ersten Zeichnen, und das gibt es nur dort,
+     * wo es auch Android gibt.
+     */
+    val pathEffect: PathEffect? by lazy { intervals?.let { PathEffect.dashPathEffect(it) } }
 }
 
 /** Farbe und Linienart einer Kurve. */

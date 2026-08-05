@@ -32,6 +32,10 @@ class MainActivity : ComponentActivity() {
             val shownSince = SystemClock.uptimeMillis()
             // Ohne Mindestdauer wäre das Bild nach dem ersten gezeichneten Frame wieder weg –
             // bei dieser App sind das je nach Gerät unter 200 ms, zu kurz, um es zu erkennen.
+            //
+            // Die Mindestdauer ist trotzdem knapp gehalten: Sie ist Wartezeit, die die App sich
+            // selbst auferlegt, und zwar bei jedem Start. Zusammen mit dem Wegblenden steht das
+            // Bild lang genug, um als Startbild durchzugehen, ohne den Start zu verdoppeln.
             setKeepOnScreenCondition {
                 SystemClock.uptimeMillis() - shownSince < SPLASH_MIN_MILLIS
             }
@@ -105,7 +109,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
-        const val SPLASH_MIN_MILLIS = 1_000L
+        const val SPLASH_MIN_MILLIS = 450L
         const val SPLASH_EXIT_MILLIS = 320L
         const val SPLASH_EXIT_SCALE = 1.15f
     }

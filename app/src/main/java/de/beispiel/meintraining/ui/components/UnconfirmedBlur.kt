@@ -97,18 +97,24 @@ fun Modifier.unconfirmedBlur(blur: UnconfirmedBlur): Modifier = graphicsLayer {
     val amount = blur.current().coerceIn(SHARP, VEILED)
     if (amount <= SHARP) return@graphicsLayer
 
-    // Der Radius geht in Stufen, die Abblendung darunter weiter stufenlos – siehe [BLUR_STEPS].
-    val radius = Dimens.ExerciseBlurRadius.toPx() * (round(amount * BLUR_STEPS) / BLUR_STEPS)
-    // Clamp setzt die Randpixel fort, das Beschneiden hält das Weiche in der eigenen Fläche.
-    // Ohne beides franste die Zeile an den Rändern aus und liefe in ihre Nachbarn.
-    if (radius > 0f) {
-        renderEffect = BlurEffect(
-            radiusX = radius,
-            radiusY = radius,
-            edgeTreatment = TileMode.Clamp
-        )
+    // Auf Geräten ohne Weichzeichner wird der Effekt weiter unten stillschweigend fallen
+    // gelassen – dann aber bitte, ohne ihn vorher auszurechnen und die Zeile obendrein
+    // beschneiden zu lassen. Übrig bleibt dort das Abblenden, das den Hinweis ohnehin allein
+    // trägt (siehe [VEILED_ALPHA]).
+    if (CAN_BLUR) {
+        // Der Radius geht in Stufen, die Abblendung darunter weiter stufenlos – siehe [BLUR_STEPS].
+        val radius = Dimens.ExerciseBlurRadius.toPx() * (round(amount * BLUR_STEPS) / BLUR_STEPS)
+        // Clamp setzt die Randpixel fort, das Beschneiden hält das Weiche in der eigenen Fläche.
+        // Ohne beides franste die Zeile an den Rändern aus und liefe in ihre Nachbarn.
+        if (radius > 0f) {
+            renderEffect = BlurEffect(
+                radiusX = radius,
+                radiusY = radius,
+                edgeTreatment = TileMode.Clamp
+            )
+        }
+        clip = true
     }
-    clip = true
     alpha = 1f - (1f - VEILED_ALPHA) * amount
 }
 

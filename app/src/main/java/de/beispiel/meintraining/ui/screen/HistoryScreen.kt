@@ -23,7 +23,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.model.TrainingDay
@@ -59,7 +59,7 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory)
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     HistoryScreen(
         cycles = uiState.cycles,
         days = uiState.days,

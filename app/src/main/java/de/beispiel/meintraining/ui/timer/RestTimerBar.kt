@@ -23,7 +23,6 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +52,15 @@ import de.beispiel.meintraining.ui.theme.MenuButtonSurface
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.formatRestTime
+import kotlinx.coroutines.delay
+
+/**
+ * Abstand zwischen zwei Aktualisierungen der laufenden Anzeige.
+ *
+ * Fein genug, dass der Balken gleitet statt einmal je Sekunde zu springen, und grob genug, dass
+ * die Uhr nicht das ganze Gerät beschäftigt – siehe [RestTimerBar].
+ */
+private const val TICK_MILLIS = 100L
 
 /** Hängt die Pausenuhren an ihr ViewModel. */
 @Composable
@@ -93,9 +101,13 @@ fun RestTimerBar(
      * Die Anzeige braucht einen eigenen Takt: Im Speicher steht nur der Endzeitpunkt, die
      * Restzeit ergibt sich erst aus „jetzt“.
      *
-     * Getaktet wird Bild für Bild, damit der Balken gleitet statt einmal je Sekunde zu springen.
-     * Teuer ist das nicht: Der Balken hängt am Zeichnen und die Ziffern an einer abgeleiteten
-     * Sekunde – neu aufgebaut wird also weder das eine noch das andere sechzigmal je Sekunde.
+     * Nichts wird dabei neu zusammengesetzt: Der Balken hängt am Zeichnen, die Ziffern an einer
+     * abgeleiteten Sekunde. Neu *gezeichnet* wird aber bei jedem Takt, und genau daran hängt der
+     * Preis. Bild für Bild getaktet – so lief es vorher – heißt auf einem 120-Hz-Gerät 120
+     * Zeichendurchgänge je Sekunde für einen Balken, der bei drei Minuten Pause um etwa einen
+     * Bildpunkt pro Sekunde wandert. [TICK_MILLIS] holt denselben gleitenden Eindruck für rund
+     * ein Zwölftel der Arbeit: Ein Zehntel einer Sekunde ist bei jeder brauchbaren Pausenlänge
+     * weniger als ein Bildpunkt Sprung, also nicht zu sehen.
      *
      * Getickt wird nur, solange wirklich eine Uhr läuft *und* der Bildschirm sie zeigt.
      * `LaunchedEffect` allein reicht dafür nicht: Die Composition überlebt eine angehaltene
@@ -107,18 +119,23 @@ fun RestTimerBar(
     LaunchedEffect(isAnyRunning, lifecycleOwner) {
         if (!isAnyRunning) return@LaunchedEffect
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            while (true) withFrameMillis { frame.longValue = System.currentTimeMillis() }
+            while (true) {
+                frame.longValue = System.currentTimeMillis()
+                delay(TICK_MILLIS)
+            }
         }
     }
 
     /**
      * Die Uhr des Augenblicks, in dem gerechnet wird – nicht der zuletzt getickte Stand.
      *
-     * [frame] wird nur gelesen, damit Compose die Anzeige überhaupt an den Bildtakt hängt; es
-     * liegt nie vor der tatsächlichen Zeit, `maxOf` liefert also immer diese. Der Unterschied
-     * zählt genau einmal, dafür sichtbar: Im ersten Bild nach dem Start steht im Takt noch der
-     * Stand von vorhin. Eine gerade gestartete Uhr stünde damit einen Wimpernschlag lang eine
-     * Sekunde zu hoch, und eine fortgesetzte Uhr risse den Balken um die Pausenlänge nach rechts.
+     * [frame] wird nur gelesen, damit Compose die Anzeige überhaupt an den Takt hängt; es liegt
+     * nie vor der tatsächlichen Zeit, `maxOf` liefert also immer diese. Wichtig ist das gleich
+     * zweimal: Im ersten Bild nach dem Start steht im Takt noch der Stand von vorhin – eine
+     * gerade gestartete Uhr stünde einen Wimpernschlag lang eine Sekunde zu hoch, eine
+     * fortgesetzte risse den Balken um die Pausenlänge nach rechts. Und zwischen zwei Takten
+     * liegen [TICK_MILLIS]; ohne die echte Uhr bliebe die Anzeige innerhalb eines Bildes auf dem
+     * zuletzt getickten Stand stehen.
      */
     val nowMillis = remember { { maxOf(frame.longValue, System.currentTimeMillis()) } }
 
@@ -137,9 +154,12 @@ fun RestTimerBar(
         }
     }
 
+    // Über die Kennung nachgeschlagen statt blind indiziert: Der Dialog steht neben der Liste,
+    // aus der er stammt, und eine Uhr weniger als erwartet wäre sonst ein Absturz.
     configuring?.let { index ->
+        val timer = timers.getOrNull(index) ?: return@let
         RestTimerDialog(
-            initialSeconds = timers[index].durationSeconds,
+            initialSeconds = timer.durationSeconds,
             onConfirm = { seconds ->
                 configuring = null
                 onDurationChange(index, seconds)
@@ -168,9 +188,9 @@ private fun RowScope.RestTimerBox(
     val haptics = LocalHapticFeedback.current
 
     /**
-     * Nur die ganze Sekunde, nicht der Bildtakt: `derivedStateOf` meldet sich erst, wenn sich
-     * die Ziffern wirklich ändern. Ohne das baute sich die Zeile mit jedem Bild neu auf, um
-     * dieselbe Zahl noch einmal hinzuschreiben.
+     * Nur die ganze Sekunde, nicht jeder Takt: `derivedStateOf` meldet sich erst, wenn sich die
+     * Ziffern wirklich ändern. Ohne das baute sich die Zeile mit jedem Takt neu auf, um dieselbe
+     * Zahl noch einmal hinzuschreiben.
      */
     val remaining by remember(timer, nowMillis) {
         derivedStateOf { timer.remainingSeconds(nowMillis()) }
@@ -195,7 +215,7 @@ private fun RowScope.RestTimerBox(
             .background(CardBackground)
             // Wie viel der Pause noch aussteht, als Füllstand hinter der Zeile: Auf einen Blick
             // erkennbar, ohne die Ziffern lesen zu müssen. Der Füllstand wird erst hier beim
-            // Zeichnen bestimmt und nicht oben im Rumpf – so hängt am Bildtakt nur das Zeichnen.
+            // Zeichnen bestimmt und nicht oben im Rumpf – so hängt am Takt nur das Zeichnen.
             .drawBehind {
                 // Im Ruhezustand stünde der Balken voll da und sähe nach „läuft“ aus.
                 if (isIdle) return@drawBehind

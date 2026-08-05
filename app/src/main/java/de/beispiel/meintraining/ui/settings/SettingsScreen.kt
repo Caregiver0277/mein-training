@@ -39,7 +39,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +56,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.widget.Toast
 import de.beispiel.meintraining.R
@@ -86,7 +86,7 @@ private enum class SettingsSection { OVERVIEW, DAYS, EXERCISES, BACKUP }
 @Composable
 fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var section by remember { mutableStateOf(SettingsSection.OVERVIEW) }
 
     // Aus einem Untermenü führt „Zurück“ erst eine Ebene hoch.

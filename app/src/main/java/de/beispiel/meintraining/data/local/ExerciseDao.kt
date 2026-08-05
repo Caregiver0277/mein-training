@@ -66,6 +66,15 @@ interface ExerciseDao {
     @Query("SELECT * FROM Exercise WHERE dayId = :dayId ORDER BY position ASC, id ASC")
     suspend fun listByDay(dayId: Int): List<Exercise>
 
+    /**
+     * Wie oft die Übung noch vorkommt – über alle Tage hinweg.
+     *
+     * Nach einem Umbenennen die Frage, ob der alte Name überhaupt noch jemandem gehört; ist er
+     * es nicht, wandert sein Gewichtsverlauf mit (siehe [WeightLogDao.renameExercise]).
+     */
+    @Query("SELECT COUNT(*) FROM Exercise WHERE name = :name")
+    suspend fun countByName(name: String): Int
+
     /** Nächste freie Sortierposition innerhalb eines Tages. */
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM Exercise WHERE dayId = :dayId")
     suspend fun nextPosition(dayId: Int): Int
