@@ -26,6 +26,23 @@ class FormattersTest {
     }
 
     @Test
+    fun dreiNachkommastellenBleibenErhalten() {
+        // Der feinste Progressionsschritt: Abgeschnitten stünde hier „0,62“ – und genau das
+        // käme beim nächsten Speichern aus dem Bearbeiten-Sheet zurück in die Datenbank.
+        assertEquals("0,625", 0.625.toDecimalString())
+        assertEquals("20,625 Kg", 20.625.toWeightLabel(UNIT))
+    }
+
+    @Test
+    fun jedeStufeDerSchnellauswahlUeberstehtDenWeg() {
+        // Schreiben und Wiedereinlesen muss denselben Schritt ergeben – die Schnellauswahl
+        // setzt den Text des Vorschlags in das Feld, aus dem er später wieder gelesen wird.
+        PROGRESSION_STEP_SUGGESTIONS.forEach { step ->
+            assertEquals(step, parseProgressionStep(step.toDecimalString()), 0.0)
+        }
+    }
+
+    @Test
     fun fehlendesGewichtHatKeinLabel() {
         val weight: Double? = null
         assertNull(weight?.toWeightLabel(UNIT))

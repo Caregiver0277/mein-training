@@ -21,6 +21,10 @@ val TextSecondary = Color(0xFF8A9099)
 val TextDisabled = Color(0xFF4E555F)
 
 val AccentBlue = Color(0xFF2F80ED)
+
+/** Blau hinterlegt: die gerade gewählte Stufe der Schnellauswahl. */
+val AccentBlueSurface = Color(0xFF16283F)
+
 val OutlineColor = Color(0xFF3A4049)
 
 /** Grün für „erledigt“: der Haken unter der Liste und die Deload-Woche im Zyklus. */

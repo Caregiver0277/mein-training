@@ -1,10 +1,13 @@
 package de.beispiel.meintraining.ui.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,6 +55,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.ui.ExerciseForm
 import de.beispiel.meintraining.ui.theme.AccentBlue
+import de.beispiel.meintraining.ui.theme.AccentBlueSurface
 import de.beispiel.meintraining.ui.theme.AppTextStyles
 import de.beispiel.meintraining.ui.theme.CardBackground
 import de.beispiel.meintraining.ui.theme.ChipBackground
@@ -62,7 +66,9 @@ import de.beispiel.meintraining.ui.theme.TextDisabled
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.PROGRESSION_STEP_SUGGESTIONS
+import de.beispiel.meintraining.util.parseProgressionStep
 import de.beispiel.meintraining.util.toDecimalString
+import kotlin.math.abs
 
 /** Bottom-Sheet zum Anlegen und Bearbeiten einer Übung. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -207,20 +213,10 @@ private fun ExerciseEditSheetContent(
             style = AppTextStyles.ColumnLabel,
             color = TextSecondary
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall)) {
-            PROGRESSION_STEP_SUGGESTIONS.forEach { suggestion ->
-                val label = suggestion.toDecimalString()
-                AssistChip(
-                    onClick = { onFormChange(form.copy(progressionStep = label)) },
-                    label = { Text(text = label, style = AppTextStyles.ChipText) },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = ChipBackground,
-                        labelColor = TextPrimary
-                    ),
-                    border = null
-                )
-            }
-        }
+        ProgressionStepChips(
+            value = form.progressionStep,
+            onSelect = { onFormChange(form.copy(progressionStep = it)) }
+        )
 
         Row(
             modifier = Modifier
@@ -243,6 +239,49 @@ private fun ExerciseEditSheetContent(
             ) {
                 Text(text = stringResource(R.string.action_save))
             }
+        }
+    }
+}
+
+/**
+ * Schnellauswahl der Progressionsschritte – die Stufe, die gerade gilt, steht blau da.
+ *
+ * Verglichen wird der eingelesene Wert und nicht der getippte Text: „0.625“, „0,625“ und die
+ * über die Schnellauswahl gesetzte Schreibweise sind derselbe Schritt und sollen auch dieselbe
+ * Stufe hervorheben. Ein leeres Feld hebt die Vorgabe hervor – genau der Wert, der beim
+ * Speichern einspränge (siehe [parseProgressionStep]).
+ *
+ * [FlowRow] statt einer Zeile: Bei großer Schriftgröße passen vier Stufen nicht mehr
+ * nebeneinander, und abgeschnitten wäre die letzte nicht mehr zu treffen.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProgressionStepChips(value: String, onSelect: (String) -> Unit) {
+    val activeStep = remember(value) { parseProgressionStep(value) }
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall),
+        verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall)
+    ) {
+        PROGRESSION_STEP_SUGGESTIONS.forEach { suggestion ->
+            val label = suggestion.toDecimalString()
+            // Die Vorschläge sind allesamt Brüche mit Zweierpotenz im Nenner und damit exakt
+            // darstellbar; der Spielraum fängt trotzdem ab, was über getippte Ziffern
+            // hereinkommt – etwa „0,6250“.
+            val isActive = abs(activeStep - suggestion) < STEP_MATCH_TOLERANCE
+            AssistChip(
+                onClick = { onSelect(label) },
+                label = { Text(text = label, style = AppTextStyles.ChipText) },
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = if (isActive) AccentBlueSurface else ChipBackground,
+                    labelColor = if (isActive) AccentBlue else TextPrimary
+                ),
+                border = if (isActive) {
+                    BorderStroke(Dimens.BadgeBorderWidth, AccentBlue)
+                } else {
+                    null
+                }
+            )
         }
     }
 }
@@ -368,6 +407,14 @@ private fun SheetTextField(
     )
 }
 
+/**
+ * Spielraum beim Vergleich mit einer Stufe der Schnellauswahl.
+ *
+ * Kleiner als der Abstand zweier Stufen und größer als jede Ungenauigkeit, die beim Einlesen
+ * getippter Ziffern entstehen kann.
+ */
+private const val STEP_MATCH_TOLERANCE = 1e-6
+
 @Preview(showBackground = true, backgroundColor = 0xFF1C222B, widthDp = 360, heightDp = 720)
 @Composable
 private fun ExerciseEditSheetContentPreview() {
@@ -381,7 +428,9 @@ private fun ExerciseEditSheetContentPreview() {
                 weight = "20",
                 sets = "3",
                 repsMin = "4",
-                repsMax = "6"
+                repsMax = "6",
+                // Die feinste Stufe: In der Schnellauswahl steht sie blau da.
+                progressionStep = "0,625"
             ),
             knownExerciseNames = listOf("Trizeps", "Bankdrücken"),
             onFormChange = {},

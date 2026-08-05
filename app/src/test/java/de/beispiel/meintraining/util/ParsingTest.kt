@@ -93,4 +93,18 @@ class ParsingTest {
         repeat(3) { weight = increaseWeight(weight, 2.5) }
         assertEquals("27,5 Kg", weight.toWeightLabel(UNIT))
     }
+
+    @Test
+    fun derFeinsteSchrittKommtVollstaendigAn() {
+        // Viermal 0,625 kg ergeben genau 2,5 kg – und zwar auf dem Weg dorthin ohne einen
+        // einzigen gerundeten Zwischenstand, sonst zeigte die Liste eine andere Zahl als die,
+        // mit der weitergerechnet wird.
+        assertEquals(0.625, parseProgressionStep("0,625"), 0.0)
+        var weight = 20.0
+        val labels = List(4) {
+            weight = increaseWeight(weight, 0.625)
+            weight.toWeightLabel(UNIT)
+        }
+        assertEquals(listOf("20,625 Kg", "21,25 Kg", "21,875 Kg", "22,5 Kg"), labels)
+    }
 }

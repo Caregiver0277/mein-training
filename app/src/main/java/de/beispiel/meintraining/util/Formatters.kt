@@ -13,8 +13,11 @@ import java.util.Locale
 /** Vorgabewert für den Progressionsschritt, wenn keine gültige Eingabe vorliegt. */
 const val DEFAULT_PROGRESSION_STEP_KG = 2.5
 
-/** Vorschlagswerte der Schnellauswahl im Bearbeiten-Sheet. */
-val PROGRESSION_STEP_SUGGESTIONS = listOf(1.25, 2.5, 5.0)
+/**
+ * Vorschlagswerte der Schnellauswahl im Bearbeiten-Sheet – jeder Schritt das Doppelte des
+ * vorigen. 0,625 kg ist die kleinste sinnvolle Stufe: das halbe kleinste Scheibenpaar.
+ */
+val PROGRESSION_STEP_SUGGESTIONS = listOf(0.625, 1.25, 2.5, 5.0)
 
 // Trennzeichen der Sätze-/Wiederholungs-Notation. Reine Notation, keine übersetzbaren Texte.
 private const val SETS_REPS_SEPARATOR = " x "
@@ -26,9 +29,17 @@ private const val REPS_RANGE_SEPARATOR = "-"
  * pro Thread löst beides.
  */
 private val GERMAN_DECIMAL_FORMAT: ThreadLocal<DecimalFormat> =
-    ThreadLocal.withInitial { DecimalFormat("0.##", DecimalFormatSymbols(Locale.GERMANY)) }
+    ThreadLocal.withInitial { DecimalFormat("0.###", DecimalFormatSymbols(Locale.GERMANY)) }
 
-/** `20.0 → "20"`, `22.5 → "22,5"`, `1.25 → "1,25"` – immer mit deutschem Dezimalkomma. */
+/**
+ * `20.0 → "20"`, `22.5 → "22,5"`, `1.25 → "1,25"`, `0.625 → "0,625"` – immer mit deutschem
+ * Dezimalkomma.
+ *
+ * Drei Nachkommastellen, nicht zwei: Bei einem Progressionsschritt von 0,625 kg endet jedes
+ * zweite Gewicht auf einer dritten Stelle. Abgeschnitten wäre das nicht nur ungenau angezeigt –
+ * das Bearbeiten-Sheet füllt seine Felder aus derselben Schreibweise, und ein zu „20,62“
+ * gerundetes Gewicht stünde nach dem nächsten Speichern genau so in der Datenbank.
+ */
 fun Double.toDecimalString(): String =
     // withInitial liefert immer ein Exemplar; nur die Java-Signatur weiß das nicht.
     GERMAN_DECIMAL_FORMAT.get()!!.format(this)
