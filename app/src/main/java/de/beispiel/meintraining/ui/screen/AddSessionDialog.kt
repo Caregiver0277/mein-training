@@ -85,10 +85,19 @@ fun AddSessionDialog(
     // Gespeichert wird jeweils die schlichteste Form – Epochentag und Minute des Tages –, damit
     // die Auswahl eine Drehung des Geräts übersteht.
     var selectedDayId by rememberSaveable(days) { mutableIntStateOf(days.firstOrNull()?.id ?: 0) }
-    var epochDay by rememberSaveable { mutableLongStateOf(today.toEpochDay()) }
-    var minuteOfDay by rememberSaveable {
-        mutableIntStateOf(LocalTime.now().let { it.hour * MINUTES_PER_HOUR + it.minute })
+
+    // Der Zeitpunkt des Öffnens auf die Millisekunde – gebraucht wird er weiter unten für den
+    // Eintrag „jetzt“; die Felder selbst rechnen in ganzen Minuten.
+    val openedAt = rememberSaveable { System.currentTimeMillis() }
+    val opened = remember(openedAt) {
+        Instant.ofEpochMilli(openedAt).atZone(ZoneId.systemDefault()).toLocalDateTime()
     }
+    val openedMinuteOfDay = remember(opened) {
+        opened.hour * MINUTES_PER_HOUR + opened.minute
+    }
+
+    var epochDay by rememberSaveable { mutableLongStateOf(today.toEpochDay()) }
+    var minuteOfDay by rememberSaveable { mutableIntStateOf(openedMinuteOfDay) }
 
     var isPickingDate by rememberSaveable { mutableStateOf(false) }
     var isPickingTime by rememberSaveable { mutableStateOf(false) }
@@ -98,9 +107,18 @@ fun AddSessionDialog(
         LocalTime.of(minuteOfDay / MINUTES_PER_HOUR, minuteOfDay % MINUTES_PER_HOUR)
     }
     val completedAt = remember(date, time) {
-        // Fällt die Uhrzeit in die Lücke der Sommerzeitumstellung, rückt Java sie von selbst
-        // hinter den Sprung – das ist die einzige Auslegung, die einen Zeitstempel ergibt.
-        LocalDateTime.of(date, time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        if (date == opened.toLocalDate() && minuteOfDay == openedMinuteOfDay) {
+            // Unverändert stehen gelassene Felder heißen „jetzt“ – und dann zählt der Zeitpunkt
+            // des Öffnens statt der auf die Minute abgeschnittene. Sonst läge ein eben
+            // nachgetragenes Training vor einem Rundenschnitt aus derselben Minute und landete
+            // in der Runde davor: Der Verlauf hätte recht, der Trainingsplan zeigte trotzdem
+            // keinen Haken.
+            openedAt
+        } else {
+            // Fällt die Uhrzeit in die Lücke der Sommerzeitumstellung, rückt Java sie von selbst
+            // hinter den Sprung – das ist die einzige Auslegung, die einen Zeitstempel ergibt.
+            LocalDateTime.of(date, time).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }
     }
     // Nur bei jeder Änderung geprüft, nicht laufend: Wer die Uhrzeit auf gleich stehen lässt,
     // bis sie vorbei ist, darf sie eintragen – dann hat das Training ja stattgefunden.

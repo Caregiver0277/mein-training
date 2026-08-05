@@ -40,6 +40,8 @@ import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.ui.theme.AccentBlue
+import de.beispiel.meintraining.ui.theme.AccentGreen
+import de.beispiel.meintraining.ui.theme.AccentGreenSurface
 import de.beispiel.meintraining.ui.theme.AppTextStyles
 import de.beispiel.meintraining.ui.theme.CardBackground
 import de.beispiel.meintraining.ui.theme.ChipBackground
@@ -54,21 +56,12 @@ import de.beispiel.meintraining.util.toLocalDate
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-/**
- * Ein abgehaktes Training im Verlauf – eine Zeile, ein Kasten.
- *
- * Das Datum steht mit dabei, statt bei jedem Zeichnen aus dem Zeitstempel gerechnet zu werden:
- * Aus einem Zeitstempel ein Datum zu machen kostet Zeitzone und Instant, und gebraucht wird es
- * für Überschrift und Abstand zu heute gleich zweimal.
- */
-private data class HistoryEntry(val session: WorkoutSession, val date: LocalDate)
-
 @Composable
 fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory)
     val uiState by viewModel.uiState.collectAsState()
     HistoryScreen(
-        sessions = uiState.sessions,
+        cycles = uiState.cycles,
         days = uiState.days,
         selectableDays = uiState.selectableDays,
         today = uiState.today,
@@ -87,6 +80,10 @@ fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
  * mehrere stehen: Zusammengefasst waren sie eine Aufzählung in einer Zeile, in der weder zu
  * erkennen war, welches wann stattfand, noch welches ein langer Druck erwischt.
  *
+ * Zwischen den Kästen stehen die Runden. Sie sind der Grund, warum ein nachgetragenes Training
+ * mal auf dem Hauptscreen als Haken auftaucht und mal nicht: Es zählt für die Runde, in deren
+ * Zeitraum sein Zeitpunkt fällt. Mit den Überschriften ist das nachzusehen statt zu erraten.
+ *
  * Die Bilanz oben zählt Trainings, nicht Trainingstage: „7 Tage“ ist die Spanne, gezählt wird
  * darin jedes Training. Vorher zählte sie Tage, was zu je einem Kasten pro Tag passte – neben
  * getrennten Kästen stünde dort eine Zahl, die sich nicht mehr nachzählen lässt. Es ist auch
@@ -98,7 +95,8 @@ fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HistoryScreen(
-    sessions: List<WorkoutSession>,
+    /** Die Runden mit ihren Trainings, jüngste zuerst – siehe [HistoryUiState.cycles]. */
+    cycles: List<HistoryCycle>,
     days: List<TrainingDay>,
     /** Die Tage, die beim Nachtragen zur Wahl stehen – siehe [HistoryUiState.selectableDays]. */
     selectableDays: List<TrainingDay>,
@@ -112,10 +110,7 @@ fun HistoryScreen(
     /** Der Eintrag, der gerade zum Löschen ansteht. */
     var pendingDeletion by remember { mutableStateOf<HistoryEntry?>(null) }
     var isAdding by rememberSaveable { mutableStateOf(false) }
-    // Die Sitzungen kommen schon neueste zuerst; hier wird nur je einmal das Datum ausgerechnet.
-    val entries = remember(sessions) {
-        sessions.map { HistoryEntry(session = it, date = it.completedAt.toLocalDate()) }
-    }
+    val entries = remember(cycles) { cycles.flatMap { it.entries } }
     val dayNames = remember(days) { days.associate { it.id to it.name } }
 
     Column(
@@ -186,17 +181,20 @@ fun HistoryScreen(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
         ) {
-            // Die Kennung des Eintrags als Schlüssel: eindeutig auch dann, wenn an einem Tag
-            // mehrere Trainings stehen, und stabil, wenn eines dazwischen gelöscht wird.
-            items(items = entries, key = { it.session.id }) { entry ->
-                HistoryRow(
-                    date = entry.date,
-                    today = today,
-                    label = entry.label(dayNames),
-                    // Langer Druck fragt nach, statt sofort zu löschen – die Snackbar mit
-                    // „Rückgängig“ ist irgendwann weg, ein Fehlgriff soll bleiben können.
-                    onLongClick = { pendingDeletion = entry }
-                )
+            cycles.forEach { cycle ->
+                item(key = CYCLE_KEY_PREFIX + cycle.number) { CycleHeader(cycle = cycle) }
+                // Die Kennung des Eintrags als Schlüssel: eindeutig auch dann, wenn an einem Tag
+                // mehrere Trainings stehen, und stabil, wenn eines dazwischen gelöscht wird.
+                items(items = cycle.entries, key = { it.session.id }) { entry ->
+                    HistoryRow(
+                        date = entry.date,
+                        today = today,
+                        label = entry.label(dayNames),
+                        // Langer Druck fragt nach, statt sofort zu löschen – die Snackbar mit
+                        // „Rückgängig“ ist irgendwann weg, ein Fehlgriff soll bleiben können.
+                        onLongClick = { pendingDeletion = entry }
+                    )
+                }
             }
             item { Spacer(modifier = Modifier.height(Dimens.ListBottomPadding)) }
         }
@@ -254,6 +252,59 @@ fun HistoryScreen(
 
 /** Die Zahlen der Bilanz über der Liste. */
 private data class HistorySummary(val last7: Int, val last30: Int, val total: Int)
+
+/**
+ * Überschrift einer Runde: „Runde 12“ und daneben, wie weit sie ist.
+ *
+ * Bewusst keine Kachel, sondern eine schmale Zeile ohne Fläche: Die Kästen darunter sind die
+ * Trainings, die Überschrift ordnet sie nur. Die laufende Runde hebt sich grün ab – sie ist die,
+ * auf die der Haken auf dem Hauptscreen zeigt.
+ */
+@Composable
+private fun CycleHeader(cycle: HistoryCycle) {
+    val accent = if (cycle.isCurrent) AccentGreen else TextSecondary
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = Dimens.SectionSpacingSmall),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.history_cycle, cycle.number),
+            style = AppTextStyles.ColumnLabel,
+            color = accent,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = if (cycle.entries.isEmpty()) {
+                stringResource(R.string.history_cycle_empty)
+            } else {
+                stringResource(
+                    R.string.history_cycle_progress,
+                    cycle.completedDays,
+                    cycle.dayCount
+                )
+            },
+            style = AppTextStyles.ColumnLabel,
+            color = TextSecondary
+        )
+        if (cycle.isCurrent) {
+            Text(
+                text = stringResource(R.string.history_cycle_current),
+                style = AppTextStyles.ColumnLabel,
+                color = AccentGreen,
+                modifier = Modifier
+                    .padding(start = Dimens.SectionSpacingSmall)
+                    .clip(Dimens.CornerChip)
+                    .background(AccentGreenSurface)
+                    .padding(
+                        horizontal = Dimens.SectionSpacingSmall,
+                        vertical = Dimens.SectionSpacingSmall / 2
+                    )
+            )
+        }
+    }
+}
 
 /**
  * „Tag 2 · 18:30 Uhr“ – Name des Trainingstages und Uhrzeit.
@@ -342,19 +393,46 @@ private fun HistoryRow(
 private const val DAYS_WEEK = 7
 private const val DAYS_MONTH = 30
 
+/**
+ * Schlüssel der Rundenüberschriften.
+ *
+ * Text statt Zahl, weil sich Überschriften und Einträge eine Liste teilen: Die Einträge sind mit
+ * ihrer Kennung geschlüsselt, und eine blanke Rundennummer träfe irgendwann auf dieselbe Zahl.
+ */
+private const val CYCLE_KEY_PREFIX = "cycle-"
+
 @Preview(showBackground = true, backgroundColor = 0xFF10141A, widthDp = 360, heightDp = 640)
 @Composable
 private fun HistoryScreenPreview() {
     val now = System.currentTimeMillis()
     val oneDay = 24L * 60 * 60 * 1000
+    fun entry(id: Long, dayId: Int, at: Long) = HistoryEntry(
+        session = WorkoutSession(id = id, dayId = dayId, completedAt = at),
+        date = at.toLocalDate()
+    )
     MeinTrainingTheme {
         HistoryScreen(
-            sessions = listOf(
-                // Zwei Trainings am selben Tag – jedes bekommt seinen eigenen Kasten.
-                WorkoutSession(id = 1, dayId = 2, completedAt = now),
-                WorkoutSession(id = 2, dayId = 1, completedAt = now - 3 * 60 * 60 * 1000),
-                WorkoutSession(id = 3, dayId = 1, completedAt = now - 2 * oneDay),
-                WorkoutSession(id = 4, dayId = 4, completedAt = now - 5 * oneDay)
+            cycles = listOf(
+                HistoryCycle(
+                    number = 2,
+                    // Zwei Trainings am selben Tag – jedes bekommt seinen eigenen Kasten.
+                    entries = listOf(
+                        entry(id = 1, dayId = 2, at = now),
+                        entry(id = 2, dayId = 1, at = now - 3 * 60 * 60 * 1000)
+                    ),
+                    completedDays = 2,
+                    dayCount = 4,
+                    isCurrent = true
+                ),
+                HistoryCycle(
+                    number = 1,
+                    entries = listOf(
+                        entry(id = 3, dayId = 1, at = now - 2 * oneDay),
+                        entry(id = 4, dayId = 4, at = now - 5 * oneDay)
+                    ),
+                    completedDays = 2,
+                    dayCount = 4
+                )
             ),
             days = (1..4).map { TrainingDay(id = it, name = "Tag $it") },
             selectableDays = (1..4).map { TrainingDay(id = it, name = "Tag $it") },

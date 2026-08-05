@@ -13,6 +13,7 @@ import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
 import de.beispiel.meintraining.util.RotationEntry
+import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.deloadStatus
 import de.beispiel.meintraining.util.parseOptionalDecimal
@@ -137,8 +138,8 @@ class TrainingViewModel(
         repository.dayCount,
         repository.deloadCycleWeeks,
         currentDate.flow,
-        repository.rotationStartAfter
-    ) { sessionList, dayCount, cycleWeeks, today, rotationStartAfter ->
+        repository.rotationCuts
+    ) { sessionList, dayCount, cycleWeeks, today, rotationCuts ->
         // Die Sitzungen kommen neueste zuerst; die Rotation zählt in Eintragsreihenfolge. Das
         // Datum wird dabei einmal ausgerechnet und weitergereicht: Runde und Deload-Rechnung
         // brauchen dieselben Tage, und aus einem Zeitstempel eines zu machen ist mit Zeitzone
@@ -155,10 +156,11 @@ class TrainingViewModel(
                 entriesOldestFirst = entriesOldestFirst,
                 dayCount = dayCount,
                 today = today,
-                // Nur die Runde hört auf den Schnitt. Verlauf, Statistik und Deload-Rechnung
+                // Nur die Runde hört auf die Schnitte. Verlauf, Statistik und Deload-Rechnung
                 // gehen weiter über alles – dort ist nichts zu Ende, nur eine Runde.
-                startAfter = rotationStartAfter
+                cuts = rotationCuts
             ),
+            canReturnToPreviousCycle = canUndoRotationCut(entriesOldestFirst, rotationCuts),
             // Neueste zuerst heißt: Was heute eingetragen wurde, steht vorn. `takeWhile` hört
             // beim ersten älteren Eintrag auf und rechnet nicht den ganzen Verlauf durch.
             todaysDayIds = sessionList
@@ -184,6 +186,7 @@ class TrainingViewModel(
 
     private data class SessionSummary(
         val completedDayIds: Set<Int>,
+        val canReturnToPreviousCycle: Boolean,
         val todaysDayIds: Set<Int>,
         val deload: DeloadStatus
     )
@@ -200,6 +203,7 @@ class TrainingViewModel(
         val dayCount: Int,
         val title: String,
         val completedDayIds: Set<Int>,
+        val canReturnToPreviousCycle: Boolean,
         val todaysDayIds: Set<Int>,
         val deload: DeloadStatus
     )
@@ -209,6 +213,7 @@ class TrainingViewModel(
             dayCount = prefs.dayCount,
             title = prefs.title,
             completedDayIds = summary.completedDayIds,
+            canReturnToPreviousCycle = summary.canReturnToPreviousCycle,
             todaysDayIds = summary.todaysDayIds,
             deload = summary.deload
         )
@@ -241,6 +246,7 @@ class TrainingViewModel(
                 selection intersect exerciseList.mapTo(HashSet()) { it.id }
             },
             completedDayIds = around.completedDayIds,
+            canReturnToPreviousCycle = around.canReturnToPreviousCycle,
             todaysDayIds = around.todaysDayIds,
             deload = around.deload,
             appTitle = around.title
@@ -319,6 +325,11 @@ class TrainingViewModel(
      * vorgesetzt bekommen. Wer aber gleich weitermachen will – zwei Einheiten an einem Tag,
      * oder ein Training kurz vor Mitternacht –, kommt hier ohne Umweg in die neue Runde.
      *
+     * Der Pfeil steht am letzten Tag auch dann bereit, wenn dessen Training noch aussteht: Fällt
+     * ein Tag der Woche aus, wird er hier übersprungen, statt die Runde stehen zu lassen, bis er
+     * irgendwann nachgeholt ist. Was übersprungen wurde, bleibt im Verlauf sichtbar – die Runde
+     * schließt eben mit drei von vier Tagen.
+     *
      * Anders als bei [onDaySelected] wird der Tag hier *nicht* vorab umgeschaltet, sondern erst
      * nach dem Schnitt: Sonst zeigte die Anzeige für ein paar Bilder den ersten Tag mit den
      * Haken der alten Runde, und der eben gelandete Haken flöge sofort wieder in die Bildmitte
@@ -329,9 +340,30 @@ class TrainingViewModel(
         val firstDay = uiState.value.days.firstOrNull()?.id ?: return
         selectedIds.value = emptySet()
         viewModelScope.launch {
-            repository.startNextRotation()
+            val hasCut = repository.startNextRotation(currentDate.value)
             repository.selectDay(firstDay)
+            // War die Runde ohnehin leer, gab es nichts abzuschließen – dann steht auch nichts
+            // zum Zurücknehmen bereit, und eine Meldung darüber wäre eine Meldung über nichts.
+            if (hasCut) eventChannel.send(TrainingEvent.CycleStarted)
         }
+    }
+
+    /**
+     * Zurück in die vorige Runde – der Pfeil am ersten Tag, solange die neue noch leer ist.
+     *
+     * Der Weg zurück aus einem Fehlgriff: Die abgehakten Tage der vorigen Runde stehen wieder da,
+     * und die Auswahl springt auf den Tag, der dort als nächstes dran gewesen wäre. Sobald in der
+     * neuen Runde trainiert wurde, gibt es nichts mehr zurückzunehmen – siehe
+     * [de.beispiel.meintraining.util.canUndoRotationCut].
+     */
+    fun onReturnToPreviousCycle() {
+        selectedIds.value = emptySet()
+        viewModelScope.launch { returnToPreviousCycle() }
+    }
+
+    private suspend fun returnToPreviousCycle() {
+        if (!repository.returnToPreviousRotation()) return
+        repository.selectDay(repository.nextDayInRotation(currentDate.value))
     }
 
     // --- Mehrfachauswahl ---------------------------------------------------
@@ -507,6 +539,7 @@ class TrainingViewModel(
                     repository.revertWeight(event.exerciseName, event.previousWeightKg)
                 is TrainingEvent.ExercisesDeleted ->
                     repository.restoreExercises(event.exercises)
+                TrainingEvent.CycleStarted -> returnToPreviousCycle()
             }
         }
     }

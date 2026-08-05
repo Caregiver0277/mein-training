@@ -10,16 +10,46 @@ import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.CurrentDate
+import de.beispiel.meintraining.util.RotationEntry
+import de.beispiel.meintraining.util.rotations
+import de.beispiel.meintraining.util.toLocalDate
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
+/**
+ * Ein abgehaktes Training im Verlauf.
+ *
+ * Das Datum steht mit dabei, statt bei jedem Zeichnen aus dem Zeitstempel gerechnet zu werden:
+ * Aus einem Zeitstempel ein Datum zu machen kostet Zeitzone und Instant, und gebraucht wird es
+ * für Überschrift, Abstand zu heute und die Rundenzuordnung mehrfach.
+ */
+data class HistoryEntry(val session: WorkoutSession, val date: LocalDate)
+
+/**
+ * Eine Runde im Verlauf samt ihren Trainings, jüngstes zuerst.
+ *
+ * Der Verlauf ist nach Runden geordnet, weil sich nur so nachsehen lässt, wo ein nachgetragenes
+ * Training gelandet ist: Ein Eintrag zählt für die Runde, in deren Zeitraum er fällt, und nicht
+ * für die laufende. Ohne diese Überschriften ist das eine Rechnung, die man der App glauben muss.
+ */
+data class HistoryCycle(
+    /** Fortlaufend ab 1, älteste Runde zuerst. */
+    val number: Int,
+    val entries: List<HistoryEntry> = emptyList(),
+    /** Wie viele der [dayCount] Trainingstage in dieser Runde abgehakt sind. */
+    val completedDays: Int = 0,
+    val dayCount: Int = 0,
+    /** Die Runde, in der gerade trainiert wird – sie steht ganz oben. */
+    val isCurrent: Boolean = false
+)
+
 /** Zustand des Verlaufs. */
 data class HistoryUiState(
-    /** Abgehakte Trainings, das jüngste zuerst. */
-    val sessions: List<WorkoutSession> = emptyList(),
+    /** Die Runden mit ihren Trainings, jüngste zuerst. */
+    val cycles: List<HistoryCycle> = emptyList(),
     /**
      * Für die Namen der Trainingstage in den Einträgen – hier stehen auch die hinter der
      * eingestellten Rundenlänge verborgenen, sonst verlöre ein älterer Eintrag seinen Namen.
@@ -51,10 +81,11 @@ class HistoryViewModel(
         repository.observeSessions(),
         repository.observeDays(),
         repository.dayCount,
-        currentDate.flow
-    ) { sessions, days, dayCount, today ->
+        currentDate.flow,
+        repository.rotationCuts
+    ) { sessions, days, dayCount, today, cuts ->
         HistoryUiState(
-            sessions = sessions,
+            cycles = toCycles(sessions, dayCount, today, cuts),
             days = days,
             selectableDays = days.filter { it.id <= dayCount },
             today = today
@@ -84,6 +115,44 @@ class HistoryViewModel(
 
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L
+
+        /**
+         * Ordnet die Trainings ihren Runden zu – dieselbe Rechnung wie auf dem Hauptscreen, damit
+         * hier keine zweite Vorstellung davon entsteht, was zu welcher Runde gehört.
+         *
+         * [sessionsNewestFirst] kommt so aus der Datenbank; gerechnet wird auf der umgedrehten
+         * Liste, weil eine Runde in Eintragsreihenfolge entsteht. Herausgereicht wird wieder
+         * neueste zuerst: Der Verlauf beginnt oben mit heute.
+         */
+        private fun toCycles(
+            sessionsNewestFirst: List<WorkoutSession>,
+            dayCount: Int,
+            today: LocalDate,
+            cuts: List<Long>
+        ): List<HistoryCycle> {
+            val entries = sessionsNewestFirst.asReversed().map { session ->
+                HistoryEntry(session = session, date = session.completedAt.toLocalDate())
+            }
+            val rotations = rotations(
+                entriesOldestFirst = entries.map {
+                    RotationEntry(it.session.dayId, it.date, it.session.completedAt)
+                },
+                dayCount = dayCount,
+                today = today,
+                cuts = cuts
+            )
+            return rotations.mapIndexed { index, rotation ->
+                HistoryCycle(
+                    number = index + 1,
+                    entries = rotation.entryIndices.map(entries::get).asReversed(),
+                    completedDays = rotation.completedDayIds.size,
+                    dayCount = dayCount,
+                    // Die laufende Runde steht immer am Ende der Rechnung – auch wenn sie leer
+                    // ist, weil eben erst eine neue begonnen hat.
+                    isCurrent = index == rotations.lastIndex
+                )
+            }.asReversed()
+        }
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

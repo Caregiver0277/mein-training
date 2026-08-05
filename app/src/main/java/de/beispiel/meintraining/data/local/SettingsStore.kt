@@ -101,22 +101,40 @@ class SettingsStore(context: Context) {
     }
 
     /**
-     * Grenze der laufenden Runde als Zeitstempel: Nur Trainings *danach* zählen für sie mit.
+     * Die von Hand gezogenen Rundenschnitte als Zeitstempel, aufsteigend.
      *
-     * Sonst zählt die Runde einfach den Verlauf durch und beginnt von selbst von vorn, sobald
-     * jeder Tag einmal dran war (siehe `completedDaysInRotation`). Wer die nächste Runde von
-     * Hand beginnt, ohne den nächsten Kalendertag abzuwarten, braucht diesen Schnitt – sonst
-     * stünden alle Tage weiter als erledigt da.
+     * Ohne sie zählt die Runde einfach den Verlauf durch und beginnt von selbst von vorn, sobald
+     * jeder Tag einmal dran war (siehe `rotations`). Wer eine Runde abschließt, ohne alle Tage
+     * geschafft zu haben, braucht diesen Schnitt – sonst stünden die erledigten Tage weiter da.
      *
-     * 0 heißt: nie von Hand geschnitten, es zählt der ganze Verlauf.
+     * Gespeichert wird die ganze Reihe und nicht nur der jüngste Schnitt: Erst damit lässt sich
+     * ein Schnitt wieder zurücknehmen, ohne dass die Runden davor neu zerfallen.
+     *
+     * Eine Liste in DataStore heißt Text mit Trennzeichen – für eine Handvoll Zahlen ist das
+     * billiger als ein eigenes Format, und die Datei bleibt lesbar.
      */
-    private fun readRotationStartAfter(prefs: Preferences): Long =
-        prefs[KEY_ROTATION_START_AFTER] ?: NO_ROTATION_CUT
+    private fun readRotationCuts(prefs: Preferences): List<Long> {
+        val stored = prefs[KEY_ROTATION_CUTS]
+            // Ältere Fassungen kannten genau einen Schnitt. Er wird beim ersten Schreiben von
+            // selbst in die Reihe überführt; bis dahin gilt er unverändert weiter.
+            ?: return listOfNotNull(prefs[KEY_ROTATION_START_AFTER]?.takeIf { it > NO_ROTATION_CUT })
+        return stored.split(CUT_SEPARATOR)
+            .mapNotNull { it.toLongOrNull()?.takeIf { value -> value > NO_ROTATION_CUT } }
+            .sorted()
+    }
 
-    val rotationStartAfter: Flow<Long> = preference(::readRotationStartAfter)
+    val rotationCuts: Flow<List<Long>> = preference(::readRotationCuts)
 
-    suspend fun setRotationStartAfter(timestamp: Long) {
-        store.edit { prefs -> prefs[KEY_ROTATION_START_AFTER] = timestamp }
+    /**
+     * Schreibt die Schnitte zurück; die ältesten fallen dabei weg.
+     *
+     * Nur die jüngsten [MAX_ROTATION_CUTS] werden behalten: Ein Schnitt wirkt sich allein auf die
+     * Runde aus, in der er liegt, und Runden, die Jahre zurückliegen, sieht sich niemand mehr an.
+     */
+    suspend fun setRotationCuts(cuts: List<Long>) {
+        store.edit { prefs ->
+            prefs[KEY_ROTATION_CUTS] = cuts.takeLast(MAX_ROTATION_CUTS).joinToString(CUT_SEPARATOR)
+        }
     }
 
     /**
@@ -230,11 +248,17 @@ class SettingsStore(context: Context) {
         val KEY_APP_TITLE = stringPreferencesKey("app_title")
         val KEY_HIDDEN_TRACKING = stringSetPreferencesKey("hidden_tracking_names")
         val KEY_LAST_DAY_ADVANCE = longPreferencesKey("last_day_advance")
+        val KEY_ROTATION_CUTS = stringPreferencesKey("rotation_cuts")
+
+        /** Nur noch gelesen: der einzelne Schnitt älterer Fassungen. */
         val KEY_ROTATION_START_AFTER = longPreferencesKey("rotation_start_after")
         val KEY_BACKUP_URI = stringPreferencesKey("backup_target_uri")
         val KEY_BACKUP_INTERVAL = intPreferencesKey("backup_interval_days")
         val KEY_BACKUP_ENABLED = booleanPreferencesKey("backup_enabled")
         val KEY_BACKUP_LAST_AT = longPreferencesKey("backup_last_at")
         val KEY_BACKUP_LAST_ERROR = stringPreferencesKey("backup_last_error")
+
+        const val CUT_SEPARATOR = ","
+        const val MAX_ROTATION_CUTS = 100
     }
 }

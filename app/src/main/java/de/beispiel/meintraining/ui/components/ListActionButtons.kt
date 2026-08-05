@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.VectorPainter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.layout
@@ -81,11 +83,12 @@ import kotlin.math.sin
  * Liste – siehe [FloatingCheck]. [isCheckFloating] sagt, ob das gerade so ist; sein Platz
  * bleibt dann trotzdem stehen, damit die Zeile nicht springt und der Anflug ein Ziel hat.
  *
- * Am Ende einer Runde schiebt sich zwischen beide der Pfeil in die nächste ([showNextCycle]).
- * Er steht dort und nicht anderswo, weil er zum Haken gehört: erst abhaken, dann weiterziehen.
+ * Am letzten Tag einer Runde schiebt sich zwischen beide der Pfeil in die nächste
+ * ([showNextCycle]), am ersten der Pfeil zurück in die vorige ([showPreviousCycle]). Sie stehen
+ * dort und nicht anderswo, weil sie zum Haken gehören: erst abhaken, dann weiterziehen.
  *
- * Die Zeile setzt ihre Abstände selbst statt über `Arrangement.spacedBy`. Der Pfeil kommt und
- * geht, und ein Zwischenraum, den die Anordnung setzt, bliebe stehen, sobald der Platz dafür
+ * Die Zeile setzt ihre Abstände selbst statt über `Arrangement.spacedBy`. Die Pfeile kommen und
+ * gehen, und ein Zwischenraum, den die Anordnung setzt, bliebe stehen, sobald der Platz dafür
  * überhaupt vorgesehen ist – die Zeile spränge beim Erscheinen um genau diesen Abstand.
  */
 @Composable
@@ -97,7 +100,14 @@ fun ListActionButtons(
     isCheckFloating: Boolean = false,
     /** Kommt von außen, weil nur der schwebende Haken wissen muss, wo sein Platz liegt. */
     checkSlotModifier: Modifier = Modifier,
+    showPreviousCycle: Boolean = false,
+    onPreviousCycle: () -> Unit = {},
     showNextCycle: Boolean = false,
+    /**
+     * Ob der Pfeil in die nächste Runde grün ausfällt: Erst wenn das Training des letzten Tages
+     * steht, führt er weiter, statt den Rest der Runde zu überspringen.
+     */
+    isNextCycleDone: Boolean = false,
     onNextCycle: () -> Unit = {}
 ) {
     Row(modifier = modifier.fillMaxWidth()) {
@@ -113,19 +123,34 @@ fun ListActionButtons(
                 modifier = slot
             )
         }
-        NextCycleSlot(isVisible = showNextCycle, onClick = onNextCycle)
+        CycleSlot(
+            isVisible = showPreviousCycle,
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = stringResource(R.string.cd_previous_cycle),
+            // Das Zurücknehmen eines Fehlgriffs ist kein Erfolg – Grün bleibt dem Abhaken und
+            // dem Weiterziehen vorbehalten.
+            isDone = false,
+            onClick = onPreviousCycle
+        )
+        CycleSlot(
+            isVisible = showNextCycle,
+            icon = Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = stringResource(R.string.cd_next_cycle),
+            isDone = isNextCycleDone,
+            onClick = onNextCycle
+        )
         Spacer(modifier = Modifier.width(Dimens.CardSpacing))
         AddExerciseButton(onClick = onAddExercise)
     }
 }
 
 /**
- * Der Pfeil in die nächste Runde, der sich seinen Platz selbst schafft.
+ * Ein Pfeil zwischen den Runden, der sich seinen Platz selbst schafft.
  *
- * Er taucht auf, sobald das letzte Training der Runde eingetragen ist – also mitten in der
- * Bewegung, mit der der Haken an sein Ziel fliegt. Erschiene er dabei schlagartig, machte die
- * Zeile einen Satz zur Seite und der Haken flöge auf ein Ziel zu, das sich unter ihm
- * wegbewegt. Deshalb wächst er auf: Breite und Deckkraft hängen an einem einzigen Verlauf.
+ * Er taucht mitten in der Bewegung auf, mit der der Haken an sein Ziel fliegt. Erschiene er dabei
+ * schlagartig, machte die Zeile einen Satz zur Seite und der Haken flöge auf ein Ziel zu, das
+ * sich unter ihm wegbewegt. Deshalb wächst er auf: Breite und Deckkraft hängen an einem einzigen
+ * Verlauf.
  *
  * Gelesen wird der erst beim Messen und beim Zeichnen. Der Knopf wird während des Aufziehens
  * kein einziges Mal neu zusammengesetzt – nur neu vermessen, und das muss die Zeile ohnehin.
@@ -133,7 +158,13 @@ fun ListActionButtons(
  * Einklappen ganz verschwindet.
  */
 @Composable
-private fun NextCycleSlot(isVisible: Boolean, onClick: () -> Unit) {
+private fun CycleSlot(
+    isVisible: Boolean,
+    icon: ImageVector,
+    contentDescription: String,
+    isDone: Boolean,
+    onClick: () -> Unit
+) {
     // Anwesend bleibt er, bis das Einklappen durch ist – sonst verschwände er unvermittelt.
     var isPresent by remember { mutableStateOf(isVisible) }
     val reveal = remember { Animatable(if (isVisible) SHOWN else HIDDEN) }
@@ -167,7 +198,12 @@ private fun NextCycleSlot(isVisible: Boolean, onClick: () -> Unit) {
     ) {
         Row {
             Spacer(modifier = Modifier.width(Dimens.CardSpacing))
-            NextCycleButton(onClick = onClick)
+            CycleButton(
+                icon = icon,
+                contentDescription = contentDescription,
+                isDone = isDone,
+                onClick = onClick
+            )
         }
     }
 }
@@ -392,28 +428,39 @@ private fun DrawScope.drawBurst(progress: Float) {
 }
 
 /**
- * Derselbe Knopf wie das „+“, nur mit einem Pfeil nach rechts und in Grün.
+ * Derselbe Knopf wie das „+“, nur mit einem Pfeil darin.
  *
- * Grün, weil er zum abgehakten Training gehört und nicht zur Liste: Er erscheint erst, wenn der
- * Haken daneben grün ist, und führt weiter. Ein zweites graues Kästchen neben dem „+“ sähe
- * dagegen aus, als gäbe es hier zwei Wege, eine Übung anzulegen.
+ * Grün ([isDone]), solange er zum abgehakten Training gehört: Steht der Haken daneben, ist die
+ * Runde durch und der Pfeil führt weiter. Steht er noch aus, überspringt derselbe Pfeil, was
+ * fehlt – und ein grüner Knopf für einen übersprungenen Tag wäre ein Lob für nichts. Dann sieht
+ * er aus wie das „+“ daneben: ein Weg, den man gehen kann, kein Abschluss.
  */
 @Composable
-private fun NextCycleButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun CycleButton(
+    icon: ImageVector,
+    contentDescription: String,
+    isDone: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Box(
         modifier = modifier
             .width(Dimens.AddButtonWidth)
             .height(Dimens.AddButtonHeight)
             .clip(Dimens.CornerAddButton)
-            .background(AccentGreenSurface)
-            .border(Dimens.AddButtonBorderWidth, AccentGreen, Dimens.CornerAddButton)
+            .background(if (isDone) AccentGreenSurface else Color.Transparent)
+            .border(
+                width = Dimens.AddButtonBorderWidth,
+                color = if (isDone) AccentGreen else OutlineColor,
+                shape = Dimens.CornerAddButton
+            )
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-            contentDescription = stringResource(R.string.cd_next_cycle),
-            tint = AccentGreen,
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = if (isDone) AccentGreen else TextPrimary,
             modifier = Modifier.size(Dimens.MenuIconSize)
         )
     }
@@ -496,7 +543,8 @@ private fun ListActionButtonsPreview() {
             isCompleted = true,
             modifier = Modifier.padding(Dimens.ScreenPaddingHorizontal),
             // Wie am Ende einer Runde: Haken, Pfeil in die nächste, „+“.
-            showNextCycle = true
+            showNextCycle = true,
+            isNextCycleDone = true
         )
     }
 }

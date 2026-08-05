@@ -21,6 +21,8 @@ data class TrainingUiState(
     val selectedIds: Set<Long> = emptySet(),
     /** Tage, die in der laufenden Runde schon abgehakt sind. */
     val completedDayIds: Set<Int> = emptySet(),
+    /** Lässt sich der zuletzt von Hand gezogene Rundenschnitt noch zurücknehmen? */
+    val canReturnToPreviousCycle: Boolean = false,
     /** Tage, für die *heute* ein Eintrag steht – unabhängig von der laufenden Runde. */
     val todaysDayIds: Set<Int> = emptySet(),
     val deload: DeloadStatus = DeloadStatus(),
@@ -48,13 +50,23 @@ data class TrainingUiState(
     /**
      * Steht der Pfeil zur nächsten Runde bereit?
      *
-     * Nur am letzten Tag der Runde und erst, wenn er eingetragen ist: Vorher gibt es nichts
-     * abzuschließen, und an jedem anderen Tag wäre der Pfeil ein Sprung mitten in der Runde.
-     * Ist der letzte Tag durch, wartet die App sonst bis Mitternacht – der Pfeil überspringt
-     * dieses Warten (siehe [TrainingViewModel.onStartNextCycle]).
+     * Am letzten Tag der Runde immer, auch wenn dessen Training noch aussteht. Ist er abgehakt,
+     * überspringt der Pfeil das Warten auf Mitternacht; steht er noch aus, schließt er die Runde
+     * mit dem, was da ist – für die Woche, in der ein Tag ausfällt. An jedem anderen Tag wäre der
+     * Pfeil dagegen ein Sprung mitten in der Runde (siehe [TrainingViewModel.onStartNextCycle]).
      */
     val canStartNextCycle: Boolean
-        get() = isSelectedDayConfirmed && selectedDayId == days.lastOrNull()?.id
+        get() = selectedDayId == days.lastOrNull()?.id
+
+    /**
+     * Steht der Pfeil zurück in die vorige Runde bereit?
+     *
+     * Am ersten Tag, denn dort landet, wer die Runde eben weitergeschaltet hat – und nur, solange
+     * in der neuen Runde noch nichts abgehakt ist. Damit steht der Weg zurück genau dort, wo ein
+     * Fehlgriff auffällt, und verschwindet, sobald die neue Runde begonnen hat.
+     */
+    val canReturnToPreviousCycleHere: Boolean
+        get() = canReturnToPreviousCycle && selectedDayId == days.firstOrNull()?.id
 
     val isSelectionMode: Boolean get() = selectedIds.isNotEmpty()
 
@@ -84,6 +96,7 @@ data class TrainingActions(
     val onAddClick: () -> Unit = {},
     val onToggleWorkoutCompleted: () -> Unit = {},
     val onStartNextCycle: () -> Unit = {},
+    val onReturnToPreviousCycle: () -> Unit = {},
     val onExerciseClick: (ExerciseItem) -> Unit = {},
     val onExerciseLongClick: (ExerciseItem) -> Unit = {},
     val onSelectionToggle: (ExerciseItem) -> Unit = {},
@@ -147,4 +160,13 @@ sealed interface TrainingEvent {
 
     /** Übungen wurden gelöscht; die Kopien erlauben das Wiederherstellen. */
     data class ExercisesDeleted(val exercises: List<ExerciseItem>) : TrainingEvent
+
+    /**
+     * Eine neue Runde wurde von Hand begonnen.
+     *
+     * Anders als beim Abhaken lohnt die Meldung hier: Auf dem Bildschirm passiert nur, dass die
+     * Haken verschwinden und die Auswahl auf Tag 1 springt – ein Fehlgriff sieht damit fast aus
+     * wie ein Fehler. „Rückgängig“ stellt die vorige Runde wieder her.
+     */
+    data object CycleStarted : TrainingEvent
 }

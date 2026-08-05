@@ -13,7 +13,6 @@ import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.data.repository.TrainingRepository
-import de.beispiel.meintraining.util.NO_ROTATION_CUT
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -263,10 +262,10 @@ class BackupRepository(
             deloadCycleWeeks?.let { settingsStore.setDeloadCycleWeeks(it) }
             dayCount?.let { settingsStore.setDayCount(it) }
             settingsStore.setHiddenTrackingNames(hiddenTrackingNames.toSet())
-            // Der Rundenschnitt gehört zum ersetzten Verlauf und wandert deshalb nicht mit in
+            // Die Rundenschnitte gehören zum ersetzten Verlauf und wandern deshalb nicht mit in
             // die Datei: Ein Schnitt von diesem Gerät läge hinter allen eingespielten Trainings
             // und die laufende Runde stünde für immer auf null.
-            settingsStore.setRotationStartAfter(NO_ROTATION_CUT)
+            settingsStore.setRotationCuts(emptyList())
             // Ein ausgewählter Tag außerhalb der Runde wäre ein Reiter, den es nicht gibt:
             // Die Liste bliebe leer und keine Auswahl ließe sich mehr treffen.
             //

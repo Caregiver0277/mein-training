@@ -18,11 +18,12 @@ import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
-import de.beispiel.meintraining.util.NO_ROTATION_CUT
 import de.beispiel.meintraining.util.RotationEntry
+import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.increaseWeight
 import de.beispiel.meintraining.util.nextDayId
+import de.beispiel.meintraining.util.rotations
 import de.beispiel.meintraining.util.survivingSupersetMembers
 import de.beispiel.meintraining.util.toLocalDate
 import kotlinx.coroutines.flow.Flow
@@ -170,12 +171,12 @@ class TrainingRepository(
      * nacheinander.
      */
     suspend fun toggleWorkout(dayId: Int, today: LocalDate = LocalDate.now()): WorkoutToggle {
-        // Rundenlänge und Rundenschnitt stehen in DataStore und werden deshalb *vor* der
+        // Rundenlänge und Rundenschnitte stehen in DataStore und werden deshalb *vor* der
         // Transaktion geholt: Room hat genau einen Transaktions-Thread, und ein Warten auf einen
         // anderen Zufluss mitten drin blockiert ihn – im schlechtesten Fall, bis DataStore
         // seinerseits auf die Platte wartet.
         val dayCount = settingsStore.dayCount.first()
-        val startAfter = settingsStore.rotationStartAfter.first()
+        val cuts = settingsStore.rotationCuts.first()
         return database.withTransaction {
             val latest = sessionDao.latestForDay(dayId)
             if (latest != null && latest.completedAt.toLocalDate() == today) {
@@ -185,26 +186,79 @@ class TrainingRepository(
                 completeWorkout(dayId)
                 WorkoutToggle(
                     isCompleted = true,
-                    completesRotation = isRotationFull(dayCount, today, startAfter)
+                    completesRotation = isRotationFull(dayCount, today, cuts)
                 )
             }
         }
     }
 
     /**
-     * Beginnt die nächste Runde sofort, statt auf den nächsten Kalendertag zu warten.
+     * Beginnt die nächste Runde sofort, statt sie zu Ende zu trainieren.
      *
-     * Gelöscht wird dabei nichts: Der Verlauf bleibt vollständig, und mit ihm Statistik und
-     * Deload-Rechnung. Vermerkt wird nur, ab wann die neue Runde zählt – alles, was jetzt schon
-     * im Verlauf steht, gehört zur vorigen (siehe [completedDaysInRotation]).
+     * Der Weg für eine Woche, in der ein Tag ausfällt: Was steht, bleibt stehen, der Rest fällt
+     * weg, und die neue Runde beginnt bei Tag 1. Gelöscht wird dabei nichts – der Verlauf bleibt
+     * vollständig, und mit ihm Statistik und Deload-Rechnung. Vermerkt wird nur der Schnitt:
+     * Alles, was jetzt schon im Verlauf steht, gehört zur vorigen Runde (siehe [rotations]).
      *
      * Der Schnitt liegt hinter dem jüngsten Eintrag, mindestens aber im Jetzt: Ein Training, das
      * durch Zeitumstellung oder eine eingelesene Sicherung in der Zukunft gelandet ist, würde
      * sonst in der neuen Runde weiterleben und den ersten Tag von vornherein als erledigt zeigen.
+     *
+     * Liefert `false`, wenn die laufende Runde ohnehin leer ist: Dann gibt es nichts
+     * abzuschließen, und ein Schnitt legte nur eine leere Runde zwischen zwei andere.
      */
-    suspend fun startNextRotation() {
-        val latest = sessionDao.latest()?.completedAt ?: NO_ROTATION_CUT
-        settingsStore.setRotationStartAfter(maxOf(System.currentTimeMillis(), latest))
+    suspend fun startNextRotation(today: LocalDate = LocalDate.now()): Boolean {
+        val dayCount = settingsStore.dayCount.first()
+        val cuts = settingsStore.rotationCuts.first()
+        val entries = rotationEntries()
+        if (rotations(entries, dayCount, today, cuts).last().isEmpty) return false
+        val latest = entries.last().completedAt
+        settingsStore.setRotationCuts(cuts + maxOf(System.currentTimeMillis(), latest))
+        return true
+    }
+
+    /**
+     * Nimmt den jüngsten Schnitt zurück – die vorige Runde steht wieder da, wo sie aufgehört hat.
+     *
+     * Der Weg zurück aus einem Fehlgriff auf den Pfeil. Möglich, solange in der neuen Runde noch
+     * nicht trainiert wurde (siehe [canUndoRotationCut]); liefert sonst `false`.
+     */
+    suspend fun returnToPreviousRotation(): Boolean {
+        val cuts = settingsStore.rotationCuts.first()
+        if (!canUndoRotationCut(rotationEntries(), cuts)) return false
+        settingsStore.setRotationCuts(cuts.dropLast(1))
+        return true
+    }
+
+    /**
+     * Der Tag, der in der laufenden Runde als nächstes dran ist: der auf das jüngste Training
+     * folgende. In einer noch leeren Runde ist das der erste Tag.
+     */
+    suspend fun nextDayInRotation(today: LocalDate = LocalDate.now()): Int {
+        val dayCount = settingsStore.dayCount.first()
+        val entries = rotationEntries()
+        val latest = latestEntryInRotation(entries, dayCount, today) ?: return FIRST_DAY_ID
+        return nextDayId(latest.dayId, dayCount)
+    }
+
+    /** Der ganze Verlauf als Rundeneinträge, ältester zuerst – so, wie [rotations] ihn braucht. */
+    private suspend fun rotationEntries(): List<RotationEntry> = sessionDao.listAll().map { session ->
+        RotationEntry(
+            dayId = session.dayId,
+            date = session.completedAt.toLocalDate(),
+            completedAt = session.completedAt
+        )
+    }
+
+    /** Das jüngste Training der laufenden Runde; `null`, solange sie leer ist. */
+    private suspend fun latestEntryInRotation(
+        entries: List<RotationEntry>,
+        dayCount: Int,
+        today: LocalDate
+    ): RotationEntry? {
+        val cuts = settingsStore.rotationCuts.first()
+        val current = rotations(entries, dayCount, today, cuts).last()
+        return current.entryIndices.lastOrNull()?.let(entries::get)
     }
 
     /**
@@ -218,17 +272,10 @@ class TrainingRepository(
     private suspend fun isRotationFull(
         dayCount: Int,
         today: LocalDate,
-        startAfter: Long
+        cuts: List<Long>
     ): Boolean {
         if (dayCount <= 0) return false
-        val entries = sessionDao.listAll().map { session ->
-            RotationEntry(
-                dayId = session.dayId,
-                date = session.completedAt.toLocalDate(),
-                completedAt = session.completedAt
-            )
-        }
-        return completedDaysInRotation(entries, dayCount, today, startAfter).size >= dayCount
+        return completedDaysInRotation(rotationEntries(), dayCount, today, cuts).size >= dayCount
     }
 
     suspend fun deleteSession(id: Long) = sessionDao.deleteById(id)
@@ -236,8 +283,8 @@ class TrainingRepository(
     /** Im Tracking ausgeblendete Übungen. */
     val hiddenTrackingNames: Flow<Set<String>> = settingsStore.hiddenTrackingNames
 
-    /** Ab wann die laufende Runde zählt – siehe [startNextRotation]. */
-    val rotationStartAfter: Flow<Long> = settingsStore.rotationStartAfter
+    /** Die von Hand gezogenen Rundenschnitte – siehe [startNextRotation]. */
+    val rotationCuts: Flow<List<Long>> = settingsStore.rotationCuts
 
     // --- Einstellungen -----------------------------------------------------
 
@@ -332,16 +379,28 @@ class TrainingRepository(
      * Schaltet beim ersten Start an einem neuen Kalendertag auf den Tag nach dem zuletzt
      * abgehakten weiter – wer gestern Tag 1 gemacht hat, sieht heute Tag 2.
      *
+     * Gezählt wird dabei nur innerhalb der *laufenden* Runde. Über deren Grenze hinweg wäre es
+     * falsch: Wer die Runde am letzten Tag übersprungen hat, säße am nächsten Morgen wieder auf
+     * genau dem Tag, den er gerade weggeklickt hat. Eine frisch begonnene Runde beginnt bei Tag 1.
+     *
      * Läuft höchstens einmal pro Tag, damit eine Auswahl von Hand nicht wieder umspringt.
      */
     suspend fun advanceDayIfNewDate(today: LocalDate = LocalDate.now()) = advanceLock.withLock {
         val epochDay = today.toEpochDay()
         if (settingsStore.lastDayAdvance() >= epochDay) return@withLock
 
-        val latest = sessionDao.latest()
-        // Am Tag des Trainings selbst bleibt die Ansicht stehen.
-        if (latest != null && latest.completedAt.toLocalDate().isBefore(today)) {
-            selectDay(nextDayId(latest.dayId, settingsStore.dayCount.first()))
+        val entries = rotationEntries()
+        // Ohne einen einzigen Eintrag gibt es nichts weiterzuschalten – die Auswahl bleibt, wo
+        // sie ist, statt beim ersten Start auf Tag 1 zu springen.
+        if (entries.isNotEmpty()) {
+            val dayCount = settingsStore.dayCount.first()
+            val latest = latestEntryInRotation(entries, dayCount, today)
+            when {
+                // Eine neue Runde beginnt bei Tag 1.
+                latest == null -> selectDay(FIRST_DAY_ID)
+                // Am Tag des Trainings selbst bleibt die Ansicht stehen.
+                latest.date.isBefore(today) -> selectDay(nextDayId(latest.dayId, dayCount))
+            }
         }
         // Erst hinterher vermerken: Bricht der Vorgang vorher ab – Prozess beendet, Coroutine
         // abgebrochen –, wäre der Tag sonst als erledigt markiert, ohne dass etwas geschah,

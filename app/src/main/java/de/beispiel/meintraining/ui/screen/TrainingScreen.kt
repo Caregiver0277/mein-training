@@ -152,6 +152,7 @@ fun TrainingScreen(
                         event.exercises.size
                     )
                 }
+                TrainingEvent.CycleStarted -> context.getString(R.string.snackbar_cycle_started)
             }
             val result = snackbarHostState.showSnackbar(
                 message = message,
@@ -448,9 +449,13 @@ private fun TrainingContent(
                         modifier = Modifier.padding(bottom = Dimens.ListBottomPadding),
                         isCheckFloating = floatingCheck.isFloating,
                         checkSlotModifier = checkSlot,
-                        // Im Auswahlmodus geht es ums Markieren von Übungen; ein Sprung in die
-                        // nächste Runde hätte dort nichts zu suchen.
+                        // Im Auswahlmodus geht es ums Markieren von Übungen; ein Sprung zwischen
+                        // den Runden hätte dort nichts zu suchen.
+                        showPreviousCycle = uiState.canReturnToPreviousCycleHere &&
+                            !uiState.isSelectionMode,
+                        onPreviousCycle = actions.onReturnToPreviousCycle,
                         showNextCycle = uiState.canStartNextCycle && !uiState.isSelectionMode,
+                        isNextCycleDone = uiState.isSelectedDayConfirmed,
                         onNextCycle = actions.onStartNextCycle
                     )
                 }

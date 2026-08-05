@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
                         onAddClick = viewModel::onAddClick,
                         onToggleWorkoutCompleted = viewModel::onToggleWorkoutCompleted,
                         onStartNextCycle = viewModel::onStartNextCycle,
+                        onReturnToPreviousCycle = viewModel::onReturnToPreviousCycle,
                         onExerciseClick = viewModel::onExerciseClick,
                         onExerciseLongClick = viewModel::onExerciseLongClick,
                         onSelectionToggle = viewModel::onSelectionToggle,

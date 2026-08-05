@@ -171,6 +171,7 @@
     <!-- Snackbars -->
     <string name="snackbar_weight_increased">Gewicht auf %1$s erhöht</string>
     <string name="snackbar_exercise_deleted">„%1$s“ gelöscht</string>
+    <string name="snackbar_cycle_started">Neue Runde begonnen</string>
     <plurals name="snackbar_exercises_deleted">
         <item quantity="one">%1$d Übung gelöscht</item>
         <item quantity="other">%1$d Übungen gelöscht</item>
@@ -180,6 +181,7 @@
     <string name="cd_complete_workout">Training abhaken</string>
     <string name="cd_workout_completed">Training abgehakt – zum Zurücknehmen tippen</string>
     <string name="cd_next_cycle">Nächste Runde beginnen</string>
+    <string name="cd_previous_cycle">Zurück in die vorige Runde</string>
 
     <!-- Verlauf -->
     <string name="history_empty">Noch kein Training abgehakt. Der grüne Haken unter der Liste trägt es ein.</string>
@@ -187,6 +189,10 @@
     <string name="history_last_month">30 Tage</string>
     <string name="history_total">Gesamt</string>
     <string name="history_entry">%1$s · %2$s Uhr</string>
+    <string name="history_cycle">Runde %1$d</string>
+    <string name="history_cycle_progress">%1$d von %2$d Tagen</string>
+    <string name="history_cycle_current">laufend</string>
+    <string name="history_cycle_empty">noch kein Training</string>
     <string name="history_today">heute</string>
     <string name="history_yesterday">gestern</string>
     <string name="history_delete_title">Eintrag löschen?</string>
