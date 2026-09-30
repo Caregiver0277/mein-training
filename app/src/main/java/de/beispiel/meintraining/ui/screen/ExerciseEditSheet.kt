@@ -48,9 +48,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import de.beispiel.meintraining.R
@@ -161,6 +164,7 @@ private fun ExerciseEditSheetContent(
                     onValueChange = { onFormChange(form.copy(variation = it)) },
                     label = stringResource(R.string.field_variation),
                     keyboardType = KeyboardType.Text,
+                    capitalization = KeyboardCapitalization.Sentences,
                     modifier = Modifier
                         .weight(1f)
                         .focusRequester(variationFocus)
@@ -169,6 +173,8 @@ private fun ExerciseEditSheetContent(
             VariationToggle(expanded = form.showVariation, onClick = onVariationToggle)
         }
 
+        // „Weiter“ auf der Tastatur springt von Feld zu Feld, im letzten schließt „Fertig“ sie –
+        // eine Übung lässt sich so in einem Zug eintippen, ohne jedes Feld einzeln anzutippen.
         SheetTextField(
             value = form.weight,
             onValueChange = { onFormChange(form.copy(weight = it)) },
@@ -206,6 +212,7 @@ private fun ExerciseEditSheetContent(
             onValueChange = { onFormChange(form.copy(progressionStep = it)) },
             label = stringResource(R.string.field_progression_step),
             keyboardType = KeyboardType.Decimal,
+            imeAction = ImeAction.Done,
             supportingText = stringResource(
                 if (form.progressionDown) {
                     R.string.hint_progression_step_down
@@ -350,6 +357,11 @@ private fun ProgressionDirectionToggle(down: Boolean, onClick: () -> Unit) {
  * Namensfeld mit Vorschlagsliste: Ab dem ersten Buchstaben werden passende, bereits
  * angelegte Übungen angeboten. Die Auswahl läuft über den normalen Weg der Namensänderung –
  * das ViewModel übernimmt dabei Gewicht und Progressionsschritt.
+ *
+ * Die Liste erscheint nur, während am Namen getippt wird. Sie liegt über den Feldern darunter,
+ * und beim Öffnen einer Übung, deren Name der Anfang einer anderen ist – „Bankdrücken“ neben
+ * „Bankdrücken KH“ –, stünde sie sonst sofort über Gewicht und Sätzen. Ein Tipp daneben oder
+ * der Sprung ins nächste Feld blendet sie aus; weitertippen holt sie zurück.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -369,33 +381,49 @@ private fun NameField(
             }
         }
     }
+    var hasFocus by remember { mutableStateOf(false) }
+    // Erst ein Tastendruck öffnet die Liste, ein Tipp daneben schließt sie wieder.
+    var isTyping by remember { mutableStateOf(false) }
+    val expanded = hasFocus && isTyping && suggestions.isNotEmpty()
 
     ExposedDropdownMenuBox(
-        expanded = suggestions.isNotEmpty(),
+        expanded = expanded,
         onExpandedChange = { /* Die Liste steuert allein der eingegebene Text. */ },
         modifier = modifier
     ) {
         SheetTextField(
             value = form.name,
-            onValueChange = { onFormChange(form.copy(name = it)) },
+            onValueChange = {
+                isTyping = true
+                onFormChange(form.copy(name = it))
+            },
             label = stringResource(R.string.field_name),
             keyboardType = KeyboardType.Text,
+            capitalization = KeyboardCapitalization.Sentences,
             isError = form.name.isBlank(),
             supportingText = if (form.name.isBlank()) {
                 stringResource(R.string.error_name_required)
             } else {
                 null
             },
-            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable)
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryEditable)
+                .onFocusChanged { hasFocus = it.isFocused }
         )
         ExposedDropdownMenu(
-            expanded = suggestions.isNotEmpty(),
-            onDismissRequest = { }
+            expanded = expanded,
+            onDismissRequest = { isTyping = false }
         ) {
             suggestions.forEach { suggestion ->
                 DropdownMenuItem(
                     text = { Text(text = suggestion, style = AppTextStyles.ExerciseName) },
-                    onClick = { onFormChange(form.copy(name = suggestion)) }
+                    onClick = {
+                        // Gewählt ist gewählt: Die Liste bliebe sonst stehen, sobald es eine
+                        // längere Übung gleichen Anfangs gibt – nach „Bankdrücken“ etwa noch
+                        // „Bankdrücken KH“.
+                        isTyping = false
+                        onFormChange(form.copy(name = suggestion))
+                    }
                 )
             }
         }
@@ -429,6 +457,12 @@ private fun VariationToggle(expanded: Boolean, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Ein Eingabefeld des Sheets.
+ *
+ * [capitalization] ist für Namen gedacht: Übungen schreiben sich groß, ohne Vorgabe beginnt die
+ * Tastatur aber klein.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SheetTextField(
@@ -437,6 +471,8 @@ private fun SheetTextField(
     label: String,
     keyboardType: KeyboardType,
     modifier: Modifier = Modifier,
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
+    imeAction: ImeAction = ImeAction.Next,
     isError: Boolean = false,
     supportingText: String? = null
 ) {
@@ -449,7 +485,11 @@ private fun SheetTextField(
         supportingText = supportingText?.let { text ->
             { Text(text = text, style = AppTextStyles.ColumnLabel) }
         },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        keyboardOptions = KeyboardOptions(
+            capitalization = capitalization,
+            keyboardType = keyboardType,
+            imeAction = imeAction
+        ),
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = TextPrimary,
             unfocusedTextColor = TextPrimary,

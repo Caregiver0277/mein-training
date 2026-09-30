@@ -1,6 +1,7 @@
 package de.beispiel.meintraining.ui
 
 import androidx.compose.runtime.Immutable
+import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.FIRST_DAY_ID
 import de.beispiel.meintraining.data.model.TrainingDay
@@ -142,10 +143,94 @@ data class ExerciseForm(
      * Anders als die übrigen Felder kein Text: Hier gibt es keine Teileingabe, nur zwei
      * Richtungen.
      */
-    val progressionDown: Boolean = false
+    val progressionDown: Boolean = false,
+    /** Beim Bearbeiten der Name, unter dem die Übung gespeichert ist; beim Anlegen `null`. */
+    val originalName: String? = null,
+    /**
+     * Die bekannte Übung, deren Gewicht, Schritt und Richtung gerade in den Feldern stehen;
+     * `null`, solange der Name auf keine passt. Beim Bearbeiten ist das anfangs die Übung selbst.
+     */
+    val matchedName: String? = null,
+    /**
+     * Was in diesen Feldern stand, bevor die Werte einer *anderen* bekannten Übung sie ersetzt
+     * haben – eigene Eingaben oder die der bearbeiteten Übung. `null` heißt: Was dasteht, ist
+     * ohnehin das Eigene. Siehe [withChange].
+     */
+    val ownValues: SharedFormValues? = null
 ) {
     val isEditMode: Boolean get() = id != null
     val canSave: Boolean get() = name.isNotBlank()
+
+    val sharedValues: SharedFormValues
+        get() = SharedFormValues(weight, progressionStep, progressionDown)
+
+    /**
+     * Übernimmt eine Eingabe aus dem Sheet und hält dabei Gewicht, Schritt und Richtung passend
+     * zu dem Namen, der gerade dasteht.
+     *
+     * Passt der Name auf eine bekannte Übung, kommen deren Werte ins Formular – egal ob getippt
+     * oder aus der Vorschlagsliste gewählt. Sätze und Wiederholungen bleiben unangetastet, die
+     * gehören zum jeweiligen Tag.
+     *
+     * Passt er nicht mehr, kommen die eigenen Werte zurück ([ownValues]). Ohne das blieben die
+     * der zuletzt getroffenen Übung stehen: Wer „Rudern eng“ in „Rudern breit“ umbenennt, kommt
+     * beim Löschen unterwegs an „Rudern“ vorbei – und speicherte danach dessen Gewicht unter dem
+     * neuen Namen, obwohl niemand das Feld angefasst hat.
+     *
+     * Bleibt es bei derselben Übung – nur anders geschrieben oder ein Leerzeichen mehr –, bleibt
+     * auch stehen, was in den Feldern steht, samt Änderungen von Hand. Erst der Wechsel zu einer
+     * *anderen* Übung überschreibt sie.
+     *
+     * Die Schreibweise wird auf die gespeicherte angeglichen, sonst entstünde aus „bankdrücken“
+     * eine zweite Übung neben „Bankdrücken“. Leerzeichen am Rand bleiben dabei stehen: Das hinter
+     * „Rudern“ ist der Anfang von „Rudern breit“ und darf beim Tippen nicht verschwinden.
+     */
+    fun withChange(changed: ExerciseForm, known: List<ExerciseDefinition>): ExerciseForm {
+        if (changed.name == name) {
+            // Kein neuer Name. Wer Gewicht, Schritt oder Richtung anfasst, macht sie damit zu
+            // seinen eigenen – sie bleiben auch stehen, wenn der Name danach nicht mehr passt.
+            return if (changed.sharedValues == sharedValues) changed else changed.copy(ownValues = null)
+        }
+        val match = known.firstOrNull { it.name.equals(changed.name.trim(), ignoreCase = true) }
+        val named = match?.let { changed.copy(name = changed.name.withCore(it.name)) } ?: changed
+
+        if (match?.name == matchedName) return named
+        if (match == null || match.name == originalName) {
+            return named.withShared(ownValues ?: sharedValues)
+                .copy(matchedName = match?.name, ownValues = null)
+        }
+        return named.withShared(match.toSharedFormValues())
+            .copy(matchedName = match.name, ownValues = ownValues ?: sharedValues)
+    }
+
+    private fun withShared(values: SharedFormValues) = copy(
+        weight = values.weight,
+        progressionStep = values.progressionStep,
+        progressionDown = values.progressionDown
+    )
+}
+
+/**
+ * Gewicht, Progressionsschritt und Richtung – die Felder des Formulars, die nicht an der Zeile
+ * hängen, sondern am Namen: Sie gelten für jede gleichnamige Übung (siehe [ExerciseDefinition]).
+ */
+data class SharedFormValues(
+    val weight: String = "",
+    val progressionStep: String = DEFAULT_PROGRESSION_STEP_KG.toDecimalString(),
+    val progressionDown: Boolean = false
+)
+
+private fun ExerciseDefinition.toSharedFormValues() = SharedFormValues(
+    weight = weightKg?.toDecimalString().orEmpty(),
+    progressionStep = progressionStepKg.toDecimalString(),
+    progressionDown = progressionDown
+)
+
+/** Ersetzt den Text zwischen den Leerzeichen am Rand: `" rudern "` mit `"Rudern"` → `" Rudern "`. */
+private fun String.withCore(core: String): String {
+    val start = indexOfFirst { !it.isWhitespace() }
+    if (start < 0) return core
+    return replaceRange(start, indexOfLast { !it.isWhitespace() } + 1, core)
 }
 
 /**

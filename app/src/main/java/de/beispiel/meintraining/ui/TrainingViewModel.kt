@@ -442,13 +442,15 @@ class TrainingViewModel(
     }
 
     /**
-     * Sobald der eingetippte Name auf eine bekannte Übung passt, werden Gewicht und
-     * Progressionsschritt übernommen – egal ob getippt oder aus der Vorschlagsliste gewählt.
-     * Sätze und Wiederholungen bleiben bewusst unangetastet, die gehören zum jeweiligen Tag.
+     * Sobald der eingetippte Name auf eine bekannte Übung passt, werden deren Gewicht,
+     * Progressionsschritt und Richtung übernommen – siehe [ExerciseForm.withChange].
+     *
+     * Ist das Sheet schon zu, kommt nichts mehr an: Ein Tastendruck, der sich mit dem Speichern
+     * überschneidet, öffnete es sonst mit dem alten Stand gleich wieder.
      */
     fun onFormChange(form: ExerciseForm) {
-        val nameChanged = formState.value?.name != form.name
-        formState.value = if (nameChanged) form.withSharedValues() else form
+        val current = formState.value ?: return
+        formState.value = current.withChange(form, definitions.value)
     }
 
     fun onVariationToggle() {
@@ -464,9 +466,17 @@ class TrainingViewModel(
         formState.value = null
     }
 
+    /**
+     * Schließt das Sheet sofort und speichert danach.
+     *
+     * Nicht umgekehrt: Bis die Datenbank fertig ist, stünde das Sheet sonst noch offen, und ein
+     * zweiter Druck auf „Speichern“ – aus Ungeduld oder weil der erste zu kurz geriet – legte
+     * dieselbe neue Übung ein zweites Mal an. So findet er kein Formular mehr vor.
+     */
     fun onFormSave() {
         val form = formState.value ?: return
         if (!form.canSave) return
+        formState.value = null
 
         viewModelScope.launch {
             val rawMin = parseOptionalInt(form.repsMin)
@@ -487,7 +497,6 @@ class TrainingViewModel(
                 progressionStepKg = parseProgressionStep(form.progressionStep),
                 progressionDown = form.progressionDown
             )
-            formState.value = null
         }
     }
 
@@ -562,22 +571,6 @@ class TrainingViewModel(
         }
     }
 
-    /**
-     * Füllt Gewicht, Progressionsschritt und dessen Richtung aus der bekannten Übung, wenn der
-     * Name passt. Die Schreibweise wird dabei auf die gespeicherte angeglichen – sonst entstünde
-     * aus „bankdrücken“ eine zweite Übung neben „Bankdrücken“.
-     */
-    private fun ExerciseForm.withSharedValues(): ExerciseForm {
-        val match = definitions.value.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }
-            ?: return this
-        return copy(
-            name = match.name,
-            weight = match.weightKg?.toDecimalString().orEmpty(),
-            progressionStep = match.progressionStepKg.toDecimalString(),
-            progressionDown = match.progressionDown
-        )
-    }
-
     private fun ExerciseItem.toForm() = ExerciseForm(
         id = id,
         dayId = dayId,
@@ -589,7 +582,11 @@ class TrainingViewModel(
         repsMin = repsMin?.toString().orEmpty(),
         repsMax = repsMax?.toString().orEmpty(),
         progressionStep = progressionStepKg.toDecimalString(),
-        progressionDown = progressionDown
+        progressionDown = progressionDown,
+        // Die Werte im Formular sind die der Übung selbst – ein Wechsel zurück auf ihren Namen
+        // holt deshalb nichts aus der Datenbank, sondern lässt stehen, was dasteht.
+        originalName = name,
+        matchedName = name
     )
 
     companion object {

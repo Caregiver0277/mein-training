@@ -45,29 +45,52 @@ data class StatsUiState(
 
 class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) : ViewModel() {
 
+    /** Was vom Plan gerade läuft – und das Datum, an dem sich alle Zeitangaben ausrichten. */
+    private data class PlanView(
+        val today: LocalDate,
+        val dayCount: Int,
+        val hiddenExerciseNames: Set<String>
+    )
+
     val uiState = combine(
         repository.observeSessions(),
         repository.observeWeightLogs(),
         repository.observeAllExercises(),
         repository.observeDefinitions(),
-        // Nicht `LocalDate.now()` mitten in der Rechnung: Der Wert fröre auf dem Tag ein, an
-        // dem zuletzt etwas ausgesendet wurde – Streaks und „seit N Tagen“ blieben bei einer
-        // über Nacht offen gebliebenen App auf gestern stehen.
-        currentDate.flow
-    ) { sessions, logs, exercises, definitions, today ->
+        combine(
+            // Nicht `LocalDate.now()` mitten in der Rechnung: Der Wert fröre auf dem Tag ein, an
+            // dem zuletzt etwas ausgesendet wurde – Streaks und „seit N Tagen“ blieben bei einer
+            // über Nacht offen gebliebenen App auf gestern stehen.
+            currentDate.flow,
+            repository.dayCount,
+            repository.hiddenExerciseNames,
+            ::PlanView
+        )
+    ) { sessions, logs, exercises, definitions, plan ->
+        val today = plan.today
         val zone = ZoneId.systemDefault()
         val dates = sessions.map { it.completedAt.toLocalDate() }
         val times = sessions.map {
             Instant.ofEpochMilli(it.completedAt).atZone(zone).toLocalTime()
         }
 
+        // Übungen, die an einem sichtbaren Tag stehen und nicht ausgeblendet sind. Eine
+        // pausierte Übung soll nicht als „festgefahren“ auftauchen – sie ruht mit Absicht –, und
+        // ein Tag hinter einer verkürzten Runde wird gerade gar nicht trainiert.
+        val planned = exercises.filter {
+            it.dayId <= plan.dayCount && it.name !in plan.hiddenExerciseNames
+        }
+        val plannedNames = planned.mapTo(HashSet()) { it.name }
+        val decreasing = definitions.filter { it.progressionDown }.mapTo(HashSet()) { it.name }
+
         // Verlaufseinträge kommen älteste zuerst – genau die Reihenfolge, die der Zuwachs braucht.
-        val gains = exerciseGains(logs.map { it.exerciseName to it.weightKg })
+        val gains = exerciseGains(logs.map { it.exerciseName to it.weightKg }, decreasing)
         val lastChanged = logs.groupBy { it.exerciseName }
             .mapValues { (_, entries) -> entries.maxOf { it.recordedAt }.toLocalDate() }
-        val currentWeights = definitions.mapNotNull { definition ->
-            definition.weightKg?.let { definition.name to it }
-        }.toMap()
+        val currentWeights = definitions
+            .filter { it.name in plannedNames }
+            .mapNotNull { definition -> definition.weightKg?.let { definition.name to it } }
+            .toMap()
         StatsUiState(
             totalSessions = sessions.size,
             sessionsPerWeek = sessionsPerWeek(dates, today),
@@ -78,8 +101,11 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             typicalTime = typicalTimeOfDay(times),
             totalGainKg = gains.sumOf { it.gainKg },
             stagnating = stagnatingExercises(lastChanged, currentWeights, today).take(TOP_ENTRIES),
-            exerciseCount = exercises.size,
-            heaviestExercise = currentWeights.maxByOrNull { it.value }?.toPair()
+            exerciseCount = planned.size,
+            // Die Last einer Übung mit Pfeil nach unten ist Unterstützung, keine Last – die
+            // schwerste Übung wäre sonst womöglich die, bei der am meisten geholfen wird.
+            heaviestExercise = currentWeights.filterKeys { it !in decreasing }
+                .maxByOrNull { it.value }?.toPair()
         )
     }.stateIn(
         scope = viewModelScope,

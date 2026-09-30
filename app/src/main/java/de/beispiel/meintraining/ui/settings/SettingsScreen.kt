@@ -45,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +57,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -94,7 +96,9 @@ private enum class SettingsSection { OVERVIEW, DAYS, EXERCISES, BACKUP }
 fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var section by remember { mutableStateOf(SettingsSection.OVERVIEW) }
+    // Gesichert wie der Menübereich darüber: Eine Drehung des Geräts führte sonst aus dem
+    // Untermenü zurück auf die Übersicht.
+    var section by rememberSaveable { mutableStateOf(SettingsSection.OVERVIEW) }
 
     // Aus einem Untermenü führt „Zurück“ erst eine Ebene hoch.
     BackHandler(enabled = section != SettingsSection.OVERVIEW) {
@@ -170,7 +174,8 @@ fun SettingsScreen(
                     onValueChange = onAppTitleChange,
                     label = stringResource(R.string.settings_app_title),
                     supportingText = stringResource(R.string.settings_app_title_hint),
-                    keyboardType = KeyboardType.Text
+                    keyboardType = KeyboardType.Text,
+                    capitalization = KeyboardCapitalization.Sentences
                 )
                 SettingsField(
                     value = uiState.deloadCycleWeeks.toString(),
@@ -428,7 +433,8 @@ private fun ManageDaysScreen(
                         value = day.name,
                         onValueChange = { onRenameDay(day.id, it) },
                         label = stringResource(R.string.settings_day_label, day.id),
-                        keyboardType = KeyboardType.Text
+                        keyboardType = KeyboardType.Text,
+                        capitalization = KeyboardCapitalization.Sentences
                     )
                 }
             }
@@ -818,7 +824,8 @@ internal fun SettingsField(
     label: String,
     keyboardType: KeyboardType,
     supportingText: String? = null,
-    resetOnFocusLoss: Boolean = false
+    resetOnFocusLoss: Boolean = false,
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.None
 ) {
     var text by remember { mutableStateOf(value) }
     var hasFocus by remember { mutableStateOf(false) }
@@ -835,7 +842,10 @@ internal fun SettingsField(
         supportingText = supportingText?.let { hint ->
             { Text(text = hint, style = AppTextStyles.ColumnLabel) }
         },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        keyboardOptions = KeyboardOptions(
+            capitalization = capitalization,
+            keyboardType = keyboardType
+        ),
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = TextPrimary,
             unfocusedTextColor = TextPrimary,

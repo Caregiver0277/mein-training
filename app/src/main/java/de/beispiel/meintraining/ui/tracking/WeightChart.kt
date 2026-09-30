@@ -28,6 +28,8 @@ import de.beispiel.meintraining.util.toDecimalString
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.log10
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
@@ -100,19 +102,19 @@ fun WeightChart(
 }
 
 /** Wertebereich der Y-Achse samt der Höhe der Hilfslinien. */
-private data class VerticalScale(val min: Double, val max: Double, val lines: List<Double>)
+internal data class VerticalScale(val min: Double, val max: Double, val lines: List<Double>)
 
 /**
  * Legt die Y-Achse auf runde Stufen (…, 2,5, 5, 10 …) statt auf die rohen Messwerte – nur so
  * lassen sich Zwischenwerte an den Hilfslinien überhaupt ablesen.
  */
-private fun verticalScaleFor(series: List<ChartSeries>): VerticalScale {
+internal fun verticalScaleFor(series: List<ChartSeries>): VerticalScale {
     val weights = series.flatMap { line -> line.points.map { it.weightKg } }
     val rawMin = weights.minOrNull() ?: 0.0
     val rawMax = weights.maxOrNull() ?: 0.0
 
     // Bei nur einem Wert braucht die Achse trotzdem Höhe, sonst liegt die Linie auf dem Rand.
-    val center = (rawMin + rawMax) / 2
+    val center = rawMin + (rawMax - rawMin) / 2
     val span = maxOf(rawMax - rawMin, MIN_SPAN_KG)
     val step = niceStep(span / (GRID_LINES - 1))
 
@@ -121,13 +123,33 @@ private fun verticalScaleFor(series: List<ChartSeries>): VerticalScale {
     // Läge ein Messpunkt genau auf der Kante, wäre er halb abgeschnitten.
     if (rawMin - min < step * EDGE_TOLERANCE) min -= step
     if (max - rawMax < step * EDGE_TOLERANCE) max += step
+    // Gewichte gibt es erst ab null: Eine Hilfslinie bei „-2,5“ beschriftete etwas, das nicht
+    // vorkommen kann. Ein Punkt bei 0 liegt dann auf der untersten Linie – unten ist unter dem
+    // Graphen noch die Zeitachse, abgeschnitten wird dort nichts.
+    if (rawMin >= 0.0) min = maxOf(min, 0.0)
 
-    val lineCount = ((max - min) / step).roundToInt() + 1
+    // Mit Stufen nach Größenordnung sind es nie mehr als eine Handvoll Linien. Die Obergrenze
+    // fängt nur ab, was sich nicht mehr rechnen lässt – Gewichte nahe am Rand dessen, was eine
+    // Kommazahl fassen kann.
+    val lineCount = ((max - min) / step).roundToInt().coerceIn(0, MAX_GRID_LINES) + 1
     return VerticalScale(min, max, List(lineCount) { min + step * it })
 }
 
-private fun niceStep(raw: Double): Double =
-    NICE_STEPS.firstOrNull { it >= raw } ?: NICE_STEPS.last()
+/**
+ * Die kleinste runde Stufe, die mindestens [raw] groß ist.
+ *
+ * Über [NICE_STEPS] hinaus geht es nach Größenordnung weiter: 1, 2, 2,5 oder 5 mal einer
+ * Zehnerpotenz. Die Liste endete früher bei 100 und blieb dort stehen. Ein vertipptes Gewicht –
+ * „60000“ statt „60“ – zog damit Hunderte Hilfslinien samt Beschriftung nach sich, ein noch
+ * größeres Millionen, und das Tracking ging nicht mehr auf. Mit ihm auch nicht die Punktliste,
+ * in der sich der falsche Eintrag löschen ließe.
+ */
+private fun niceStep(raw: Double): Double {
+    NICE_STEPS.firstOrNull { it >= raw }?.let { return it }
+    val magnitude = 10.0.pow(floor(log10(raw)))
+    return LARGE_STEP_FACTORS.firstOrNull { it * magnitude >= raw }?.times(magnitude)
+        ?: (LARGE_STEP_FACTORS.first() * 10 * magnitude)
+}
 
 private fun DrawScope.drawHorizontalGrid(
     labels: List<TextLayoutResult>,
@@ -231,6 +253,8 @@ private const val GRID_LINES = 5
 private const val MIN_SPAN_KG = 2.5
 private const val EDGE_TOLERANCE = 0.15
 private val NICE_STEPS = listOf(0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 20.0, 25.0, 50.0, 100.0)
+private val LARGE_STEP_FACTORS = listOf(1.0, 2.0, 2.5, 5.0)
+private const val MAX_GRID_LINES = 12
 private val GRID_STROKE = 1.dp
 private val SERIES_STROKE = 2.dp
 private val POINT_RADIUS = 3.dp

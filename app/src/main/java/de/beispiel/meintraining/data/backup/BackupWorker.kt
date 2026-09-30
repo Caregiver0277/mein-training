@@ -1,7 +1,7 @@
 package de.beispiel.meintraining.data.backup
 
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -43,7 +43,7 @@ class BackupWorker(
             // Durchlauf überschrieben. Steht gerade nichts da – frisch zurückgesetzt, ein
             // misslungener Import –, bleibt die alte Sicherung lieber stehen.
             if (backup.hasContent) {
-                backups.writeTo(Uri.parse(target), backup)
+                backups.writeTo(target.toUri(), backup)
                 finish(app, error = null)
             } else {
                 finish(app, applicationContext.getString(R.string.backup_error_no_content))

@@ -14,10 +14,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.ui.theme.AppTextStyles
 import de.beispiel.meintraining.ui.theme.Dimens
@@ -41,13 +43,25 @@ fun DayTabRow(
     ) {
         days.forEach { day ->
             DayTab(
-                label = day.name,
+                label = dayLabel(day.id, day.name),
                 isSelected = day.id == selectedDayId,
                 onClick = { onDaySelected(day.id) }
             )
         }
     }
 }
+
+/**
+ * Der Name eines Trainingstages, wie er angezeigt wird.
+ *
+ * Ein leer gelassener Name fällt auf „Tag N“ zurück. Leeren lässt er sich in den Einstellungen
+ * jederzeit – und sei es nur, um ihn neu zu tippen; bliebe es dabei, stünde ein Reiter ohne
+ * Beschriftung da. Gespeichert wird trotzdem, was im Feld steht: Ein Einsetzen schon dort
+ * spränge dem Nutzer mitten ins Tippen.
+ */
+@Composable
+fun dayLabel(dayId: Int, name: String?): String =
+    name?.takeUnless { it.isBlank() } ?: stringResource(R.string.day_name, dayId)
 
 @Composable
 private fun RowScope.DayTab(

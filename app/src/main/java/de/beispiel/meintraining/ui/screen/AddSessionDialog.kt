@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.model.TrainingDay
+import de.beispiel.meintraining.ui.components.dayLabel
 import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AppTextStyles
 import de.beispiel.meintraining.ui.theme.CardBackground
@@ -149,7 +150,7 @@ fun AddSessionDialog(
                     ) {
                         days.forEach { day ->
                             DayChip(
-                                label = day.name,
+                                label = dayLabel(day.id, day.name),
                                 isSelected = day.id == selectedDayId,
                                 onClick = { selectedDayId = day.id }
                             )

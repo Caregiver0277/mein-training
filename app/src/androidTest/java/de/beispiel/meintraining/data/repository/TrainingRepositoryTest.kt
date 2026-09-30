@@ -211,6 +211,31 @@ class TrainingRepositoryTest {
         assertEquals(versteckt, database.exerciseDao().listByDay(1)[1].id)
     }
 
+    /**
+     * Umsortieren, während hinter einem Superset eine ausgeblendete Übung steht: Wer eine andere
+     * Übung über das Superset schiebt, darf es dabei nicht verlieren.
+     *
+     * Die ausgeblendete Zeile behält ihren Platz, und der fiele hier mitten in den Block. Ohne
+     * Ausnahme dafür löste das Aufräumen das Superset auf, obwohl auf dem Bildschirm alle
+     * Mitglieder beieinanderstanden.
+     */
+    @Test
+    fun umsortierenErhaeltEinSupersetTrotzAusgeblendeterUebung() = runBlocking {
+        val bizeps = anlegen(name = "Bizeps", weightKg = 15.0, stepKg = 1.25)
+        val trizeps = anlegen(name = "Trizeps", weightKg = 20.0, stepKg = 1.25)
+        val versteckt = anlegen(name = "Unterarme", weightKg = 10.0, stepKg = 1.25)
+        val seitheben = anlegen(name = "Seitheben", weightKg = 8.0, stepKg = 1.0)
+        repository.createSuperset(dayId = 1, ids = setOf(bizeps, trizeps))
+        repository.setExerciseHidden("Unterarme", hidden = true)
+
+        // Sichtbar: [Bizeps Trizeps] Seitheben – Seitheben wird ganz nach oben geschoben.
+        repository.reorderExercises(dayId = 1, orderedIds = listOf(seitheben, bizeps, trizeps))
+
+        val tag = database.exerciseDao().listByDay(1)
+        assertEquals(listOf(seitheben, bizeps, trizeps, versteckt), tag.map { it.id })
+        assertTrue(tag.filter { it.id in setOf(bizeps, trizeps) }.all { it.supersetId != null })
+    }
+
     /** Umbenennen zieht die Ausblendung mit, statt sie am alten Namen hängen zu lassen. */
     @Test
     fun umbenennenNimmtDieAusblendungMit() = runBlocking {

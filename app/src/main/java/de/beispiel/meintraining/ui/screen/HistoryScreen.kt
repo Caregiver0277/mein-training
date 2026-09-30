@@ -39,6 +39,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WorkoutSession
+import de.beispiel.meintraining.ui.components.dayLabel
 import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AccentGreen
 import de.beispiel.meintraining.ui.theme.AccentGreenSurface
@@ -279,8 +280,9 @@ private fun CycleHeader(cycle: HistoryCycle) {
             text = if (cycle.entries.isEmpty()) {
                 stringResource(R.string.history_cycle_empty)
             } else {
-                stringResource(
-                    R.string.history_cycle_progress,
+                pluralStringResource(
+                    R.plurals.history_cycle_progress,
+                    cycle.dayCount,
                     cycle.completedDays,
                     cycle.dayCount
                 )
@@ -309,13 +311,14 @@ private fun CycleHeader(cycle: HistoryCycle) {
 /**
  * „Tag 2 · 18:30 Uhr“ – Name des Trainingstages und Uhrzeit.
  *
- * Fehlt der Name, weil der Tag inzwischen hinter einer verkürzten Runde liegt, tritt die
- * Nummer an seine Stelle; ein Eintrag ohne Beschriftung wäre nicht wiederzuerkennen.
+ * Fehlt der Name, weil der Tag inzwischen hinter einer verkürzten Runde liegt oder leer gelassen
+ * wurde, tritt die Nummer an seine Stelle; ein Eintrag ohne Beschriftung wäre nicht
+ * wiederzuerkennen.
  */
 @Composable
 private fun HistoryEntry.label(dayNames: Map<Int, String>): String = stringResource(
     R.string.history_entry,
-    dayNames[session.dayId] ?: stringResource(R.string.day_name, session.dayId),
+    dayLabel(session.dayId, dayNames[session.dayId]),
     session.completedAt.toClockTime()
 )
 
@@ -352,7 +355,12 @@ private fun HistoryRow(
             .fillMaxWidth()
             .clip(Dimens.CornerCard)
             .background(CardBackground)
-            .combinedClickable(onClick = {}, onLongClick = onLongClick)
+            // Benannt, damit TalkBack den langen Druck als „Löschen“ ansagt statt als stumme Geste.
+            .combinedClickable(
+                onClick = {},
+                onLongClick = onLongClick,
+                onLongClickLabel = stringResource(R.string.action_delete)
+            )
             .padding(Dimens.SectionSpacingMedium),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -23,6 +23,7 @@ import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.decreaseWeight
 import de.beispiel.meintraining.util.increaseWeight
+import de.beispiel.meintraining.util.keepSupersetBlocksTogether
 import de.beispiel.meintraining.util.nextDayId
 import de.beispiel.meintraining.util.rotations
 import de.beispiel.meintraining.util.survivingSupersetMembers
@@ -689,13 +690,24 @@ class TrainingRepository(
      * ganze Tag, und die Plätze der sichtbaren Zeilen bekommen die neue Reihenfolge. Nur die
      * sichtbaren neu zu nummerieren wäre nicht genug – die Ausgeblendeten behielten ihre alten
      * Nummern, läge damit doppelt und rutschten beim Einblenden irgendwohin.
+     *
+     * Einzige Ausnahme: Fiele ihr Platz mitten in ein Superset, rücken sie hinter dessen Block
+     * (siehe [keepSupersetBlocksTogether]) – sonst löste das Aufräumen ein Superset auf, dessen
+     * Mitglieder auf dem Bildschirm beieinanderstanden.
      */
     suspend fun reorderExercises(dayId: Int, orderedIds: List<Long>) = database.withTransaction {
-        val existing = exerciseDao.listByDay(dayId).map { it.id }
+        val rows = exerciseDao.listByDay(dayId)
+        val existing = rows.map { it.id }
         val moved = orderedIds.filter { it in existing }
         val nextMoved = moved.iterator()
         val complete = existing.map { id -> if (id in moved) nextMoved.next() else id }
-        complete.forEachIndexed { index, id -> exerciseDao.updatePosition(id, index) }
+        val supersetOf = rows.associate { it.id to it.supersetId }
+        val arranged = keepSupersetBlocksTogether(
+            orderedIds = complete,
+            supersetIds = complete.map { supersetOf[it] },
+            pinned = existing.toSet() - moved.toSet()
+        )
+        arranged.forEachIndexed { index, id -> exerciseDao.updatePosition(id, index) }
         normalizeSupersets(dayId)
     }
 

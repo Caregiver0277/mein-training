@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.os.Build
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -66,13 +67,24 @@ class RestTimerReceiver : BroadcastReceiver() {
         }
         if (vibrator == null || !vibrator.hasVibrator()) return
 
-        val attributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
         // Warten – brummen – Pause – brummen.
         val pattern = longArrayOf(0L, 450L, 250L, 450L)
-        vibrator.vibrate(VibrationEffect.createWaveform(pattern, NO_REPEAT), attributes)
+        val effect = VibrationEffect.createWaveform(pattern, NO_REPEAT)
+        // Ab Android 13 hat das Vibrieren eigene Attribute; der Weg über die Klang-Attribute ist
+        // dort veraltet. Gemeint ist in beiden Fällen dasselbe: ein Wecker.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            vibrator.vibrate(
+                effect,
+                VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM)
+            )
+        } else {
+            val attributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(effect, attributes)
+        }
     }
 
     private companion object {

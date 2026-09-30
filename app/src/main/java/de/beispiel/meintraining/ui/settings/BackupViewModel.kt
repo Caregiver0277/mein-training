@@ -2,6 +2,7 @@ package de.beispiel.meintraining.ui.settings
 
 import android.app.Application
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -55,17 +57,28 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
     private val messages = MutableStateFlow<BackupMessage?>(null)
     val message: StateFlow<BackupMessage?> = messages.asStateFlow()
 
+    /**
+     * Der Name der Sicherungsdatei, beim Anbieter nachgefragt – siehe
+     * [de.beispiel.meintraining.data.backup.BackupRepository.displayName].
+     *
+     * Ein eigener Zufluss, damit die Nachfrage nur läuft, wenn sich das Ziel ändert, und nicht bei
+     * jedem Umspringen von [busy]. Antwortet der Anbieter nicht, bleibt es beim Ende der Adresse.
+     */
+    private val targetName = settings.backupTargetUri.map { target ->
+        target?.let { backups.displayName(it.toUri()) ?: fallbackNameFor(it) }
+    }
+
     val uiState = combine(
         settings.backupEnabled,
         settings.backupIntervalDays,
-        settings.backupTargetUri,
+        targetName,
         combine(settings.lastBackupAt, settings.lastBackupError) { at, error -> at to error },
         busy
     ) { enabled, interval, target, (lastAt, lastError), isBusy ->
         BackupUiState(
             autoBackupEnabled = enabled,
             intervalDays = interval,
-            targetName = target?.let(::displayNameFor),
+            targetName = target,
             lastBackupAt = lastAt,
             lastBackupError = lastError,
             busy = isBusy
@@ -97,7 +110,7 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
             settings.setBackupTargetUri(uri.toString())
             settings.setLastBackupResult(System.currentTimeMillis(), null)
             // Erst wenn das neue Ziel wirklich steht, den Zugriff auf das alte zurückgeben.
-            previous?.takeIf { it != uri.toString() }?.let { backups.releaseAccess(Uri.parse(it)) }
+            previous?.takeIf { it != uri.toString() }?.let { backups.releaseAccess(it.toUri()) }
             BackupMessage.Exported
         }
     }
@@ -166,8 +179,9 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
         else -> throwable.message ?: throwable.javaClass.simpleName
     }
 
-    private fun displayNameFor(uri: String): String =
-        Uri.parse(uri).lastPathSegment?.substringAfterLast('/') ?: uri
+    /** Das Ende der Adresse – bei Dateien auf dem Gerät ist das der Dateiname. */
+    private fun fallbackNameFor(uri: String): String =
+        uri.toUri().lastPathSegment?.substringAfterLast('/') ?: uri
 
     companion object {
         private const val STOP_TIMEOUT_MILLIS = 5_000L

@@ -24,3 +24,5 @@ Thumbs.db
 
 # Werkzeuge
 .claude/settings.local.json
+# --- the work queue (_queue): its own lock, status, reports and worktrees
+/_queue/

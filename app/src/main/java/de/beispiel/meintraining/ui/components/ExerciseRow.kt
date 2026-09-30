@@ -27,6 +27,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.beispiel.meintraining.R
@@ -182,10 +184,14 @@ private fun SelectionMark(isSelected: Boolean) {
             modifier = Modifier.size(Dimens.SelectionMarkSize)
         )
     } else {
+        // Der leere Kreis sagt TalkBack von sich aus nichts; ohne Beschriftung wäre im
+        // Auswahlmodus nur die markierte Hälfte der Zeilen zu erkennen.
+        val description = stringResource(R.string.cd_not_selected)
         Box(
             modifier = Modifier
                 .size(Dimens.SelectionMarkSize)
                 .border(Dimens.SelectionBorderWidth, TextSecondary, CircleShape)
+                .semantics { contentDescription = description }
         )
     }
 }

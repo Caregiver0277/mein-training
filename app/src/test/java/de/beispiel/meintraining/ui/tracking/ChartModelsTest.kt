@@ -139,6 +139,39 @@ class ChartModelsTest {
         assertTrue(buildTimeAxis(window, ZONE).size <= 7)
     }
 
+    // --- Y-Achse ----------------------------------------------------------
+
+    private fun scaleFor(vararg weights: Double) = verticalScaleFor(
+        listOf(ChartSeries("A", weights.mapIndexed { index, kg -> ChartPoint(index.toLong(), kg) }))
+    )
+
+    @Test
+    fun ueblicheGewichteStehenAufRundenStufen() {
+        // 60 → 62,5 kg: Hilfslinien im Abstand von 1 kg, beide Punkte liegen dazwischen.
+        val scale = scaleFor(60.0, 62.5)
+        assertEquals(1.0, scale.lines[1] - scale.lines[0], 1e-9)
+        assertTrue(scale.min < 60.0 && scale.max > 62.5)
+    }
+
+    /**
+     * Ein vertipptes Gewicht darf den Graphen nicht sprengen: Früher hörten die Stufen bei 100
+     * auf, und 60 → 6 000 000 kg ergab Zehntausende Hilfslinien samt Beschriftung.
+     */
+    @Test
+    fun einRiesigerWertErgibtTrotzdemNurEineHandvollLinien() {
+        val scale = scaleFor(60.0, 6_000_000.0)
+        assertTrue("${scale.lines.size} Linien", scale.lines.size <= 9)
+        assertTrue(scale.min <= 60.0 && scale.max >= 6_000_000.0)
+    }
+
+    @Test
+    fun unterNullGibtEsKeineHilfslinien() {
+        val scale = scaleFor(0.0, 5.0)
+        assertEquals(0.0, scale.min, 0.0)
+        assertTrue(scale.lines.all { it >= 0.0 })
+        assertTrue(scale.max > 5.0)
+    }
+
     // --- Aussehen der Kurven ----------------------------------------------
 
     @Test

@@ -219,7 +219,11 @@
     <string name="history_total">Gesamt</string>
     <string name="history_entry">%1$s · %2$s Uhr</string>
     <string name="history_cycle">Runde %1$d</string>
-    <string name="history_cycle_progress">%1$d von %2$d Tagen</string>
+    <!-- Die Mehrzahl richtet sich nach der Rundenlänge: „1 von 1 Tag“, „2 von 4 Tagen“. -->
+    <plurals name="history_cycle_progress">
+        <item quantity="one">%1$d von %2$d Tag</item>
+        <item quantity="other">%1$d von %2$d Tagen</item>
+    </plurals>
     <string name="history_cycle_current">laufend</string>
     <string name="history_cycle_empty">noch kein Training</string>
     <string name="history_today">heute</string>
@@ -304,6 +308,25 @@
     <string name="drawer_deload">Deload</string>
     <string name="drawer_settings">Einstellungen</string>
     <string name="drawer_about">Über die App</string>
-    <string name="placeholder_body">Dieser Bereich ist noch in Arbeit.</string>
+
+    <!-- Über die App -->
+    <string name="about_version">Version %1$s (%2$d)</string>
+    <string name="about_tagline">Dein Trainingsplan mit Gewichten, Pausenuhren und Verlauf – alles an einem Ort.</string>
+    <string name="about_guide_title">Kurzanleitung</string>
+    <string name="about_guide_list">Trainingsliste</string>
+    <string name="about_guide_edit">Übung antippen, um sie zu bearbeiten. Das „+“ unter der Liste legt eine neue an.</string>
+    <string name="about_guide_progress">Der blaue Pfeil erhöht das Gewicht um den Progressionsschritt – zeigt er nach unten, senkt er es. Das gilt an jedem Tag mit dieser Übung.</string>
+    <string name="about_guide_select">Lang drücken startet die Auswahl. Markierte Übungen lassen sich verschieben, löschen oder über das Menü oben zu einem Superset verbinden.</string>
+    <string name="about_guide_check">Der Haken trägt das Training in den Verlauf ein, ein zweites Tippen nimmt es zurück.</string>
+    <string name="about_guide_cycle">Am letzten Tag beginnt der Pfeil neben dem Haken die nächste Runde – auch wenn ein Tag ausgefallen ist. Wer so weitergeschaltet hat, findet am ersten Tag einen Pfeil zurück, solange in der neuen Runde noch nichts abgehakt ist.</string>
+    <string name="about_guide_timers">Pausenuhren</string>
+    <string name="about_guide_timer_toggle">Tippen startet die Pause und hält sie an, lang auf den runden Knopf drücken setzt sie zurück.</string>
+    <string name="about_guide_timer_config">Lang auf die Uhr drücken stellt ihre Dauer ein. Ist die Pause um, vibriert das Handy – auch bei geschlossener App.</string>
+    <string name="about_guide_more">Verlauf, Tracking und Einstellungen</string>
+    <string name="about_guide_history">Im Verlauf trägt das „+“ ein vergessenes Training nach, lang drücken löscht einen Eintrag.</string>
+    <string name="about_guide_tracking">Im Tracking wählt die Liste oben rechts die Übungen aus. Lang auf eine davon drücken zeigt ihre einzelnen Datenpunkte.</string>
+    <string name="about_guide_manage">Unter „Übungen verwalten“ lässt sich eine Übung an allen Tagen ausblenden – oder überall endgültig löschen.</string>
+    <string name="about_data_title">Deine Daten</string>
+    <string name="about_data_body">Die App kommt ohne Konto und ohne Internet aus – sie hat nicht einmal die Berechtigung dafür. Deine Daten liegen auf diesem Gerät und, falls eingeschaltet, in der Android-Gerätesicherung. Eine eigene Sicherungsdatei, auf Wunsch automatisch und auch in Google Drive, legst du unter Einstellungen → Sicherung an.</string>
 
 </resources>

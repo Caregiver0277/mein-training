@@ -49,6 +49,8 @@ android {
 
     buildFeatures {
         compose = true
+        // Für die Versionsangabe unter „Über die App“.
+        buildConfig = true
     }
 
     packaging {

@@ -110,9 +110,20 @@ private fun StatusCard(status: DeloadStatus) {
     }
 }
 
-/** Sechs Punkte für die sechs Wochen des Blocks; der letzte ist die Deload-Woche. */
+/**
+ * Ein Punkt je Woche des Blocks; der letzte ist die Deload-Woche.
+ *
+ * Bis zu [MAX_WEEKS_PER_ROW] Punkte stehen in einer Reihe. Ein Block lässt sich auf bis zu
+ * [de.beispiel.meintraining.util.MAX_CYCLE_WEEKS] Wochen einstellen, und so viele Punkte in
+ * einer Reihe würden auf einem schmalen Handy schmaler als ihre zweistellige Nummer. Längere
+ * Blöcke stehen deshalb in gleich vollen Reihen untereinander – aus 16 Wochen werden zwei
+ * Reihen zu acht, aus 13 eine zu sieben und eine zu sechs.
+ */
 @Composable
 private fun WeekStrip(status: DeloadStatus) {
+    val rows = (status.cycleWeeks + MAX_WEEKS_PER_ROW - 1) / MAX_WEEKS_PER_ROW
+    val perRow = (status.cycleWeeks + rows - 1) / rows
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -125,37 +136,23 @@ private fun WeekStrip(status: DeloadStatus) {
             style = AppTextStyles.ColumnLabel,
             color = TextSecondary
         )
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = Dimens.SectionSpacingMedium),
-            horizontalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall)
+            verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall)
         ) {
-            (1..status.cycleWeeks).forEach { week ->
-                val isDeloadWeek = week == status.cycleWeeks
-                val isCurrent = week == status.weekInCycle && status.cycleStart != null
-                val isDone = status.cycleStart != null && week < status.weekInCycle
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(Dimens.WeekDotHeight)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                isCurrent && isDeloadWeek -> AccentGreen
-                                isCurrent -> AccentBlue
-                                isDone -> OutlineColor
-                                else -> CardBackground
-                            }
-                        )
-                        .border(Dimens.AddButtonBorderWidth, OutlineColor, CircleShape),
-                    contentAlignment = Alignment.Center
+            (1..status.cycleWeeks).chunked(perRow).forEach { weeks ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall)
                 ) {
-                    Text(
-                        text = week.toString(),
-                        style = AppTextStyles.ColumnLabel,
-                        color = if (isCurrent) TextPrimary else TextSecondary
-                    )
+                    weeks.forEach { week ->
+                        WeekDot(week = week, status = status, modifier = Modifier.weight(1f))
+                    }
+                    // Eine kürzere letzte Reihe behält die Punktbreite der übrigen, statt ihre
+                    // Punkte in die Länge zu ziehen.
+                    repeat(perRow - weeks.size) { Spacer(modifier = Modifier.weight(1f)) }
                 }
             }
         }
@@ -167,6 +164,37 @@ private fun WeekStrip(status: DeloadStatus) {
         )
     }
 }
+
+@Composable
+private fun WeekDot(week: Int, status: DeloadStatus, modifier: Modifier = Modifier) {
+    val isDeloadWeek = week == status.cycleWeeks
+    val isCurrent = week == status.weekInCycle && status.cycleStart != null
+    val isDone = status.cycleStart != null && week < status.weekInCycle
+    Box(
+        modifier = modifier
+            .height(Dimens.WeekDotHeight)
+            .clip(CircleShape)
+            .background(
+                when {
+                    isCurrent && isDeloadWeek -> AccentGreen
+                    isCurrent -> AccentBlue
+                    isDone -> OutlineColor
+                    else -> CardBackground
+                }
+            )
+            .border(Dimens.AddButtonBorderWidth, OutlineColor, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = week.toString(),
+            style = AppTextStyles.ColumnLabel,
+            color = if (isCurrent) TextPrimary else TextSecondary
+        )
+    }
+}
+
+/** Mehr Punkte je Reihe würden bei zweistelligen Wochen zu schmal für ihre Nummer. */
+private const val MAX_WEEKS_PER_ROW = 8
 
 @Composable
 private fun FactsCard(status: DeloadStatus) {
@@ -226,16 +254,17 @@ private fun RulesCard(cycleWeeks: Int) {
             style = AppTextStyles.ExerciseName,
             color = TextPrimary
         )
-        Rule(text = stringResource(R.string.deload_rule_sets))
-        Rule(text = stringResource(R.string.deload_rule_weights))
-        Rule(text = stringResource(R.string.deload_rule_cycle, cycleWeeks))
-        Rule(text = stringResource(R.string.deload_rule_rest, REST_RESETS_CYCLE_DAYS.toInt()))
-        Rule(text = stringResource(R.string.deload_rule_display))
+        BulletPoint(text = stringResource(R.string.deload_rule_sets))
+        BulletPoint(text = stringResource(R.string.deload_rule_weights))
+        BulletPoint(text = stringResource(R.string.deload_rule_cycle, cycleWeeks))
+        BulletPoint(text = stringResource(R.string.deload_rule_rest, REST_RESETS_CYCLE_DAYS.toInt()))
+        BulletPoint(text = stringResource(R.string.deload_rule_display))
     }
 }
 
+/** Ein Aufzählungspunkt: blauer Punkt, daneben der Text. Auch „Über die App“ zählt damit auf. */
 @Composable
-private fun Rule(text: String) {
+internal fun BulletPoint(text: String) {
     Row(modifier = Modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier

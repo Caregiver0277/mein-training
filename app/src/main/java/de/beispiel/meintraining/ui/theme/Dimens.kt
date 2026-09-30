@@ -92,6 +92,9 @@ object Dimens {
     val BulletSize = 6.dp
     val BadgeBorderWidth = 1.dp
 
+    // Über die App
+    val AboutIconSize = 56.dp
+
     // Abstände zwischen den Blöcken
     val SectionSpacingSmall = 8.dp
     val SectionSpacingMedium = 12.dp

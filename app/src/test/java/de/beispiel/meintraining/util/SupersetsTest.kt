@@ -65,4 +65,69 @@ class SupersetsTest {
     fun ungleichLangeListenSindEinProgrammierfehler() {
         survivingSupersetMembers(ids(2), listOf(null))
     }
+
+    // --- Ausgeblendete Zeilen beim Umsortieren ------------------------------
+
+    /**
+     * Sichtbar war „C | [A B]“, dahinter ein ausgeblendetes X. Wird C nach oben geschoben,
+     * bekommen die sichtbaren Zeilen die Plätze 0, 1 und 3 – X bliebe auf Platz 2, mitten im
+     * Superset, und das Aufräumen löste es auf. Stattdessen rückt X hinter den Block.
+     */
+    @Test
+    fun eineAusgeblendeteZeileTrenntKeinSuperset() {
+        val supersetOf = mapOf(3L to null, 1L to 7L, 9L to null, 2L to 7L)
+        val arranged = keepSupersetBlocksTogether(
+            orderedIds = listOf(3L, 1L, 9L, 2L),
+            supersetIds = listOf(null, 7L, null, 7L),
+            pinned = setOf(9L)
+        )
+
+        assertEquals(listOf(3L, 1L, 2L, 9L), arranged)
+        assertEquals(
+            setOf(1L, 2L),
+            survivingSupersetMembers(arranged, arranged.map { supersetOf.getValue(it) })
+        )
+    }
+
+    @Test
+    fun ohneSupersetBleibtEineAusgeblendeteZeileAnIhremPlatz() {
+        val arranged = keepSupersetBlocksTogether(
+            orderedIds = listOf(3L, 9L, 1L),
+            supersetIds = listOf(null, null, null),
+            pinned = setOf(9L)
+        )
+        assertEquals(listOf(3L, 9L, 1L), arranged)
+    }
+
+    /** Ein ausgeblendetes Mitglied gehört in seinen Block und bleibt darin stehen. */
+    @Test
+    fun einAusgeblendetesMitgliedBleibtImBlock() {
+        val arranged = keepSupersetBlocksTogether(
+            orderedIds = listOf(1L, 9L, 2L),
+            supersetIds = listOf(7L, 7L, 7L),
+            pinned = setOf(9L)
+        )
+        assertEquals(listOf(1L, 9L, 2L), arranged)
+    }
+
+    /** Zwischen zwei *verschiedenen* Supersets trennt die Zeile nichts und bleibt stehen. */
+    @Test
+    fun zwischenZweiSupersetsBleibtDieZeileStehen() {
+        val arranged = keepSupersetBlocksTogether(
+            orderedIds = listOf(1L, 2L, 9L, 3L, 4L),
+            supersetIds = listOf(7L, 7L, null, 8L, 8L),
+            pinned = setOf(9L)
+        )
+        assertEquals(listOf(1L, 2L, 9L, 3L, 4L), arranged)
+    }
+
+    @Test
+    fun mehrereZurueckgestellteZeilenBehaltenIhreReihenfolge() {
+        val arranged = keepSupersetBlocksTogether(
+            orderedIds = listOf(1L, 9L, 8L, 2L, 3L),
+            supersetIds = listOf(7L, null, null, 7L, null),
+            pinned = setOf(9L, 8L)
+        )
+        assertEquals(listOf(1L, 2L, 9L, 8L, 3L), arranged)
+    }
 }

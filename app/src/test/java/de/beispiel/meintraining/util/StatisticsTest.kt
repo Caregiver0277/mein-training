@@ -126,6 +126,38 @@ class StatisticsTest {
         assertEquals("Squat", gains.first().name)
     }
 
+    /**
+     * Bei einer Übung mit Pfeil nach unten ist die Last Unterstützung: Von 40 auf 25 kg sind
+     * 15 kg Fortschritt – und kein Rückgang, der aus der Rechnung fällt.
+     */
+    @Test
+    fun wenigerUnterstuetzungZaehltAlsZuwachs() {
+        val gains = exerciseGains(
+            listOf("Klimmzug" to 40.0, "Klimmzug" to 30.0, "Klimmzug" to 25.0),
+            decreasing = setOf("Klimmzug")
+        )
+        assertEquals(15.0, gains.single().gainKg, 0.0)
+    }
+
+    @Test
+    fun mehrUnterstuetzungIstKeinZuwachs() {
+        val gains = exerciseGains(
+            listOf("Klimmzug" to 25.0, "Klimmzug" to 30.0),
+            decreasing = setOf("Klimmzug")
+        )
+        assertTrue(gains.isEmpty())
+    }
+
+    @Test
+    fun dieRichtungGiltNurFuerDieGenannteUebung() {
+        val gains = exerciseGains(
+            listOf("Bank" to 50.0, "Bank" to 55.0, "Klimmzug" to 40.0, "Klimmzug" to 20.0),
+            decreasing = setOf("Klimmzug")
+        )
+        assertEquals(listOf("Klimmzug", "Bank"), gains.map { it.name })
+        assertEquals(25.0, gains.sumOf { it.gainKg }, 0.0)
+    }
+
     @Test
     fun stagnationGreiftErstNachDerWartezeit() {
         val stagnating = stagnatingExercises(

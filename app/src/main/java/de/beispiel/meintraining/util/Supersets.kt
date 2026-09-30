@@ -49,3 +49,50 @@ fun survivingSupersetMembers(
         }
     return surviving
 }
+
+/**
+ * Rückt Zeilen, die beim Umsortieren mitten in einem Superset gelandet sind, hinter dessen Block.
+ *
+ * Gemeint sind die [pinned] Zeilen: die ausgeblendeten, die beim Umsortieren ihren Platz zwischen
+ * den sichtbaren behalten (siehe
+ * [de.beispiel.meintraining.data.repository.TrainingRepository.reorderExercises]). Fällt dieser
+ * Platz zwischen zwei Mitglieder desselben Supersets, trennte die unsichtbare Zeile den Block –
+ * und [survivingSupersetMembers] löste ihn danach auf, obwohl auf dem Bildschirm alle Mitglieder
+ * beieinanderstanden. Wer eine Übung über ein Superset schiebt, verlöre es so, ohne es angefasst
+ * zu haben.
+ *
+ * Ausgeblendete Mitglieder desselben Supersets bleiben, wo sie sind: Sie gehören in den Block.
+ * Alle übrigen Zeilen behalten ihre Reihenfolge.
+ *
+ * [orderedIds] und [supersetIds] beschreiben wie bei [survivingSupersetMembers] dieselbe Liste.
+ */
+fun keepSupersetBlocksTogether(
+    orderedIds: List<Long>,
+    supersetIds: List<Long?>,
+    pinned: Set<Long>
+): List<Long> {
+    require(orderedIds.size == supersetIds.size) {
+        "orderedIds und supersetIds müssen gleich lang sein"
+    }
+
+    val result = ArrayList<Long>(orderedIds.size)
+    // Zurückgestellt, bis der Block zu Ende ist, in dem sie gelandet sind.
+    val waiting = mutableListOf<Long>()
+    // Das Superset der zuletzt gesetzten beweglichen Zeile; `null` heißt: kein Block offen.
+    var block: Long? = null
+    orderedIds.forEachIndexed { index, id ->
+        val superset = supersetIds[index]
+        if (id in pinned) {
+            if (block != null && superset != block) waiting += id else result += id
+        } else {
+            if (superset != block) {
+                result += waiting
+                waiting.clear()
+            }
+            block = superset
+            result += id
+        }
+    }
+    result += waiting
+    return result
+}

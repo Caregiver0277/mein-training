@@ -3,8 +3,11 @@ package de.beispiel.meintraining.data.backup
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.core.net.toUri
 import androidx.room.withTransaction
 import de.beispiel.meintraining.data.local.AppDatabase
+import de.beispiel.meintraining.data.local.SettingsSnapshot
 import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.model.Exercise
 import de.beispiel.meintraining.data.model.ExerciseDefinition
@@ -38,8 +41,21 @@ class BackupRepository(
 
     private val appContext = context.applicationContext
 
-    /** Sammelt den gesamten Bestand ein. */
+    /**
+     * Sammelt den gesamten Bestand ein.
+     *
+     * Die Tabellen werden in einer Transaktion gelesen: Einzeln abgefragt, könnte sich zwischen
+     * zwei Abfragen eine Änderung schieben – etwa eine eben angelegte Übung, deren Definition
+     * schon gelesen war, die Zeile selbst aber noch nicht. Die Sicherung enthielte dann einen
+     * Stand, den es so nie gab. Die Einstellungen kommen vorher und außerhalb dazu; sie liegen
+     * nicht in der Datenbank, und auf sie zu warten hielte deren einzigen Transaktionsfaden auf.
+     */
     suspend fun createBackup(now: Long = System.currentTimeMillis()): BackupFile {
+        val settings = settingsStore.snapshot()
+        return database.withTransaction { collectBackup(now, settings) }
+    }
+
+    private suspend fun collectBackup(now: Long, settings: SettingsSnapshot): BackupFile {
         val days = database.trainingDayDao().listAll()
         val exercises = database.exerciseDao().listAll()
         val definitions = database.exerciseDefinitionDao().listAll()
@@ -80,7 +96,7 @@ class BackupRepository(
             sessions = sessions.map {
                 BackupSession(dayId = it.dayId, completedAt = it.completedAt)
             },
-            settings = with(settingsStore.snapshot()) {
+            settings = with(settings) {
                 BackupSettings(
                     appTitle = appTitle,
                     deloadCycleWeeks = deloadCycleWeeks,
@@ -150,6 +166,22 @@ class BackupRepository(
     }
 
     /**
+     * Der Name der Datei, wie ihr Anbieter ihn führt.
+     *
+     * Aus der Adresse allein lässt er sich nicht verlässlich ablesen: Bei Dateien auf dem Gerät
+     * steht er zwar an ihrem Ende, bei Google Drive und anderen Cloud-Anbietern dagegen eine
+     * interne Kennung wie „acc=1;doc=encoded=…“. `null`, wenn der Anbieter keinen Namen nennt –
+     * etwa weil der Zugriff inzwischen entzogen wurde.
+     */
+    suspend fun displayName(uri: Uri): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            appContext.contentResolver
+                .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+        }.getOrNull()?.takeUnless { it.isBlank() }
+    }
+
+    /**
      * Sichert den dauerhaften Zugriff auf eine Datei. Ohne das wäre die Berechtigung nach dem
      * nächsten Neustart weg und die automatische Sicherung liefe ins Leere.
      */
@@ -185,7 +217,7 @@ class BackupRepository(
      */
     suspend fun disableAutoBackup() {
         BackupWorker.cancel(appContext)
-        settingsStore.backupTargetUri.first()?.let { releaseAccess(Uri.parse(it)) }
+        settingsStore.backupTargetUri.first()?.let { releaseAccess(it.toUri()) }
         settingsStore.setBackupTargetUri(null)
         settingsStore.setBackupEnabled(false)
     }

@@ -16,9 +16,20 @@ private const val SECONDS_PER_DAY = 24 * 60 * 60
 /** Ab dieser Ruhezeit gilt das Gewicht einer Übung als festgefahren. */
 const val STAGNATION_DAYS = 28L
 
-/** Gewichtsentwicklung einer Übung vom ersten bis zum aktuellen Eintrag. */
-data class ExerciseGain(val name: String, val fromKg: Double, val toKg: Double) {
-    val gainKg: Double get() = toKg - fromKg
+/**
+ * Gewichtsentwicklung einer Übung vom ersten bis zum aktuellen Eintrag.
+ *
+ * [isDecreasing] heißt: Der Pfeil der Übung zeigt nach unten, die Last ist eine Unterstützung
+ * – etwa an der Klimmzugmaschine –, und Fortschritt heißt, dass sie *sinkt*. Der Zuwachs ist dann,
+ * was sie gesunken ist: Von 40 auf 25 kg Unterstützung sind 15 kg mehr, die man selbst bewegt.
+ */
+data class ExerciseGain(
+    val name: String,
+    val fromKg: Double,
+    val toKg: Double,
+    val isDecreasing: Boolean = false
+) {
+    val gainKg: Double get() = if (isDecreasing) fromKg - toKg else toKg - fromKg
     val gainPercent: Double get() = if (fromKg > 0.0) gainKg / fromKg * 100.0 else 0.0
 }
 
@@ -102,12 +113,24 @@ fun typicalTimeOfDay(times: List<LocalTime>): LocalTime? {
 /**
  * Gewichtsentwicklung je Übung, die größten Zuwächse zuerst.
  * [entries] sind Paare aus Übungsname und Gewicht in zeitlicher Reihenfolge.
+ *
+ * [decreasing] sind die Übungen, deren Pfeil nach unten zeigt (siehe [ExerciseGain.isDecreasing]).
+ * Ohne diese Angabe zählte dort ausgerechnet ein Rückschritt – mehr Unterstützung – als Zuwachs,
+ * und der eigentliche Fortschritt fiele weg.
  */
-fun exerciseGains(entries: List<Pair<String, Double>>): List<ExerciseGain> =
+fun exerciseGains(
+    entries: List<Pair<String, Double>>,
+    decreasing: Set<String> = emptySet()
+): List<ExerciseGain> =
     entries.groupBy({ it.first }, { it.second })
         .mapNotNull { (name, weights) ->
             if (weights.size < 2) return@mapNotNull null
-            ExerciseGain(name = name, fromKg = weights.first(), toKg = weights.last())
+            ExerciseGain(
+                name = name,
+                fromKg = weights.first(),
+                toKg = weights.last(),
+                isDecreasing = name in decreasing
+            )
         }
         .filter { it.gainKg > 0.0 }
         .sortedByDescending { it.gainKg }

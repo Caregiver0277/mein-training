@@ -181,8 +181,8 @@ fun TrainingScreen(
         modifier = modifier
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
-            // Vollständig aufgezählt statt mit `else`: Ein neuer Menüpunkt landete sonst
-            // stillschweigend im Platzhalter, statt den Übersetzer zu beschäftigen.
+            // Vollständig aufgezählt statt mit `else`: Ein neuer Menüpunkt beschäftigt so den
+            // Übersetzer, statt stillschweigend auf einer leeren Seite zu landen.
             when (menuDestination) {
                 null -> TrainingContent(
                     uiState = uiState,
@@ -202,10 +202,8 @@ fun TrainingScreen(
                 )
                 MenuDestination.SETTINGS ->
                     SettingsRoute(onBack = { menuDestination = null })
-                MenuDestination.ABOUT -> PlaceholderScreen(
-                    destination = MenuDestination.ABOUT,
-                    onBack = { menuDestination = null }
-                )
+                MenuDestination.ABOUT ->
+                    AboutScreen(onBack = { menuDestination = null })
             }
 
             // Über allem, damit die Schnipsel auch vor dem schwebenden Haken landen. Ausgelöst

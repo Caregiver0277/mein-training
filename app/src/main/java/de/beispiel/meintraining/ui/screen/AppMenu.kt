@@ -2,11 +2,8 @@ package de.beispiel.meintraining.ui.screen
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -124,32 +121,6 @@ fun SubScreenHeader(
                 .padding(start = Dimens.SectionSpacingSmall)
         )
         actions()
-    }
-}
-
-/** Platzhalter für die noch nicht gebauten Bereiche des Menüs. */
-@Composable
-fun PlaceholderScreen(
-    destination: MenuDestination,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier.fillMaxSize()) {
-        SubScreenHeader(title = stringResource(destination.titleRes), onBack = onBack)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(Dimens.ScreenPaddingHorizontal),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = stringResource(R.string.placeholder_body),
-                style = AppTextStyles.Body,
-                color = TextSecondary
-            )
-        }
     }
 }
 
