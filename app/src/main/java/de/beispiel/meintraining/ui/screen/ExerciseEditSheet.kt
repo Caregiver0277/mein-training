@@ -34,6 +34,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -75,6 +77,7 @@ import de.beispiel.meintraining.util.PROGRESSION_STEP_SUGGESTIONS
 import de.beispiel.meintraining.util.WeightChange
 import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.formatShortDate
+import de.beispiel.meintraining.util.parseOptionalInt
 import de.beispiel.meintraining.util.parseProgressionStep
 import de.beispiel.meintraining.util.toDecimalString
 import de.beispiel.meintraining.util.toSignedDecimalString
@@ -270,6 +273,14 @@ private fun ExerciseEditSheetContent(
             supportingText = stringResource(R.string.hint_note_shared)
         )
 
+        LogSetsSwitch(
+            checked = form.logSets,
+            // Ohne Sätze-Zahl gibt es in der Liste keinen Chip und damit nichts anzutippen – das
+            // steht dann gleich hier, statt dass der Schalter scheinbar nichts bewirkt.
+            needsSets = (parseOptionalInt(form.sets) ?: 0) < 1,
+            onCheckedChange = { onFormChange(form.copy(logSets = it)) }
+        )
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -340,6 +351,54 @@ private fun ProgressionStepChips(
                 }
             )
         }
+    }
+}
+
+/**
+ * Schalter „Sätze protokollieren“ unter der Notiz.
+ *
+ * Er hängt wie Gewicht und Notiz am Namen; das sagt der Hinweis darunter. Ist er an, aber keine
+ * Sätze-Zahl eingetragen, tritt an dessen Stelle, dass das Protokoll eine braucht.
+ */
+@Composable
+private fun LogSetsSwitch(
+    checked: Boolean,
+    needsSets: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(Dimens.CornerChip)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.field_log_sets),
+                style = AppTextStyles.Body,
+                color = TextPrimary
+            )
+            Text(
+                text = stringResource(
+                    if (checked && needsSets) {
+                        R.string.hint_log_sets_needs_sets
+                    } else {
+                        R.string.hint_log_sets
+                    }
+                ),
+                style = AppTextStyles.ColumnLabel,
+                color = if (checked && needsSets) TextPrimary else TextSecondary,
+                modifier = Modifier.padding(top = Dimens.SectionSpacingSmall / 2)
+            )
+        }
+        // Die ganze Zeile schaltet; der Schalter selbst zeigt nur an.
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(checkedTrackColor = AccentBlue),
+            modifier = Modifier.padding(start = Dimens.SectionSpacingMedium)
+        )
     }
 }
 
@@ -613,7 +672,8 @@ private fun ExerciseEditSheetContentPreview() {
                 repsMax = "6",
                 // Die feinste Stufe: In der Schnellauswahl steht sie blau da.
                 progressionStep = "0,625",
-                note = "Kabel ganz oben, Ellbogen fest"
+                note = "Kabel ganz oben, Ellbogen fest",
+                logSets = true
             ),
             weightHistory = WeightHistory(
                 currentKg = 20.0,

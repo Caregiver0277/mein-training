@@ -513,7 +513,7 @@ class TrainingViewModel(
 
     /**
      * Sobald der eingetippte Name auf eine bekannte Übung passt, werden deren Gewicht,
-     * Progressionsschritt, Richtung und Notiz übernommen – siehe [ExerciseForm.withChange].
+     * Progressionsschritt, Richtung, Notiz und Protokoll-Schalter übernommen – siehe [ExerciseForm.withChange].
      *
      * Ist das Sheet schon zu, kommt nichts mehr an: Ein Tastendruck, der sich mit dem Speichern
      * überschneidet, öffnete es sonst mit dem alten Stand gleich wieder.
@@ -566,7 +566,8 @@ class TrainingViewModel(
                 repsMax = repsMax,
                 progressionStepKg = parseProgressionStep(form.progressionStep),
                 progressionDown = form.progressionDown,
-                note = form.note.trim()
+                note = form.note.trim(),
+                logSets = form.logSets
             )
         }
     }
@@ -665,6 +666,7 @@ class TrainingViewModel(
         progressionStep = progressionStepKg.toDecimalString(),
         progressionDown = progressionDown,
         note = note.orEmpty(),
+        logSets = logSets,
         // Die Werte im Formular sind die der Übung selbst – ein Wechsel zurück auf ihren Namen
         // holt deshalb nichts aus der Datenbank, sondern lässt stehen, was dasteht.
         originalName = name,

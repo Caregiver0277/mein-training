@@ -10,7 +10,7 @@ import org.junit.Test
 private val BEKANNT = listOf(
     ExerciseDefinition(name = "Rudern", weightKg = 40.0, progressionStepKg = 2.5, note = "Griff eng"),
     ExerciseDefinition(name = "Rudern eng", weightKg = 50.0, progressionStepKg = 2.5),
-    ExerciseDefinition(name = "Curls", weightKg = 12.5, progressionStepKg = 1.25),
+    ExerciseDefinition(name = "Curls", weightKg = 12.5, progressionStepKg = 1.25, logSets = true),
     ExerciseDefinition(
         name = "Klimmzugmaschine",
         weightKg = 30.0,
@@ -144,6 +144,32 @@ class ExerciseFormTest {
             .tippeName("Rudern")
         assertEquals("Griff eng", form.note)
         assertEquals("Bank Stufe 3", form.tippeName("Rudern x").note)
+    }
+
+    // --- Sätze protokollieren -----------------------------------------------
+
+    /** Der Schalter hängt am Namen wie die Notiz: Ein bekannter Name bringt seinen mit. */
+    @Test
+    fun einBekannterNameBringtSeinenProtokollSchalterMit() {
+        assertTrue(ExerciseForm().tippeName("Curls").logSets)
+        assertFalse(ExerciseForm().tippeName("Rudern").logSets)
+    }
+
+    /** Von Hand umgelegt, bleibt er beim Umbenennen stehen – er ist dann der eigene. */
+    @Test
+    fun einVonHandUmgelegterSchalterBleibtBeimUmbenennen() {
+        val form = bearbeiten(name = "Curls", weight = "12,5")
+            .let { it.withChange(it.copy(logSets = true), BEKANNT) }
+            .tippeName("Curls KH")
+        assertTrue(form.logSets)
+    }
+
+    /** Ohne Treffer kommt der eigene Stand zurück – auch für den Schalter. */
+    @Test
+    fun ohneTrefferKommtDerEigeneSchalterZurueck() {
+        val form = ExerciseForm().tippeName("Curls")
+        assertTrue(form.logSets)
+        assertFalse(form.tippeName("Curlsx").logSets)
     }
 
     // --- Übrige Felder -----------------------------------------------------

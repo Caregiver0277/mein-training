@@ -34,6 +34,9 @@
     <string name="hint_weight_shared">Gilt an allen Tagen mit dieser Übung.</string>
     <string name="field_note">Notiz</string>
     <string name="hint_note_shared">Etwa „Sitz 4, Polster 2“ oder ein Technik-Hinweis. Gilt an allen Tagen mit dieser Übung.</string>
+    <string name="field_log_sets">Sätze protokollieren</string>
+    <string name="hint_log_sets">Tippen auf die Sätze in der Liste öffnet das Protokoll: Satz für Satz Gewicht und Wiederholungen. Gilt an allen Tagen mit dieser Übung.</string>
+    <string name="hint_log_sets_needs_sets">Das Protokoll braucht eine Sätze-Zahl – trag oben ein, wie viele Sätze geplant sind.</string>
     <!-- Verlauf unter dem Gewichtsfeld: „60 kg seit 12 Tagen · zuletzt +2,5 kg am 18. Sept.“ -->
     <plurals name="weight_history_since">
         <item quantity="one">%1$s kg seit %2$d Tag</item>
