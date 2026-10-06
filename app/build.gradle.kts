@@ -9,12 +9,12 @@ plugins {
 
 android {
     namespace = "de.beispiel.meintraining"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "de.beispiel.meintraining"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -83,6 +83,8 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    // Close, Delete, Menu & Co.: material3 bringt die Symbole seit 1.4 nicht mehr von selbst mit.
+    implementation(libs.androidx.compose.material.icons.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.androidx.room.runtime)

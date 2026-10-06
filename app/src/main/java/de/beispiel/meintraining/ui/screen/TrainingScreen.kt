@@ -47,7 +47,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -118,7 +118,7 @@ fun TrainingScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    val resources = LocalResources.current
 
     var menuDestination by rememberSaveable { mutableStateOf<MenuDestination?>(null) }
 
@@ -144,7 +144,7 @@ fun TrainingScreen(
     LaunchedEffect(events) {
         events.collectLatest { event ->
             val message = when (event) {
-                is TrainingEvent.WeightChanged -> context.getString(
+                is TrainingEvent.WeightChanged -> resources.getString(
                     if (event.isDecrease) {
                         R.string.snackbar_weight_decreased
                     } else {
@@ -153,22 +153,22 @@ fun TrainingScreen(
                     event.newWeightKg.toWeightLabel(unit)
                 )
                 is TrainingEvent.ExercisesDeleted -> if (event.exercises.size == 1) {
-                    context.getString(
+                    resources.getString(
                         R.string.snackbar_exercise_deleted,
                         event.exercises.first().name
                     )
                 } else {
-                    context.resources.getQuantityString(
+                    resources.getQuantityString(
                         R.plurals.snackbar_exercises_deleted,
                         event.exercises.size,
                         event.exercises.size
                     )
                 }
-                TrainingEvent.CycleStarted -> context.getString(R.string.snackbar_cycle_started)
+                TrainingEvent.CycleStarted -> resources.getString(R.string.snackbar_cycle_started)
             }
             val result = snackbarHostState.showSnackbar(
                 message = message,
-                actionLabel = context.getString(R.string.action_undo),
+                actionLabel = resources.getString(R.string.action_undo),
                 duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) actions.onUndo(event)

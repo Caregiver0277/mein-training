@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
@@ -59,6 +60,7 @@ fun BackupRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val resources = LocalResources.current
 
     val defaultName = stringResource(R.string.backup_default_filename)
     var pendingImport by remember { mutableStateOf<Uri?>(null) }
@@ -67,10 +69,10 @@ fun BackupRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     LaunchedEffect(message) {
         val text = when (val current = message) {
             null -> return@LaunchedEffect
-            BackupMessage.Exported -> context.getString(R.string.backup_done)
-            BackupMessage.Imported -> context.getString(R.string.backup_imported)
+            BackupMessage.Exported -> resources.getString(R.string.backup_done)
+            BackupMessage.Imported -> resources.getString(R.string.backup_imported)
             is BackupMessage.Failed ->
-                context.getString(R.string.backup_failed, current.reason)
+                resources.getString(R.string.backup_failed, current.reason)
         }
         Toast.makeText(context, text, Toast.LENGTH_LONG).show()
         viewModel.onMessageShown()
