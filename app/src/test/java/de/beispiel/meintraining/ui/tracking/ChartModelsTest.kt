@@ -85,7 +85,10 @@ class ChartModelsTest {
         assertEquals(logs.last().recordedAt, points[1].timeMillis)
         assertFalse(points[1].isCarried)
         // Kein Messpunkt, sondern der übernommene Stand – genau bis heute, nicht bis zum Rand.
-        assertEquals(ChartPoint(NOW, 22.5, isCarried = true), points.last())
+        assertEquals(
+            ChartPoint(NOW, 22.5, isCarried = true, recordedAt = logs.last().recordedAt),
+            points.last()
+        )
     }
 
     @Test
@@ -95,7 +98,11 @@ class ChartModelsTest {
 
         val points = buildSeries(logs, listOf("A"), window, NOW, setOf("A")).single().points
 
-        assertEquals(ChartPoint(window.startMillis, 40.0, isCarried = true), points.first())
+        // Das Datum bleibt das des Eintrags – die Beschriftung am Cursor nennt es.
+        assertEquals(
+            ChartPoint(window.startMillis, 40.0, isCarried = true, recordedAt = logs.first().recordedAt),
+            points.first()
+        )
         assertEquals(42.5, points[1].weightKg, 0.0)
         assertFalse(points[1].isCarried)
     }
@@ -110,8 +117,8 @@ class ChartModelsTest {
 
         assertEquals(
             listOf(
-                ChartPoint(window.startMillis, 40.0, isCarried = true),
-                ChartPoint(NOW, 40.0, isCarried = true)
+                ChartPoint(window.startMillis, 40.0, isCarried = true, recordedAt = logs[0].recordedAt),
+                ChartPoint(NOW, 40.0, isCarried = true, recordedAt = logs[0].recordedAt)
             ),
             points
         )
@@ -127,7 +134,10 @@ class ChartModelsTest {
         // 600 Tage zurück liegt 2024: Der Stand trägt den linken Rand, 2025 kommt 32,5 dazu.
         assertEquals(30.0, points.first().weightKg, 0.0)
         assertTrue(points.first().isCarried)
-        assertEquals(ChartPoint(window.endMillis, 32.5, isCarried = true), points.last())
+        assertEquals(
+            ChartPoint(window.endMillis, 32.5, isCarried = true, recordedAt = logs[1].recordedAt),
+            points.last()
+        )
     }
 
     @Test

@@ -100,6 +100,9 @@
     <string name="cd_tracking_unit_percent">Veränderung in Prozent zeigen</string>
     <!-- Beschriftung der Y-Achse in der %-Ansicht: „10 %“, „−5 %“. -->
     <string name="tracking_axis_percent">%1$s %%</string>
+    <!-- Beschriftung am Cursor im Tracking-Graphen, unter dem Namen der Übung. -->
+    <string name="tracking_cursor_kg">%1$s kg · %2$s</string>
+    <string name="tracking_cursor_percent">%1$s kg · %2$s %% · %3$s</string>
     <!-- Legende in der %-Ansicht für eine Kurve, die bei 0 kg beginnt. -->
     <string name="tracking_legend_no_base">%1$s (beginnt bei 0 kg, kein Prozentwert)</string>
 
@@ -363,7 +366,7 @@
     <string name="about_guide_timer_config">Lang auf die Uhr drücken stellt ihre Dauer ein. Ist die Pause um, vibriert das Handy – auch bei geschlossener App.</string>
     <string name="about_guide_more">Verlauf, Tracking und Einstellungen</string>
     <string name="about_guide_history">Im Verlauf trägt das „+“ ein vergessenes Training nach, lang drücken löscht einen Eintrag.</string>
-    <string name="about_guide_tracking">Im Tracking wählt die Liste oben rechts die Übungen aus. Lang auf eine davon drücken zeigt ihre einzelnen Datenpunkte. Jeder Punkt ist eine Gewichtsänderung; blasse Linienstücke ohne Punkt zeigen den Stand, der von vorher weiter gilt. Oben rechts schaltet „kg | %“ auf die Veränderung in Prozent seit Beginn des Zeitraums – so lassen sich leichte und schwere Übungen vergleichen; bei Übungen mit Pfeil nach unten zählt eine Senkung als Plus.</string>
+    <string name="about_guide_tracking">Im Tracking wählt die Liste oben rechts die Übungen aus. Lang auf eine davon drücken zeigt ihre einzelnen Datenpunkte. Jeder Punkt ist eine Gewichtsänderung; blasse Linienstücke ohne Punkt zeigen den Stand, der von vorher weiter gilt. Tippen oder Ziehen auf dem Graphen zeigt Übung, Gewicht und Datum des nächsten Punkts; Tippen daneben blendet das wieder aus. Oben rechts schaltet „kg | %“ auf die Veränderung in Prozent seit Beginn des Zeitraums – so lassen sich leichte und schwere Übungen vergleichen; bei Übungen mit Pfeil nach unten zählt eine Senkung als Plus.</string>
     <string name="about_guide_keep_screen_on">Unter Einstellungen → Allgemein hält „Bildschirm anlassen“ das Display an, solange die App offen ist.</string>
     <string name="about_guide_manage">Unter „Übungen verwalten“ lässt sich eine Übung an allen Tagen ausblenden – oder überall endgültig löschen.</string>
     <string name="about_data_title">Deine Daten</string>

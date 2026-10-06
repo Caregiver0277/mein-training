@@ -44,6 +44,10 @@ val SupersetBackground = Color(0xFF17356B)
 /** Dünne Hilfslinien und Achsen im Tracking-Graphen. */
 val ChartGridLine = Color(0xFF313943)
 
+/** Der Cursor im Tracking-Graphen und der Grund seiner Beschriftung. */
+val ChartCursorLine = Color(0xFF8A9099)
+val ChartLabelBackground = Color(0xFF2A313C)
+
 /**
  * Farben der Verlaufskurven, absteigend nach Auffälligkeit auf dunklem Grund.
  * Sechs Farben mal fünf Linienarten ergeben 30 unterscheidbare Kurven.

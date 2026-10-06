@@ -3,6 +3,7 @@ package de.beispiel.meintraining.util
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.LocalDate
 
 private const val UNIT = "Kg"
 
@@ -59,6 +60,18 @@ class FormattersTest {
     fun ohneVariationBleibtNurDerName() {
         assertEquals("Trizeps", exerciseTitle("Trizeps", null))
         assertEquals("Trizeps", exerciseTitle("Trizeps", "   "))
+    }
+
+    // --- Datum -------------------------------------------------------------
+
+    @Test
+    fun kurzesDatumNenntDasJahrNurWennEsEinAnderesIst() {
+        val today = LocalDate.of(2026, 10, 6)
+        assertEquals(formatShortDate(LocalDate.of(2026, 9, 18)), formatShortDate(LocalDate.of(2026, 9, 18), today))
+        assertEquals(
+            formatShortDate(LocalDate.of(2025, 9, 18)) + " 2025",
+            formatShortDate(LocalDate.of(2025, 9, 18), today)
+        )
     }
 
     // --- Sätze und Wiederholungen -----------------------------------------

@@ -66,6 +66,13 @@ fun formatFullDate(date: LocalDate): String = FULL_DATE.format(date)
 fun formatShortDate(date: LocalDate): String = SHORT_DATE.format(date)
 
 /**
+ * Wie [formatShortDate], aber mit Jahr, sobald es nicht das von [today] ist: `"2. Aug 2025"`.
+ * Für Stellen, die weit zurückreichen – im Tracking liegt „Gesamt“ schnell über Jahre.
+ */
+fun formatShortDate(date: LocalDate, today: LocalDate): String =
+    if (date.year == today.year) formatShortDate(date) else "${formatShortDate(date)} ${date.year}"
+
+/**
  * Anzeigename einer Übung. Die Variation steht in Klammern dahinter:
  * `"Trizeps", "Seil" → "Trizeps (Seil)"`, ohne Variation bleibt es beim Namen.
  */

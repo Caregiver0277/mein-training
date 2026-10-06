@@ -34,6 +34,12 @@ data class ChartPoint(
     val weightKg: Double,
     val isCarried: Boolean = false,
     /**
+     * Wann dieser Stand eingetragen wurde. Bei einer echten Änderung derselbe Zeitpunkt, bei
+     * einem übernommenen der des Eintrags, von dem er stammt – die Beschriftung am Cursor
+     * nennt so das Datum, an dem das Gewicht gesetzt wurde, nicht den Rand des Zeitraums.
+     */
+    val recordedAt: Long = timeMillis,
+    /**
      * Veränderung gegenüber dem ersten Wert der Kurve in Prozent – nur in der %-Ansicht
      * gesetzt, siehe [toPercentSeries].
      */
@@ -208,11 +214,20 @@ fun buildSeries(
         if (carriedStart == null && inside.isEmpty()) return@mapNotNull null
 
         val points = buildList {
-            carriedStart?.let { add(ChartPoint(window.startMillis, it.weightKg, isCarried = true)) }
+            carriedStart?.let {
+                add(ChartPoint(window.startMillis, it.weightKg, isCarried = true, recordedAt = it.recordedAt))
+            }
             inside.forEach { add(ChartPoint(it.recordedAt, it.weightKg)) }
             val latest = last()
             if (validUntil > latest.timeMillis) {
-                add(ChartPoint(validUntil, latest.weightKg, isCarried = true))
+                add(
+                    ChartPoint(
+                        validUntil,
+                        latest.weightKg,
+                        isCarried = true,
+                        recordedAt = latest.recordedAt
+                    )
+                )
             }
         }
         ChartSeries(name = name, points = points)
