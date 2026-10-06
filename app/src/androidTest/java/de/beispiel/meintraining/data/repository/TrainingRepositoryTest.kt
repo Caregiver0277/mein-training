@@ -156,6 +156,46 @@ class TrainingRepositoryTest {
         assertEquals(listOf(2.0, 0.0), verlaufVon("Bandunterstützung"))
     }
 
+    // --- Ein Schritt zurück (langer Druck auf den Pfeil) -------------------
+
+    /**
+     * Der lange Druck geht einen Schritt gegen die Pfeilrichtung, schreibt dafür einen eigenen
+     * Verlaufspunkt und lässt sich genauso zurücknehmen wie ein Tippen. Die Richtung der Übung
+     * bleibt dabei unverändert.
+     */
+    @Test
+    fun einSchrittZurueckGehtGegenDenPfeilUndLaesstSichZuruecknehmen() = runBlocking {
+        anlegen(name = "Schulterdrücken", weightKg = 60.0, stepKg = 2.5)
+
+        repository.progressWeight("Schulterdrücken")!!
+        val zurueck = repository.progressWeight("Schulterdrücken", reverse = true)!!
+        assertEquals(62.5, zurueck.previousKg, 0.0)
+        assertEquals(60.0, zurueck.newKg, 0.0)
+        assertEquals(listOf(60.0, 62.5, 60.0), verlaufVon("Schulterdrücken"))
+
+        assertTrue(zuruecknehmen(zurueck, "Schulterdrücken"))
+        assertEquals(62.5, gewichtVon("Schulterdrücken")!!, 0.0)
+        assertEquals(listOf(60.0, 62.5), verlaufVon("Schulterdrücken"))
+    }
+
+    /** Zeigt der Pfeil nach unten, erhöht der lange Druck – auch von 0 kg aus. */
+    @Test
+    fun beiPfeilNachUntenErhoehtEinSchrittZurueck() = runBlocking {
+        anlegen(name = "Dip-Maschine", weightKg = 0.0, stepKg = 5.0, progressionDown = true)
+
+        assertEquals(5.0, repository.progressWeight("Dip-Maschine", reverse = true)!!.newKg, 0.0)
+        assertEquals(listOf(0.0, 5.0), verlaufVon("Dip-Maschine"))
+    }
+
+    /** Bei 0 kg und Pfeil nach oben bewirkt der lange Druck nichts – kein doppelter Punkt. */
+    @Test
+    fun einSchrittZurueckBleibtBeiNullStehen() = runBlocking {
+        anlegen(name = "Bauchpresse", weightKg = 0.0, stepKg = 2.5)
+
+        assertNull(repository.progressWeight("Bauchpresse", reverse = true))
+        assertEquals(listOf(0.0), verlaufVon("Bauchpresse"))
+    }
+
     // --- Ausblenden --------------------------------------------------------
 
     /**

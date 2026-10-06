@@ -416,6 +416,7 @@ private fun TrainingContent(
                                 },
                                 onLongClick = { actions.onExerciseLongClick(exercise) },
                                 onProgressClick = { actions.onProgressClick(exercise) },
+                                onProgressLongClick = { actions.onProgressLongClick(exercise) },
                                 progressionDown = exercise.progressionDown,
                                 modifier = Modifier.semantics {
                                     customActions = buildList {

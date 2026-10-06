@@ -17,8 +17,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -51,6 +52,7 @@ import de.beispiel.meintraining.ui.theme.TextSecondary
  * Den blauen Pfeil gibt es nur mit Gewicht – ohne Gewicht gäbe es nichts zu verschieben. Sein
  * Platz bleibt trotzdem frei, solange die Zeile Werte zeigt, damit die Spalten stehen bleiben.
  * Mit [progressionDown] zeigt er nach unten und senkt das Gewicht, statt es zu erhöhen.
+ * Lang gedrückt geht er einen Schritt in die Gegenrichtung ([onProgressLongClick]).
  *
  * [dragModifier] wird im Auswahlmodus auf die markierte Zeile gelegt: Wer ausgewählt hat,
  * kann direkt schieben. [isDragging] hebt die Karte dabei optisch ab.
@@ -69,6 +71,7 @@ fun ExerciseRow(
     onLongClick: () -> Unit,
     onProgressClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onProgressLongClick: () -> Unit = {},
     progressionDown: Boolean = false,
     isDragging: Boolean = false,
     isSelectable: Boolean = false,
@@ -141,10 +144,24 @@ fun ExerciseRow(
             }
             when {
                 // Verschieben kann man nur, was ein Gewicht hat.
-                weightLabel != null -> IconButton(
-                    onClick = onProgressClick,
-                    enabled = !isSelectable,
-                    modifier = Modifier.size(Dimens.TouchTargetSize)
+                // Ein IconButton kennt keinen langen Druck; die Box bildet ihn nach – gleiche
+                // Größe, runde Welle, im Auswahlmodus gesperrt. Der lange Druck nutzt die
+                // übliche Android-Wartezeit und vibriert kurz, wenn er greift.
+                weightLabel != null -> Box(
+                    modifier = Modifier
+                        .size(Dimens.TouchTargetSize)
+                        .combinedClickable(
+                            interactionSource = null,
+                            // Dieselbe runde 40dp-Welle wie beim IconButton.
+                            indication = ripple(bounded = false, radius = 20.dp),
+                            enabled = !isSelectable,
+                            role = Role.Button,
+                            onLongClickLabel = stringResource(R.string.action_weight_step_back),
+                            onLongClick = onProgressLongClick,
+                            hapticFeedbackEnabled = true,
+                            onClick = onProgressClick
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         painter = painterResource(

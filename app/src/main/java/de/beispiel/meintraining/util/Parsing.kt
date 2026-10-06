@@ -65,3 +65,22 @@ fun increaseWeight(currentKg: Double, stepKg: Double): Double =
 fun decreaseWeight(currentKg: Double, stepKg: Double): Double =
     BigDecimal.valueOf(currentKg).subtract(BigDecimal.valueOf(stepKg)).toDouble()
         .coerceAtLeast(0.0)
+
+/**
+ * Ein Progressionsschritt in die Richtung, die der Pfeil der Übung zeigt – oder mit
+ * [reverse] genau einen Schritt dagegen: Ein langer Druck auf den Pfeil nimmt eine zu
+ * optimistische Steigerung zurück, ohne die Richtung der Übung umzustellen.
+ *
+ * Unten ist wie bei [decreaseWeight] bei 0 kg Schluss: Ein Schritt, der darunter führte,
+ * endet auf 0, und wer schon bei 0 steht, bleibt dort.
+ */
+fun stepWeight(
+    currentKg: Double,
+    stepKg: Double,
+    progressionDown: Boolean,
+    reverse: Boolean = false
+): Double = if (progressionDown != reverse) {
+    decreaseWeight(currentKg, stepKg)
+} else {
+    increaseWeight(currentKg, stepKg)
+}

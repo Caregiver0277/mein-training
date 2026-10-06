@@ -97,6 +97,7 @@ class MainActivity : ComponentActivity() {
                         onCreateSuperset = viewModel::onCreateSuperset,
                         onDissolveSuperset = viewModel::onDissolveSuperset,
                         onProgressClick = viewModel::onProgressClick,
+                        onProgressLongClick = viewModel::onProgressLongClick,
                         onReorder = viewModel::onReorder,
                         onFormChange = viewModel::onFormChange,
                         onVariationToggle = viewModel::onVariationToggle,

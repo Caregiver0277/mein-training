@@ -129,4 +129,42 @@ class ParsingTest {
         }
         assertEquals(listOf("20,625 Kg", "21,25 Kg", "21,875 Kg", "22,5 Kg"), labels)
     }
+
+    // --- Ein Schritt zurück (langer Druck auf den Pfeil) -------------------
+
+    @Test
+    fun einSchrittFolgtDerPfeilrichtung() {
+        assertEquals(22.5, stepWeight(20.0, 2.5, progressionDown = false), 0.0)
+        assertEquals(17.5, stepWeight(20.0, 2.5, progressionDown = true), 0.0)
+    }
+
+    /** Pfeil nach oben: Der lange Druck senkt; Pfeil nach unten: Er erhöht. */
+    @Test
+    fun einSchrittZurueckGehtGegenDiePfeilrichtung() {
+        assertEquals(57.5, stepWeight(60.0, 2.5, progressionDown = false, reverse = true), 0.0)
+        assertEquals(32.5, stepWeight(30.0, 2.5, progressionDown = true, reverse = true), 0.0)
+    }
+
+    /** Vor und zurück ergibt genau den Ausgangswert – auch beim feinsten Schritt. */
+    @Test
+    fun einSchrittZurueckHebtDenSchrittAufAuchBei0625() {
+        for (down in listOf(false, true)) {
+            val vor = stepWeight(20.0, 0.625, progressionDown = down)
+            val zurueck = stepWeight(vor, 0.625, progressionDown = down, reverse = true)
+            assertEquals("20 Kg", zurueck.toWeightLabel(UNIT))
+        }
+        assertEquals(
+            "19,375 Kg",
+            stepWeight(20.0, 0.625, progressionDown = false, reverse = true).toWeightLabel(UNIT)
+        )
+    }
+
+    /** Auch zurück geht es nicht unter 0 kg: Der Schritt endet dort, bei 0 passiert nichts. */
+    @Test
+    fun einSchrittZurueckBleibtBeiNullStehen() {
+        assertEquals(0.0, stepWeight(2.0, 2.5, progressionDown = false, reverse = true), 0.0)
+        assertEquals(0.0, stepWeight(0.0, 2.5, progressionDown = false, reverse = true), 0.0)
+        // Bei einem Pfeil nach unten geht der Schritt zurück nach oben – auch von 0 aus.
+        assertEquals(2.5, stepWeight(0.0, 2.5, progressionDown = true, reverse = true), 0.0)
+    }
 }

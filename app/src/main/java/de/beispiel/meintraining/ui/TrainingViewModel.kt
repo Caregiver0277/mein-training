@@ -535,13 +535,21 @@ class TrainingViewModel(
      * Gerechnet wird im Repository auf dem gespeicherten Stand; die Zeile entscheidet hier nur,
      * ob es überhaupt etwas zu verschieben gibt – siehe [TrainingRepository.progressWeight].
      */
-    fun onProgressClick(exercise: ExerciseItem) {
+    fun onProgressClick(exercise: ExerciseItem) = progress(exercise, reverse = false)
+
+    /**
+     * Langer Druck auf den Pfeil: genau ein Schritt gegen seine Richtung – für die Steigerung,
+     * die zu viel war. Meldung und „Rückgängig“ wie beim Tippen.
+     */
+    fun onProgressLongClick(exercise: ExerciseItem) = progress(exercise, reverse = true)
+
+    private fun progress(exercise: ExerciseItem, reverse: Boolean) {
         if (exercise.weightKg == null) {
             onExerciseClick(exercise)
             return
         }
         viewModelScope.launch {
-            val change = repository.progressWeight(exercise.name) ?: return@launch
+            val change = repository.progressWeight(exercise.name, reverse) ?: return@launch
             eventChannel.send(
                 TrainingEvent.WeightChanged(
                     exerciseName = exercise.name,

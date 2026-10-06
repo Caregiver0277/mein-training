@@ -18,6 +18,7 @@
     <string name="cd_open_menu">Menü öffnen</string>
     <string name="cd_increase_weight">Gewicht erhöhen</string>
     <string name="cd_decrease_weight">Gewicht senken</string>
+    <string name="action_weight_step_back">Einen Schritt zurück</string>
     <string name="cd_add_exercise">Übung hinzufügen</string>
 
     <!-- Bearbeiten-Sheet -->
@@ -332,7 +333,7 @@
     <string name="about_guide_title">Kurzanleitung</string>
     <string name="about_guide_list">Trainingsliste</string>
     <string name="about_guide_edit">Übung antippen, um sie zu bearbeiten. Das „+“ unter der Liste legt eine neue an.</string>
-    <string name="about_guide_progress">Der blaue Pfeil erhöht das Gewicht um den Progressionsschritt – zeigt er nach unten, senkt er es. Das gilt an jedem Tag mit dieser Übung.</string>
+    <string name="about_guide_progress">Der blaue Pfeil erhöht das Gewicht um den Progressionsschritt – zeigt er nach unten, senkt er es. Lang drücken geht einen Schritt in die Gegenrichtung, etwa wenn die letzte Steigerung zu viel war. Das gilt an jedem Tag mit dieser Übung.</string>
     <string name="about_guide_select">Lang drücken startet die Auswahl. Markierte Übungen lassen sich verschieben, löschen oder über das Menü oben zu einem Superset verbinden.</string>
     <string name="about_guide_check">Der Haken trägt das Training in den Verlauf ein, ein zweites Tippen nimmt es zurück.</string>
     <string name="about_guide_cycle">Am letzten Tag beginnt der Pfeil neben dem Haken die nächste Runde – auch wenn ein Tag ausgefallen ist. Wer so weitergeschaltet hat, findet am ersten Tag einen Pfeil zurück, solange in der neuen Runde noch nichts abgehakt ist.</string>

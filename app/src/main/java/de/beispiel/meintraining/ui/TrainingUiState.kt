@@ -107,6 +107,7 @@ data class TrainingActions(
     val onCreateSuperset: () -> Unit = {},
     val onDissolveSuperset: () -> Unit = {},
     val onProgressClick: (ExerciseItem) -> Unit = {},
+    val onProgressLongClick: (ExerciseItem) -> Unit = {},
     val onReorder: (List<Long>) -> Unit = {},
     val onFormChange: (ExerciseForm) -> Unit = {},
     val onVariationToggle: () -> Unit = {},

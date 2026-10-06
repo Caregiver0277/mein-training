@@ -23,10 +23,10 @@ import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.decreaseWeight
 import de.beispiel.meintraining.util.dueDayId
-import de.beispiel.meintraining.util.increaseWeight
 import de.beispiel.meintraining.util.keepSupersetBlocksTogether
 import de.beispiel.meintraining.util.nextOpenDayId
 import de.beispiel.meintraining.util.rotations
+import de.beispiel.meintraining.util.stepWeight
 import de.beispiel.meintraining.util.survivingSupersetMembers
 import de.beispiel.meintraining.util.toLocalDate
 import kotlinx.coroutines.flow.Flow
@@ -604,19 +604,25 @@ class TrainingRepository(
      * Liefert `null`, wenn die Übung kein Gewicht hat oder sich nichts ändern würde – letzteres
      * bei 0 kg und einem Pfeil nach unten, denn tiefer geht es nicht (siehe [decreaseWeight]).
      * Ein Verlaufspunkt, der denselben Wert noch einmal festhält, entsteht so nicht.
+     *
+     * Mit [reverse] geht es genau einen Schritt gegen die Pfeilrichtung – der lange Druck auf
+     * den Pfeil, wenn die letzte Steigerung zu viel war. Die Richtung der Übung bleibt dabei,
+     * wie sie ist; Verlauf und „Rückgängig“ laufen wie bei jedem anderen Schritt.
      */
-    suspend fun progressWeight(name: String): WeightChange? = database.withTransaction {
-        val definition = definitionDao.find(name) ?: return@withTransaction null
-        val current = definition.weightKg ?: return@withTransaction null
-        val next = if (definition.progressionDown) {
-            decreaseWeight(current, definition.progressionStepKg)
-        } else {
-            increaseWeight(current, definition.progressionStepKg)
+    suspend fun progressWeight(name: String, reverse: Boolean = false): WeightChange? =
+        database.withTransaction {
+            val definition = definitionDao.find(name) ?: return@withTransaction null
+            val current = definition.weightKg ?: return@withTransaction null
+            val next = stepWeight(
+                currentKg = current,
+                stepKg = definition.progressionStepKg,
+                progressionDown = definition.progressionDown,
+                reverse = reverse
+            )
+            if (next == current) return@withTransaction null
+            definitionDao.updateWeight(name, next)
+            WeightChange(previousKg = current, newKg = next, logId = logWeight(name, next))
         }
-        if (next == current) return@withTransaction null
-        definitionDao.updateWeight(name, next)
-        WeightChange(previousKg = current, newKg = next, logId = logWeight(name, next))
-    }
 
     /**
      * Nimmt eine Änderung zurück: Das Gewicht geht auf den alten Wert und der dabei
