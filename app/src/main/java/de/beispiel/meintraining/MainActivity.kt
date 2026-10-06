@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
                 // soll damit nicht den ganzen Hauptscreen neu zusammensetzen.
                 val editorForm by viewModel.editorForm.collectAsStateWithLifecycle()
                 val weightHistory by viewModel.weightHistory.collectAsStateWithLifecycle()
+                val setLogSheet by viewModel.setLogSheet.collectAsStateWithLifecycle()
 
                 // Über Nacht offen gebliebene App: Beim Zurückkehren kann ein neuer Tag
                 // angebrochen sein.
@@ -120,6 +121,10 @@ class MainActivity : ComponentActivity() {
                         onProgressClick = viewModel::onProgressClick,
                         onProgressLongClick = viewModel::onProgressLongClick,
                         onSetsClick = viewModel::onSetsClick,
+                        onLogSet = viewModel::onLogSet,
+                        onUpdateSet = viewModel::onUpdateSet,
+                        onDeleteSet = viewModel::onDeleteSet,
+                        onSetLogDismiss = viewModel::onSetLogDismiss,
                         onReorder = viewModel::onReorder,
                         onFormChange = viewModel::onFormChange,
                         onVariationToggle = viewModel::onVariationToggle,
@@ -134,6 +139,7 @@ class MainActivity : ComponentActivity() {
                     uiState = uiState,
                     editorForm = editorForm,
                     weightHistory = weightHistory,
+                    setLogSheet = setLogSheet,
                     events = viewModel.events,
                     celebrations = viewModel.celebrations,
                     actions = actions

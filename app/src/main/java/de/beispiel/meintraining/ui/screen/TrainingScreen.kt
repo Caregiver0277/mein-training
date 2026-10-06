@@ -42,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,6 +66,7 @@ import de.beispiel.meintraining.data.local.RestTimer
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.ui.ExerciseForm
+import de.beispiel.meintraining.ui.SetLogSheetState
 import de.beispiel.meintraining.ui.TrainingActions
 import de.beispiel.meintraining.ui.TrainingEvent
 import de.beispiel.meintraining.ui.TrainingUiState
@@ -115,6 +117,8 @@ fun TrainingScreen(
     editorForm: ExerciseForm?,
     /** Verlauf der Übung im Sheet, siehe [TrainingViewModel.weightHistory]. */
     weightHistory: WeightHistory?,
+    /** Offenes Satz-Protokoll, siehe [TrainingViewModel.setLogSheet]. */
+    setLogSheet: SetLogSheetState?,
     events: Flow<TrainingEvent>,
     /** Eine volle Runde – der einzige Anlass, zu dem es Konfetti regnet. */
     celebrations: Flow<Unit>,
@@ -122,6 +126,9 @@ fun TrainingScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    // Das Satz-Protokoll liegt in einem eigenen Fenster über allem; seine Meldungen stehen dort.
+    val sheetSnackbarHostState = remember { SnackbarHostState() }
+    val isSetLogOpen by rememberUpdatedState(setLogSheet != null)
     val resources = LocalResources.current
 
     var menuDestination by rememberSaveable { mutableStateOf<MenuDestination?>(null) }
@@ -182,7 +189,8 @@ fun TrainingScreen(
                 )
                 TrainingEvent.CycleStarted -> resources.getString(R.string.snackbar_cycle_started)
             }
-            val result = snackbarHostState.showSnackbar(
+            val host = if (isSetLogOpen) sheetSnackbarHostState else snackbarHostState
+            val result = host.showSnackbar(
                 message = message,
                 actionLabel = resources.getString(R.string.action_undo),
                 duration = SnackbarDuration.Short
@@ -239,6 +247,18 @@ fun TrainingScreen(
             onSave = actions.onFormSave,
             onDelete = actions.onFormDelete,
             onDismiss = actions.onFormDismiss
+        )
+    }
+
+    setLogSheet?.let { state ->
+        SetLogSheet(
+            state = state,
+            days = uiState.days,
+            snackbarHostState = sheetSnackbarHostState,
+            onLogSet = { number, reps, weight -> actions.onLogSet(state.exercise, number, reps, weight) },
+            onUpdateSet = actions.onUpdateSet,
+            onDeleteSet = actions.onDeleteSet,
+            onDismiss = actions.onSetLogDismiss
         )
     }
 }

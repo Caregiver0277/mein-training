@@ -110,6 +110,21 @@ object Dimens {
     val SparklineDot = 2.dp
     val SheetFieldSpacing = 12.dp
 
+    // Satz-Protokoll: eine Zeile je Satz, Gewicht und Wiederholungen mit Steppern
+    val SetLogRowHeight = 48.dp
+    val SetLogRowPadding = 4.dp
+    val SetLogRowSpacing = 4.dp
+    val SetLogNumberWidth = 20.dp
+    val SetLogActionSize = 40.dp
+    val StepperButtonSize = 36.dp
+    val StepperIconSize = 18.dp
+    val SetLogWeightValueWidth = 52.dp
+    val SetLogRepsValueWidth = 32.dp
+
+    /** Ein Stepper samt Knöpfen – daran richten sich die Spaltenköpfe aus. */
+    val SetLogWeightBlockWidth = StepperButtonSize * 2 + SetLogWeightValueWidth
+    val SetLogRepsBlockWidth = StepperButtonSize * 2 + SetLogRepsValueWidth
+
     /** Höhe eines OutlinedTextField ohne Hilfetext – daran richtet sich der „+“-Knopf aus. */
     val SheetFieldHeight = 56.dp
 

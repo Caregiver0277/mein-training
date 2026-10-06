@@ -61,6 +61,28 @@
     <string name="quick_select_label">Schnellauswahl</string>
     <string name="error_name_required">Bitte einen Namen eingeben.</string>
 
+    <!-- Satz-Protokoll -->
+    <string name="set_log_title">Satz-Protokoll</string>
+    <!-- „Vorgabe: 3 x 8-12 · 60 kg“ – Sätze und Wiederholungen in der Schreibweise der Liste. -->
+    <string name="set_log_target">Vorgabe: %1$s</string>
+    <string name="set_log_deload">Deload-Woche: Sätze halbiert, Gewicht wie immer.</string>
+    <string name="set_log_kg">%1$s kg</string>
+    <!-- %1$s ist „gestern“ oder „vor 4 Tagen“, %2$s die Sätze: „60 kg × 12 / 11 / 10“. -->
+    <string name="set_log_last">Letztes Mal (%1$s): %2$s</string>
+    <!-- Wie oben, aber von einem anderen Trainingstag: %1$s ist dessen Name. -->
+    <string name="set_log_last_other_day">Letztes Mal (%1$s, %2$s): %3$s</string>
+    <string name="set_log_last_none">Letztes Mal: noch nichts protokolliert.</string>
+    <string name="set_log_column_set">Satz</string>
+    <string name="set_log_column_weight">Gewicht (kg)</string>
+    <string name="set_log_column_reps">Wiederh.</string>
+    <string name="set_log_add_set">Satz</string>
+    <string name="cd_save_set">Satz %1$d speichern</string>
+    <string name="cd_edit_set">Satz %1$d korrigieren</string>
+    <string name="cd_less_weight">Weniger Gewicht</string>
+    <string name="cd_more_weight">Mehr Gewicht</string>
+    <string name="cd_fewer_reps">Eine Wiederholung weniger</string>
+    <string name="cd_more_reps">Eine Wiederholung mehr</string>
+
     <!-- Aktionen -->
     <string name="action_save">Speichern</string>
     <string name="action_cancel">Abbrechen</string>

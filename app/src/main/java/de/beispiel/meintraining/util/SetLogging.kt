@@ -11,6 +11,9 @@ import java.time.ZoneId
  */
 const val DEFAULT_LOGGED_REPS = 10
 
+/** Obergrenze des Wiederholungs-Steppers – mehr zählt niemand in einem Satz. */
+const val MAX_LOGGED_REPS = 99
+
 // Notation einer Satzfolge: „60 kg × 12 / 11 / 10“. Reine Notation, keine übersetzbaren Texte –
 // wie das „x“ der Sätze in Formatters.kt.
 private const val REPS_TIMES = " × "

@@ -20,6 +20,7 @@ import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.deloadStatus
+import de.beispiel.meintraining.util.lastUnit
 import de.beispiel.meintraining.util.parseOptionalDecimal
 import de.beispiel.meintraining.util.parseOptionalInt
 import de.beispiel.meintraining.util.parseProgressionStep
@@ -91,6 +92,9 @@ class TrainingViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
 
     private val selectedIds = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** Die Zeile, deren Satz-Protokoll offen ist; `null`: keines. */
+    private val setLogTargetId = MutableStateFlow<Long?>(null)
 
     private val eventChannel = Channel<TrainingEvent>(Channel.BUFFERED)
     val events: Flow<TrainingEvent> = eventChannel.receiveAsFlow()
@@ -356,6 +360,35 @@ class TrainingViewModel(
             progress = SetsProgress(logged = today?.plannedLogged(planned) ?: 0, planned = planned)
         )
     }.toMap()
+
+    /**
+     * Das offene Sheet „Satz-Protokoll“; `null`, solange keines offen ist.
+     *
+     * Wie das Bearbeiten-Sheet neben [uiState] statt darin: Es ändert sich mit jedem Satz, und
+     * die Liste darunter muss dafür nicht neu zusammengesetzt werden. Verschwindet die Zeile
+     * oder ihr Protokoll – gelöscht, Schalter aus, keine Sätze-Zahl mehr –, schließt es sich.
+     */
+    val setLogSheet: StateFlow<SetLogSheetState?> = combine(
+        setLogTargetId,
+        allExercises,
+        setLogUnits,
+        uiState.map { it.deload.isDeloadWeek }.distinctUntilChanged(),
+        currentDate.flow
+    ) { id, all, units, isDeloadWeek, today ->
+        val exercise = id?.let { target -> all.firstOrNull { it.id == target } }
+            ?.takeIf { it.logSets } ?: return@combine null
+        val planned = setsThisWeek(exercise.sets, isDeloadWeek)
+            ?.takeIf { it >= 1 } ?: return@combine null
+        val exerciseUnits = units[SetLogKey(exercise.name, exercise.variation)].orEmpty()
+        SetLogSheetState(
+            exercise = exercise,
+            plannedSets = planned,
+            isDeloadWeek = isDeloadWeek,
+            todaysSets = todaysUnit(exerciseUnits, exercise.dayId, today)?.sets.orEmpty(),
+            lastUnit = lastUnit(exerciseUnits, exercise.dayId, today),
+            today = today
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
 
     init {
         viewModelScope.launch {
@@ -686,12 +719,39 @@ class TrainingViewModel(
 
     // --- Satz-Protokoll -----------------------------------------------------
 
-    /** Die Zeile, deren Satz-Protokoll offen ist; `null`: keines. */
-    private val setLogTargetId = MutableStateFlow<Long?>(null)
-
     /** Tippen auf den Sätze-Chip einer Übung mit Protokoll öffnet das Sheet „Satz-Protokoll“. */
     fun onSetsClick(exercise: ExerciseItem) {
         setLogTargetId.value = exercise.id
+    }
+
+    fun onSetLogDismiss() {
+        setLogTargetId.value = null
+    }
+
+    /**
+     * ✓ in einer offenen Zeile: speichert Satz [setNumber] sofort. Das Repository legt ihn nur
+     * einmal an und meldet ihn als Aktivität im Training (siehe [TrainingRepository.logSet]).
+     */
+    fun onLogSet(exercise: ExerciseItem, setNumber: Int, reps: Int, weightKg: Double?) {
+        viewModelScope.launch {
+            repository.logSet(
+                name = exercise.name,
+                variation = exercise.variation,
+                dayId = exercise.dayId,
+                setNumber = setNumber,
+                reps = reps,
+                weightKg = weightKg
+            )
+        }
+    }
+
+    /** Korrigiert einen gespeicherten Satz. */
+    fun onUpdateSet(id: Long, reps: Int, weightKg: Double?) {
+        viewModelScope.launch { repository.updateSetLog(id, reps, weightKg) }
+    }
+
+    fun onDeleteSet(id: Long) {
+        viewModelScope.launch { repository.deleteSetLog(id) }
     }
 
     // --- Rückgängig --------------------------------------------------------

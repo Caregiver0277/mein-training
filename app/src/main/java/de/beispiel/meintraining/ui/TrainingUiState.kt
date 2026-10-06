@@ -4,13 +4,16 @@ import androidx.compose.runtime.Immutable
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.FIRST_DAY_ID
+import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.repository.ExerciseTransfer
 import de.beispiel.meintraining.ui.components.SetsProgress
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
+import de.beispiel.meintraining.util.SetUnit
 import de.beispiel.meintraining.util.toDecimalString
+import java.time.LocalDate
 
 /** Kompletter Zustand des Hauptscreens. */
 @Immutable
@@ -102,6 +105,23 @@ data class TrainingUiState(
 data class SetLogRowState(val progress: SetsProgress)
 
 /**
+ * Alles, was das Sheet „Satz-Protokoll“ zu einer Zeile zeigt.
+ *
+ * [plannedSets] sind die Sätze, die diese Woche gelten (in der Deload-Woche halbiert),
+ * [todaysSets] die heute an diesem Trainingstag gespeicherten, nach Nummer. [lastUnit] ist
+ * „Letztes Mal“ – siehe [de.beispiel.meintraining.util.lastUnit].
+ */
+@Immutable
+data class SetLogSheetState(
+    val exercise: ExerciseItem,
+    val plannedSets: Int,
+    val isDeloadWeek: Boolean,
+    val todaysSets: List<SetLog>,
+    val lastUnit: SetUnit?,
+    val today: LocalDate
+)
+
+/**
  * Alle Aktionen des Hauptscreens in einem Bündel.
  *
  * Einzeln durchgereicht waren es zwanzig Rückrufe: Jede neue Aktion musste an vier Stellen
@@ -130,6 +150,10 @@ data class TrainingActions(
     val onProgressClick: (ExerciseItem) -> Unit = {},
     val onProgressLongClick: (ExerciseItem) -> Unit = {},
     val onSetsClick: (ExerciseItem) -> Unit = {},
+    val onLogSet: (ExerciseItem, Int, Int, Double?) -> Unit = { _, _, _, _ -> },
+    val onUpdateSet: (Long, Int, Double?) -> Unit = { _, _, _ -> },
+    val onDeleteSet: (Long) -> Unit = {},
+    val onSetLogDismiss: () -> Unit = {},
     val onReorder: (List<Long>) -> Unit = {},
     val onFormChange: (ExerciseForm) -> Unit = {},
     val onVariationToggle: () -> Unit = {},
