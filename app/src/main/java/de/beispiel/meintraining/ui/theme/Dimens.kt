@@ -19,6 +19,10 @@ object Dimens {
     val TabHeight = 36.dp
     val TabSpacing = 8.dp
 
+    /** Grüner Punkt unter der Beschriftung eines abgehakten Tages und sein Abstand zum Rand. */
+    val TabDoneMarkSize = 5.dp
+    val TabDoneMarkInset = 3.dp
+
     // Pausenuhren
     val TimerBoxHeight = 48.dp
     val TimerBoxPadding = 6.dp

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -16,26 +18,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.model.TrainingDay
+import de.beispiel.meintraining.ui.theme.AccentGreen
 import de.beispiel.meintraining.ui.theme.AppTextStyles
 import de.beispiel.meintraining.ui.theme.Dimens
 import de.beispiel.meintraining.ui.theme.MeinTrainingTheme
+import de.beispiel.meintraining.ui.theme.TabActiveDoneMark
 import de.beispiel.meintraining.ui.theme.TabActiveSurface
 import de.beispiel.meintraining.ui.theme.TabActiveText
 import de.beispiel.meintraining.ui.theme.TabInactiveSurface
 import de.beispiel.meintraining.ui.theme.TabInactiveText
 
-/** Gleich breite Pill-Buttons für die Tagesauswahl – einer je Tag der Runde, bis zu sieben. */
+/**
+ * Gleich breite Pill-Buttons für die Tagesauswahl – einer je Tag der Runde, bis zu sieben.
+ *
+ * Tage aus [completedDayIds], also die in der laufenden Runde schon abgehakten, tragen unter
+ * der Beschriftung einen kleinen grünen Punkt.
+ */
 @Composable
 fun DayTabRow(
     days: List<TrainingDay>,
     selectedDayId: Int,
     onDaySelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    completedDayIds: Set<Int> = emptySet()
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -45,6 +57,7 @@ fun DayTabRow(
             DayTab(
                 label = dayLabel(day.id, day.name),
                 isSelected = day.id == selectedDayId,
+                isDone = day.id in completedDayIds,
                 onClick = { onDaySelected(day.id) }
             )
         }
@@ -67,15 +80,18 @@ fun dayLabel(dayId: Int, name: String?): String =
 private fun RowScope.DayTab(
     label: String,
     isSelected: Boolean,
+    isDone: Boolean,
     onClick: () -> Unit
 ) {
+    val doneDescription = stringResource(R.string.cd_day_done)
     Box(
         modifier = Modifier
             .weight(1f)
             .height(Dimens.TabHeight)
             .clip(Dimens.CornerTab)
             .background(if (isSelected) TabActiveSurface else TabInactiveSurface)
-            .clickable(role = Role.Tab, onClick = onClick),
+            .clickable(role = Role.Tab, onClick = onClick)
+            .semantics { if (isDone) stateDescription = doneDescription },
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -86,6 +102,20 @@ private fun RowScope.DayTab(
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center
         )
+        // Der Punkt liegt über dem Reiter, statt neben der Beschriftung Platz zu nehmen: Bei
+        // sieben Tagen braucht der Name jeden Millimeter Breite. Unter der Schrift – auch unter
+        // der Unterlänge des „g“ in „Tag“ – ist dafür gerade genug Luft.
+        if (isDone) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = Dimens.TabDoneMarkInset)
+                    .size(Dimens.TabDoneMarkSize)
+                    .clip(CircleShape)
+                    // Auf dem hellen Grau des gewählten Reiters ginge das übliche Grün fast unter.
+                    .background(if (isSelected) TabActiveDoneMark else AccentGreen)
+            )
+        }
     }
 }
 
@@ -97,6 +127,7 @@ private fun DayTabRowPreview() {
             days = (1..4).map { TrainingDay(id = it, name = "Tag $it") },
             selectedDayId = 1,
             onDaySelected = {},
+            completedDayIds = setOf(1, 2),
             modifier = Modifier.padding(Dimens.ScreenPaddingHorizontal)
         )
     }

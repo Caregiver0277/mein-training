@@ -370,7 +370,8 @@ private fun TrainingContent(
             DayTabRow(
                 days = uiState.days,
                 selectedDayId = uiState.selectedDayId,
-                onDaySelected = actions.onDaySelected
+                onDaySelected = actions.onDaySelected,
+                completedDayIds = uiState.completedDayIds
             )
 
             Spacer(modifier = Modifier.height(Dimens.SectionSpacingMedium))

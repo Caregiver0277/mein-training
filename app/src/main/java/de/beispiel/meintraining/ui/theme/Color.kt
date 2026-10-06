@@ -31,6 +31,9 @@ val OutlineColor = Color(0xFF3A4049)
 val AccentGreen = Color(0xFF3FA96B)
 val AccentGreenSurface = Color(0xFF16301F)
 
+/** Dunkleres Grün für den „erledigt“-Punkt auf dem hellen, gewählten Tagesreiter. */
+val TabActiveDoneMark = Color(0xFF1B6E3D)
+
 /** Rot für den einen Knopf, der wirklich etwas zerstört: das Zurücksetzen der App. */
 val AccentRed = Color(0xFFE05260)
 val AccentRedSurface = Color(0xFF3A181C)
