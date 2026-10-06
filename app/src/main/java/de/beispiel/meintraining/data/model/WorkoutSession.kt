@@ -15,5 +15,12 @@ data class WorkoutSession(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val dayId: Int,
     /** Zeitpunkt des Abhakens in Millisekunden seit 1970. */
-    val completedAt: Long
+    val completedAt: Long,
+    /**
+     * Beginn des Trainings in Millisekunden seit 1970; zusammen mit [completedAt] ergibt das die
+     * Dauer. `null`, wenn sie nicht bekannt ist: bei Einträgen aus der Zeit davor, bei einem
+     * Training ohne erkennbaren Beginn und bei einer unplausiblen Dauer (siehe
+     * [de.beispiel.meintraining.util.plausibleStart]).
+     */
+    val startedAt: Long? = null
 )

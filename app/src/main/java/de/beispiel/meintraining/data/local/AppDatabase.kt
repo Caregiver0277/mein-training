@@ -8,12 +8,13 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import de.beispiel.meintraining.data.model.Exercise
 import de.beispiel.meintraining.data.model.ExerciseDefinition
+import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 
 /** Aktuelle Schemaversion; steht hier, damit auch die Tests sie benennen können. */
-const val DATABASE_VERSION = 7
+const val DATABASE_VERSION = 8
 
 @Database(
     entities = [
@@ -21,7 +22,8 @@ const val DATABASE_VERSION = 7
         Exercise::class,
         ExerciseDefinition::class,
         WeightLog::class,
-        WorkoutSession::class
+        WorkoutSession::class,
+        SetLog::class
     ],
     version = DATABASE_VERSION,
     // Das exportierte Schema liegt unter app/schemas und ist die Grundlage künftiger
@@ -39,6 +41,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun weightLogDao(): WeightLogDao
 
     abstract fun workoutSessionDao(): WorkoutSessionDao
+
+    abstract fun setLogDao(): SetLogDao
 
     companion object {
         private const val DATABASE_NAME = "mein_training.db"
@@ -204,6 +208,47 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Das neue Tracking: Notiz und Schalter fürs Satz-Protokoll an der Übung, der Beginn
+         * eines Trainings und das Satz-Protokoll selbst.
+         *
+         * Alles kommt leer oder ausgeschaltet dazu: Keine Übung hat eine Notiz, keine
+         * protokolliert, und kein bisheriges Training hat eine bekannte Dauer – sie wurde ja
+         * nie gemessen.
+         */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `ExerciseDefinition` ADD COLUMN `note` TEXT")
+                db.execSQL(
+                    "ALTER TABLE `ExerciseDefinition` " +
+                        "ADD COLUMN `logSets` INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL("ALTER TABLE `WorkoutSession` ADD COLUMN `startedAt` INTEGER")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `SetLog` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `exerciseName` TEXT NOT NULL,
+                        `variation` TEXT,
+                        `dayId` INTEGER NOT NULL,
+                        `performedAt` INTEGER NOT NULL,
+                        `setNumber` INTEGER NOT NULL,
+                        `reps` INTEGER NOT NULL,
+                        `weightKg` REAL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_SetLog_exerciseName` " +
+                        "ON `SetLog` (`exerciseName`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_SetLog_performedAt` " +
+                        "ON `SetLog` (`performedAt`)"
+                )
+            }
+        }
+
         /** Alle Migrationen in der Reihenfolge ihrer Versionen – auch für die Tests. */
         val MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2,
@@ -211,7 +256,8 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_3_4,
             MIGRATION_4_5,
             MIGRATION_5_6,
-            MIGRATION_6_7
+            MIGRATION_6_7,
+            MIGRATION_7_8
         )
 
         @Volatile

@@ -6,7 +6,9 @@ import kotlinx.serialization.Serializable
  * Format der Sicherungsdatei.
  *
  * Die Version steht ganz vorn: Eine Datei aus einer künftigen Fassung der App wird abgelehnt,
- * statt halb eingelesen zu werden. Die Felder heißen wie in der Datenbank, damit die Datei auch
+ * statt halb eingelesen zu werden. Ältere Fassungen bleiben einlesbar, weil jedes später
+ * hinzugekommene Feld eine Vorgabe hat – in Version 1 fehlen Notiz, Protokoll-Schalter,
+ * Trainingsbeginn und das Satz-Protokoll, und genau so kommen sie dann auch an. Die Felder heißen wie in der Datenbank, damit die Datei auch
  * von Hand lesbar bleibt – eine Sicherung, die man nicht anschauen kann, ist wenig wert.
  */
 @Serializable
@@ -19,6 +21,8 @@ data class BackupFile(
     val definitions: List<BackupDefinition> = emptyList(),
     val weightLogs: List<BackupWeightLog> = emptyList(),
     val sessions: List<BackupSession> = emptyList(),
+    /** Seit Version 2. */
+    val setLogs: List<BackupSetLog> = emptyList(),
     val settings: BackupSettings = BackupSettings()
 ) {
     /**
@@ -29,7 +33,7 @@ data class BackupFile(
      */
     val hasContent: Boolean
         get() = exercises.isNotEmpty() || definitions.isNotEmpty() ||
-            weightLogs.isNotEmpty() || sessions.isNotEmpty()
+            weightLogs.isNotEmpty() || sessions.isNotEmpty() || setLogs.isNotEmpty()
 }
 
 @Serializable
@@ -54,7 +58,11 @@ data class BackupDefinition(
     val weightKg: Double? = null,
     val progressionStepKg: Double,
     /** Fehlt in Dateien aus älteren Fassungen; dort erhöhte der Pfeil immer. */
-    val progressionDown: Boolean = false
+    val progressionDown: Boolean = false,
+    /** Seit Version 2. */
+    val note: String? = null,
+    /** Seit Version 2; vorher gab es kein Protokoll. */
+    val logSets: Boolean = false
 )
 
 @Serializable
@@ -65,7 +73,24 @@ data class BackupWeightLog(
 )
 
 @Serializable
-data class BackupSession(val dayId: Int, val completedAt: Long)
+data class BackupSession(
+    val dayId: Int,
+    val completedAt: Long,
+    /** Seit Version 2; ohne ihn ist die Dauer unbekannt. */
+    val startedAt: Long? = null
+)
+
+/** Ein protokollierter Satz – seit Version 2. */
+@Serializable
+data class BackupSetLog(
+    val exerciseName: String,
+    val variation: String? = null,
+    val dayId: Int,
+    val performedAt: Long,
+    val setNumber: Int,
+    val reps: Int,
+    val weightKg: Double? = null
+)
 
 /** Die Einstellungen; alles optional, damit ältere Dateien weiterhin passen. */
 @Serializable
@@ -78,8 +103,12 @@ data class BackupSettings(
     val hiddenExerciseNames: List<String> = emptyList()
 )
 
-/** Aktuelle Fassung des Dateiformats. */
-const val BACKUP_VERSION = 1
+/**
+ * Aktuelle Fassung des Dateiformats.
+ *
+ * 2: Notiz und Protokoll-Schalter an den Übungen, Trainingsbeginn, Satz-Protokoll.
+ */
+const val BACKUP_VERSION = 2
 
 /** Vorgabe und Grenzen für den Abstand der automatischen Sicherung, in Tagen. */
 const val DEFAULT_BACKUP_INTERVAL_DAYS = 7

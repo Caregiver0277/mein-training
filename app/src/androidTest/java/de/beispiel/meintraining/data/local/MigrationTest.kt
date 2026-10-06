@@ -225,6 +225,56 @@ class MigrationTest {
         }
     }
 
+    /**
+     * Das neue Tracking kommt dazu: Notiz und Protokoll-Schalter an der Übung, der Beginn eines
+     * Trainings und die Tabelle für das Satz-Protokoll. Alles Bisherige bleibt, wie es war; neu
+     * ist überall „leer“ und „aus“ – eine Dauer, die nie gemessen wurde, gibt es nicht.
+     */
+    @Test
+    fun dasNeueTrackingKommtLeerDazu() {
+        helper.createDatabase(TEST_DB, 7).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO ExerciseDefinition (name, weightKg, progressionStepKg, progressionDown)
+                VALUES ('Klimmzugmaschine', 30.0, 2.5, 1)
+                """.trimIndent()
+            )
+            db.execSQL("INSERT INTO WorkoutSession (id, dayId, completedAt) VALUES (1, 2, 1700000000000)")
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 8, true, *AppDatabase.MIGRATIONS)
+        db.use {
+            it.query(
+                "SELECT weightKg, progressionStepKg, progressionDown, note, logSets FROM ExerciseDefinition"
+            ).use { cursor ->
+                assertEquals(1, cursor.count)
+                assertTrue(cursor.moveToFirst())
+                assertEquals(30.0, cursor.getDouble(0), TOLERANCE)
+                assertEquals(2.5, cursor.getDouble(1), TOLERANCE)
+                assertEquals(1, cursor.getInt(2))
+                assertTrue(cursor.isNull(3))
+                assertEquals(0, cursor.getInt(4))
+            }
+            it.query("SELECT dayId, completedAt, startedAt FROM WorkoutSession").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(2, cursor.getInt(0))
+                assertEquals(1_700_000_000_000L, cursor.getLong(1))
+                assertTrue(cursor.isNull(2))
+            }
+            // Die neue Tabelle steht bereit und nimmt einen Satz ohne Variation und Gewicht an.
+            it.execSQL(
+                """
+                INSERT INTO SetLog (exerciseName, variation, dayId, performedAt, setNumber, reps, weightKg)
+                VALUES ('Klimmzugmaschine', NULL, 2, 1700000001000, 1, 8, NULL)
+                """.trimIndent()
+            )
+            it.query("SELECT COUNT(*) FROM SetLog").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1, cursor.getInt(0))
+            }
+        }
+    }
+
     /** Legt die Datenbank so an, wie Version 1 der App sie hinterlassen hat. */
     private fun createVersion1(fill: (SQLiteDatabase) -> Unit) {
         val db = SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(TEST_DB), null)

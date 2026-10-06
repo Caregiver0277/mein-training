@@ -24,7 +24,9 @@ private const val ITEM_COLUMNS = """
     e.supersetId AS supersetId,
     d.weightKg AS weightKg,
     COALESCE(d.progressionStepKg, $DEFAULT_PROGRESSION_STEP_KG) AS progressionStepKg,
-    COALESCE(d.progressionDown, 0) AS progressionDown
+    COALESCE(d.progressionDown, 0) AS progressionDown,
+    d.note AS note,
+    COALESCE(d.logSets, 0) AS logSets
 """
 
 @Dao

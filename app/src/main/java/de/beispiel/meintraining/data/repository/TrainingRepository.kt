@@ -6,6 +6,7 @@ import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.local.AppDatabase
 import de.beispiel.meintraining.data.local.ExerciseDao
 import de.beispiel.meintraining.data.local.ExerciseDefinitionDao
+import de.beispiel.meintraining.data.local.SetLogDao
 import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.local.TrainingDayDao
 import de.beispiel.meintraining.data.local.WeightLogDao
@@ -14,6 +15,7 @@ import de.beispiel.meintraining.data.model.Exercise
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.FIRST_DAY_ID
+import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
@@ -81,6 +83,7 @@ class TrainingRepository(
     private val definitionDao: ExerciseDefinitionDao = database.exerciseDefinitionDao()
     private val weightLogDao: WeightLogDao = database.weightLogDao()
     private val sessionDao: WorkoutSessionDao = database.workoutSessionDao()
+    private val setLogDao: SetLogDao = database.setLogDao()
 
     /**
      * Der zuletzt von Hand oder automatisch gesetzte Tag, noch bevor DataStore ihn kennt.
@@ -134,6 +137,52 @@ class TrainingRepository(
 
     /** Der Gewichtsverlauf einer Übung, älteste Änderung zuerst. */
     fun observeWeightLogs(name: String): Flow<List<WeightLog>> = weightLogDao.observeByName(name)
+
+    /** Das ganze Satz-Protokoll, ältester Satz zuerst. */
+    fun observeSetLogs(): Flow<List<SetLog>> = setLogDao.observeAll()
+
+    /** Das Satz-Protokoll einer Übung mit dieser Variation, über alle Tage; siehe [SetLog]. */
+    fun observeSetLogs(name: String, variation: String?): Flow<List<SetLog>> =
+        setLogDao.observeByExercise(name, variation)
+
+    /**
+     * Speichert einen Satz sofort – protokolliert wird während des Trainings, nicht am Ende.
+     * Liefert die Kennung, über die er sich korrigieren und löschen lässt.
+     */
+    suspend fun logSet(
+        name: String,
+        variation: String?,
+        dayId: Int,
+        setNumber: Int,
+        reps: Int,
+        weightKg: Double?,
+        performedAt: Long = System.currentTimeMillis()
+    ): Long = setLogDao.insert(
+        SetLog(
+            exerciseName = name,
+            variation = variation,
+            dayId = dayId,
+            performedAt = performedAt,
+            setNumber = setNumber,
+            reps = reps,
+            weightKg = weightKg
+        )
+    )
+
+    /**
+     * Korrigiert Wiederholungen und Gewicht eines gespeicherten Satzes. Name, Tag, Zeitpunkt und
+     * Nummer bleiben, wie sie sind – der Satz gehört weiter zu derselben Einheit.
+     *
+     * Liefert `false`, wenn es den Satz nicht mehr gibt.
+     */
+    suspend fun updateSetLog(id: Long, reps: Int, weightKg: Double?): Boolean =
+        database.withTransaction {
+            val existing = setLogDao.findById(id) ?: return@withTransaction false
+            setLogDao.update(existing.copy(reps = reps, weightKg = weightKg))
+            true
+        }
+
+    suspend fun deleteSetLog(id: Long) = setLogDao.deleteById(id)
 
     /** Alle abgehakten Trainings, das jüngste zuerst. */
     fun observeSessions(): Flow<List<WorkoutSession>> = sessionDao.observeAll()
@@ -368,7 +417,7 @@ class TrainingRepository(
 
     /**
      * Löscht Übungen restlos: aus allen Trainingstagen, aus der Übungsdatenbank und samt
-     * Gewichtsverlauf. Das lässt sich nicht rückgängig machen.
+     * Gewichtsverlauf und Satz-Protokoll. Das lässt sich nicht rückgängig machen.
      *
      * Alles in einer Transaktion, damit nicht die halbe Auswahl verschwindet, wenn etwas
      * dazwischenkommt.
@@ -382,6 +431,7 @@ class TrainingRepository(
             exerciseDao.deleteByNames(names)
             definitionDao.deleteByNames(names)
             weightLogDao.deleteByNames(names)
+            setLogDao.deleteByNames(names)
             affectedDays.distinct().forEach { normalizeSupersets(it) }
         }
         // Sonst blieben die Namen ausgeblendet und später neu angelegte Übungen gleichen
@@ -471,10 +521,13 @@ class TrainingRepository(
     /**
      * Legt eine Übung an oder aktualisiert sie.
      *
-     * [weightKg], [progressionStepKg] und [progressionDown] landen in der gemeinsamen Definition
-     * und gelten damit an *allen* Tagen, an denen [name] vorkommt. Sätze, Wiederholungen und
-     * [variation] bleiben bei dieser einen Zeile. Ein geändertes Gewicht wandert zusätzlich in
-     * den Verlauf.
+     * [weightKg], [progressionStepKg], [progressionDown], [note] und [logSets] landen in der
+     * gemeinsamen Definition und gelten damit an *allen* Tagen, an denen [name] vorkommt. Sätze,
+     * Wiederholungen und [variation] bleiben bei dieser einen Zeile. Ein geändertes Gewicht wandert
+     * zusätzlich in den Verlauf.
+     *
+     * Eine leere [note] heißt: keine Notiz. [logSets] `null` lässt den gespeicherten Schalter
+     * stehen – für Aufrufer, die ihn nicht kennen.
      *
      * Ein leeres Gewichtsfeld – [weightKg] ist dann `null` – lässt den geteilten Wert stehen,
      * statt ihn zu löschen: Er gilt an allen Tagen, an denen die Übung vorkommt, und wäre sonst
@@ -482,8 +535,8 @@ class TrainingRepository(
      * einmal etwas, weil sich nur gesetzte Gewichte aufzeichnen lassen – Liste und Graph
      * zeigten anschließend Verschiedenes. Wer die Übung samt Gewicht loswerden will, löscht sie.
      *
-     * Wird die letzte Zeile eines Namens auf einen noch unbekannten umbenannt, zieht der
-     * Gewichtsverlauf mit um – siehe [renameHistory].
+     * Wird die letzte Zeile eines Namens auf einen noch unbekannten umbenannt, ziehen
+     * Gewichtsverlauf und Satz-Protokoll mit um – siehe [renameHistory].
      */
     suspend fun saveExercise(
         id: Long?,
@@ -495,7 +548,9 @@ class TrainingRepository(
         repsMin: Int?,
         repsMax: Int?,
         progressionStepKg: Double,
-        progressionDown: Boolean
+        progressionDown: Boolean,
+        note: String? = null,
+        logSets: Boolean? = null
     ) {
         val renamedFrom = database.withTransaction {
             // Zuerst prüfen, ob es die zu ändernde Zeile überhaupt noch gibt – sonst bliebe
@@ -515,7 +570,9 @@ class TrainingRepository(
                     name = name,
                     weightKg = effectiveWeight,
                     progressionStepKg = progressionStepKg,
-                    progressionDown = progressionDown
+                    progressionDown = progressionDown,
+                    note = note?.takeIf { it.isNotBlank() },
+                    logSets = logSets ?: previous?.logSets ?: false
                 )
             )
             if (effectiveWeight != null && effectiveWeight != previous?.weightKg) {
@@ -578,8 +635,8 @@ class TrainingRepository(
     }
 
     /**
-     * Schreibt den Gewichtsverlauf auf den neuen Namen um, wenn aus einer Übung schlicht eine
-     * anders heißende geworden ist. Liefert den alten Namen, falls das passiert ist.
+     * Schreibt Gewichtsverlauf und Satz-Protokoll auf den neuen Namen um, wenn aus einer Übung
+     * schlicht eine anders heißende geworden ist. Liefert den alten Namen, falls das passiert ist.
      *
      * Bedingung ist, dass unter dem alten Namen nichts mehr steht *und* der neue vorher
      * unbekannt war. Beides zusammen heißt: Es ist dieselbe Übung, sie heißt nur anders – und
@@ -593,7 +650,10 @@ class TrainingRepository(
      */
     private suspend fun renameHistory(oldName: String?, newName: String, wasKnown: Boolean): String? {
         val orphaned = oldName?.takeIf { !wasKnown && exerciseDao.countByName(it) == 0 }
-        orphaned?.let { weightLogDao.renameExercise(oldName = it, newName = newName) }
+        orphaned?.let {
+            weightLogDao.renameExercise(oldName = it, newName = newName)
+            setLogDao.renameExercise(oldName = it, newName = newName)
+        }
         // Ein umbenannter letzter Eintrag lässt die alte Definition verwaist zurück.
         definitionDao.deleteOrphans()
         return orphaned
@@ -671,8 +731,9 @@ class TrainingRepository(
 
     /**
      * Löscht die Zeilen. War es die letzte Zeile mit einem Namen, verschwindet die Übung
-     * auch aus der Datenbank und damit aus den Vorschlägen. Der Gewichtsverlauf bleibt
-     * erhalten – er ist die wertvollste Information und wäre sonst unwiederbringlich weg.
+     * auch aus der Datenbank und damit aus den Vorschlägen. Gewichtsverlauf und Satz-Protokoll
+     * bleiben erhalten – sie sind die wertvollste Information und wären sonst unwiederbringlich
+     * weg.
      */
     suspend fun deleteExercises(items: List<ExerciseItem>) = database.withTransaction {
         exerciseDao.deleteByIds(items.map { it.id })
@@ -857,9 +918,9 @@ class TrainingRepository(
     /**
      * Setzt die App auf den Zustand direkt nach der Installation zurück.
      *
-     * Weg sind: der Verlauf abgehakter Trainings, der komplette Gewichtsverlauf, alle Übungen
-     * samt ihrer geteilten Werte, die Namen der Trainingstage und sämtliche Einstellungen –
-     * also alles, was die App je über das Training gesammelt hat.
+     * Weg sind: der Verlauf abgehakter Trainings, der komplette Gewichtsverlauf, das
+     * Satz-Protokoll, alle Übungen samt ihrer geteilten Werte, die Namen der Trainingstage und
+     * sämtliche Einstellungen – also alles, was die App je über das Training gesammelt hat.
      *
      * Übrig bleiben die leeren Trainingstage, genau wie nach der Installation. Das lässt sich
      * nicht rückgängig machen.
@@ -867,6 +928,7 @@ class TrainingRepository(
     suspend fun deleteAllData() {
         database.withTransaction {
             weightLogDao.deleteAll()
+            setLogDao.deleteAll()
             sessionDao.deleteAll()
             exerciseDao.deleteAll()
             definitionDao.deleteAll()

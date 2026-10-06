@@ -17,7 +17,11 @@ data class ExerciseItem(
     val weightKg: Double?,
     val progressionStepKg: Double,
     /** Senkt der Pfeil das Gewicht, statt es zu erhöhen? Siehe [ExerciseDefinition]. */
-    val progressionDown: Boolean = false
+    val progressionDown: Boolean = false,
+    /** Die Notiz zur Übung; siehe [ExerciseDefinition.note]. */
+    val note: String? = null,
+    /** Siehe [ExerciseDefinition.logSets]. */
+    val logSets: Boolean = false
 ) {
     fun toExercise() = Exercise(
         id = id,
@@ -35,6 +39,8 @@ data class ExerciseItem(
         name = name,
         weightKg = weightKg,
         progressionStepKg = progressionStepKg,
-        progressionDown = progressionDown
+        progressionDown = progressionDown,
+        note = note,
+        logSets = logSets
     )
 }

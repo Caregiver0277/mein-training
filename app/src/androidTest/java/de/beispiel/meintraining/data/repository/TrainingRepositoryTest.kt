@@ -353,6 +353,107 @@ class TrainingRepositoryTest {
         assertEquals(emptyList<Double>(), verlaufVon("Nackendrücken"))
     }
 
+    // --- Notiz und Satz-Protokoll -----------------------------------------
+
+    /**
+     * Notiz und Protokoll-Schalter hängen am Namen: an einem Tag gespeichert, an jedem anderen
+     * Tag derselben Übung zu sehen. Wer den Schalter nicht mitgibt, lässt ihn stehen.
+     */
+    @Test
+    fun notizUndSchalterGeltenAnAllenTagen() = runBlocking {
+        val id = anlegen(name = "Beinpresse", weightKg = 120.0, stepKg = 5.0)
+        anlegen(name = "Beinpresse", weightKg = 120.0, stepKg = 5.0, dayId = 2)
+        val zeile = repository.findExercise(id)!!
+        repository.saveExercise(
+            id = id, dayId = 1, name = zeile.name, variation = null, weightKg = 120.0,
+            sets = 3, repsMin = 8, repsMax = 12, progressionStepKg = 5.0, progressionDown = false,
+            note = "Sitz 4, Polster 2", logSets = true
+        )
+        repository.saveExercise(
+            id = id, dayId = 1, name = zeile.name, variation = null, weightKg = 120.0,
+            sets = 3, repsMin = 8, repsMax = 12, progressionStepKg = 5.0, progressionDown = false,
+            note = "Sitz 5"
+        )
+
+        val tag2 = repository.observeAllExercises().first().single { it.dayId == 2 }
+        assertEquals("Sitz 5", tag2.note)
+        assertTrue(tag2.logSets)
+    }
+
+    /** Ein leeres Notizfeld heißt: keine Notiz – nicht eine leere Zeile unter dem Namen. */
+    @Test
+    fun eineLeereNotizIstKeine() = runBlocking {
+        val id = anlegen(name = "Plank", weightKg = 0.0, stepKg = 1.0)
+        repository.saveExercise(
+            id = id, dayId = 1, name = "Plank", variation = null, weightKg = 0.0,
+            sets = null, repsMin = null, repsMax = null, progressionStepKg = 1.0,
+            progressionDown = false, note = "  "
+        )
+        assertNull(repository.findExercise(id)!!.note)
+    }
+
+    /**
+     * Ein Satz lässt sich speichern, korrigieren und löschen. Variationen desselben Namens
+     * führen getrennte Protokolle, auch am selben Tag.
+     */
+    @Test
+    fun saetzeLassenSichKorrigierenUndLoeschenUndVariationenBleibenGetrennt() = runBlocking {
+        val seil = repository.logSet("Trizeps", "Seil", dayId = 1, setNumber = 1, reps = 12, weightKg = 20.0)
+        repository.logSet("Trizeps", "Stange", dayId = 1, setNumber = 1, reps = 8, weightKg = 30.0)
+        repository.logSet("Trizeps", null, dayId = 1, setNumber = 1, reps = 10, weightKg = 25.0)
+
+        assertEquals(listOf(12), repository.observeSetLogs("Trizeps", "Seil").first().map { it.reps })
+        assertEquals(listOf(10), repository.observeSetLogs("Trizeps", null).first().map { it.reps })
+
+        assertTrue(repository.updateSetLog(seil, reps = 11, weightKg = 22.5))
+        val korrigiert = repository.observeSetLogs("Trizeps", "Seil").first().single()
+        assertEquals(11, korrigiert.reps)
+        assertEquals(22.5, korrigiert.weightKg!!, 0.0)
+
+        repository.deleteSetLog(seil)
+        assertTrue(repository.observeSetLogs("Trizeps", "Seil").first().isEmpty())
+        assertFalse(repository.updateSetLog(seil, reps = 5, weightKg = null))
+        assertEquals(2, repository.observeSetLogs().first().size)
+    }
+
+    /** Wie der Gewichtsverlauf zieht das Protokoll beim Umbenennen der letzten Zeile mit. */
+    @Test
+    fun umbenennenNimmtDasSatzProtokollMit() = runBlocking {
+        val id = anlegen(name = "Rudern", weightKg = 40.0, stepKg = 2.5)
+        repository.logSet("Rudern", null, dayId = 1, setNumber = 1, reps = 10, weightKg = 40.0)
+
+        umbenennen(id = id, von = "Rudern", nach = "Rudern Kabel", weightKg = 40.0)
+
+        assertTrue(repository.observeSetLogs("Rudern", null).first().isEmpty())
+        assertEquals(1, repository.observeSetLogs("Rudern Kabel", null).first().size)
+    }
+
+    /** „Überall löschen“ nimmt das Protokoll mit; das Löschen einer Zeile lässt es stehen. */
+    @Test
+    fun ueberallLoeschenEntferntDasProtokollEinzelnLoeschenNicht() = runBlocking {
+        val id = anlegen(name = "Dips", weightKg = 10.0, stepKg = 2.5)
+        anlegen(name = "Curls", weightKg = 12.0, stepKg = 1.0)
+        repository.logSet("Dips", null, dayId = 1, setNumber = 1, reps = 8, weightKg = 10.0)
+        repository.logSet("Curls", null, dayId = 1, setNumber = 1, reps = 12, weightKg = 12.0)
+
+        repository.deleteExercises(listOf(repository.findExercise(id)!!))
+        assertEquals(1, repository.observeSetLogs("Dips", null).first().size)
+
+        repository.deleteExercisesEverywhere(listOf("Dips"))
+        assertTrue(repository.observeSetLogs("Dips", null).first().isEmpty())
+        assertEquals(1, repository.observeSetLogs("Curls", null).first().size)
+    }
+
+    /** „Alle Daten löschen“ lässt vom Protokoll nichts übrig. */
+    @Test
+    fun allesLoeschenEntferntDasProtokoll() = runBlocking {
+        repository.logSet("Kniebeuge", null, dayId = 1, setNumber = 1, reps = 5, weightKg = 100.0)
+
+        repository.deleteAllData()
+
+        assertTrue(repository.observeSetLogs().first().isEmpty())
+    }
+
     // --- Weiterschalten am neuen Tag ---------------------------------------
 
     /**

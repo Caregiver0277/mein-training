@@ -13,6 +13,7 @@ import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.model.Exercise
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.FIRST_DAY_ID
+import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
@@ -64,6 +65,7 @@ class BackupRepository(
         val definitions = database.exerciseDefinitionDao().listAll()
         val logs = database.weightLogDao().listAll()
         val sessions = database.workoutSessionDao().listAll()
+        val setLogs = database.setLogDao().listAll()
 
         return BackupFile(
             createdAt = now,
@@ -86,7 +88,9 @@ class BackupRepository(
                     name = it.name,
                     weightKg = it.weightKg,
                     progressionStepKg = it.progressionStepKg,
-                    progressionDown = it.progressionDown
+                    progressionDown = it.progressionDown,
+                    note = it.note,
+                    logSets = it.logSets
                 )
             },
             weightLogs = logs.map {
@@ -97,7 +101,18 @@ class BackupRepository(
                 )
             },
             sessions = sessions.map {
-                BackupSession(dayId = it.dayId, completedAt = it.completedAt)
+                BackupSession(dayId = it.dayId, completedAt = it.completedAt, startedAt = it.startedAt)
+            },
+            setLogs = setLogs.map {
+                BackupSetLog(
+                    exerciseName = it.exerciseName,
+                    variation = it.variation,
+                    dayId = it.dayId,
+                    performedAt = it.performedAt,
+                    setNumber = it.setNumber,
+                    reps = it.reps,
+                    weightKg = it.weightKg
+                )
             },
             settings = with(settings) {
                 BackupSettings(
@@ -286,6 +301,7 @@ class BackupRepository(
     suspend fun restore(backup: BackupFile) {
         database.withTransaction {
             database.weightLogDao().deleteAll()
+            database.setLogDao().deleteAll()
             database.workoutSessionDao().deleteAll()
             database.exerciseDao().deleteAll()
             database.exerciseDefinitionDao().deleteAll()
@@ -300,7 +316,9 @@ class BackupRepository(
                         name = it.name,
                         weightKg = it.weightKg,
                         progressionStepKg = it.progressionStepKg,
-                        progressionDown = it.progressionDown
+                        progressionDown = it.progressionDown,
+                        note = it.note,
+                        logSets = it.logSets
                     )
                 }
             )
@@ -330,7 +348,20 @@ class BackupRepository(
             )
             database.workoutSessionDao().insertAll(
                 backup.sessions.map {
-                    WorkoutSession(dayId = it.dayId, completedAt = it.completedAt)
+                    WorkoutSession(dayId = it.dayId, completedAt = it.completedAt, startedAt = it.startedAt)
+                }
+            )
+            database.setLogDao().insertAll(
+                backup.setLogs.map {
+                    SetLog(
+                        exerciseName = it.exerciseName,
+                        variation = it.variation,
+                        dayId = it.dayId,
+                        performedAt = it.performedAt,
+                        setNumber = it.setNumber,
+                        reps = it.reps,
+                        weightKg = it.weightKg
+                    )
                 }
             )
         }
