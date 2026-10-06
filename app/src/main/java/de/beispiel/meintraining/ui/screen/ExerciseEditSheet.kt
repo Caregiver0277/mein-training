@@ -257,6 +257,19 @@ private fun ExerciseEditSheetContent(
             )
         }
 
+        // Mehrzeilig: Ein Zeilenumbruch ist hier ein Zeilenumbruch und kein „Weiter“. In der
+        // Liste stehen die Zeilen dann hintereinander (siehe noteLine).
+        SheetTextField(
+            value = form.note,
+            onValueChange = { onFormChange(form.copy(note = it)) },
+            label = stringResource(R.string.field_note),
+            keyboardType = KeyboardType.Text,
+            capitalization = KeyboardCapitalization.Sentences,
+            imeAction = ImeAction.Default,
+            singleLine = false,
+            supportingText = stringResource(R.string.hint_note_shared)
+        )
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -533,13 +546,16 @@ private fun SheetTextField(
     capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
     imeAction: ImeAction = ImeAction.Next,
     isError: Boolean = false,
-    supportingText: String? = null
+    supportingText: String? = null,
+    singleLine: Boolean = true
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(text = label) },
-        singleLine = true,
+        singleLine = singleLine,
+        minLines = if (singleLine) 1 else NOTE_MIN_LINES,
+        maxLines = if (singleLine) 1 else NOTE_MAX_LINES,
         isError = isError,
         supportingText = supportingText?.let { text ->
             { Text(text = text, style = AppTextStyles.ColumnLabel) }
@@ -574,6 +590,13 @@ private fun SheetTextField(
  */
 private const val STEP_MATCH_TOLERANCE = 1e-6
 
+/**
+ * Höhe des Notizfelds in Zeilen: zwei gleich zu Beginn, damit es als mehrzeilig erkennbar ist,
+ * höchstens vier – darüber scrollt es in sich, statt die Knöpfe aus dem Sheet zu schieben.
+ */
+private const val NOTE_MIN_LINES = 2
+private const val NOTE_MAX_LINES = 4
+
 @Preview(showBackground = true, backgroundColor = 0xFF1C222B, widthDp = 360, heightDp = 720)
 @Composable
 private fun ExerciseEditSheetContentPreview() {
@@ -589,7 +612,8 @@ private fun ExerciseEditSheetContentPreview() {
                 repsMin = "4",
                 repsMax = "6",
                 // Die feinste Stufe: In der Schnellauswahl steht sie blau da.
-                progressionStep = "0,625"
+                progressionStep = "0,625",
+                note = "Kabel ganz oben, Ellbogen fest"
             ),
             weightHistory = WeightHistory(
                 currentKg = 20.0,

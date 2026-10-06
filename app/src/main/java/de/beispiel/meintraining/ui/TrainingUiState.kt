@@ -152,10 +152,12 @@ data class ExerciseForm(
      * Richtungen.
      */
     val progressionDown: Boolean = false,
+    /** Notiz zur Übung, mehrzeilig; hängt wie das Gewicht am Namen (siehe [SharedFormValues]). */
+    val note: String = "",
     /** Beim Bearbeiten der Name, unter dem die Übung gespeichert ist; beim Anlegen `null`. */
     val originalName: String? = null,
     /**
-     * Die bekannte Übung, deren Gewicht, Schritt und Richtung gerade in den Feldern stehen;
+     * Die bekannte Übung, deren Gewicht, Schritt, Richtung und Notiz gerade in den Feldern stehen;
      * `null`, solange der Name auf keine passt. Beim Bearbeiten ist das anfangs die Übung selbst.
      */
     val matchedName: String? = null,
@@ -170,11 +172,11 @@ data class ExerciseForm(
     val canSave: Boolean get() = name.isNotBlank()
 
     val sharedValues: SharedFormValues
-        get() = SharedFormValues(weight, progressionStep, progressionDown)
+        get() = SharedFormValues(weight, progressionStep, progressionDown, note)
 
     /**
-     * Übernimmt eine Eingabe aus dem Sheet und hält dabei Gewicht, Schritt und Richtung passend
-     * zu dem Namen, der gerade dasteht.
+     * Übernimmt eine Eingabe aus dem Sheet und hält dabei Gewicht, Schritt, Richtung und Notiz
+     * passend zu dem Namen, der gerade dasteht.
      *
      * Passt der Name auf eine bekannte Übung, kommen deren Werte ins Formular – egal ob getippt
      * oder aus der Vorschlagsliste gewählt. Sätze und Wiederholungen bleiben unangetastet, die
@@ -195,8 +197,8 @@ data class ExerciseForm(
      */
     fun withChange(changed: ExerciseForm, known: List<ExerciseDefinition>): ExerciseForm {
         if (changed.name == name) {
-            // Kein neuer Name. Wer Gewicht, Schritt oder Richtung anfasst, macht sie damit zu
-            // seinen eigenen – sie bleiben auch stehen, wenn der Name danach nicht mehr passt.
+            // Kein neuer Name. Wer Gewicht, Schritt, Richtung oder Notiz anfasst, macht sie damit
+            // zu seinen eigenen – sie bleiben auch stehen, wenn der Name danach nicht mehr passt.
             return if (changed.sharedValues == sharedValues) changed else changed.copy(ownValues = null)
         }
         val match = known.firstOrNull { it.name.equals(changed.name.trim(), ignoreCase = true) }
@@ -214,24 +216,28 @@ data class ExerciseForm(
     private fun withShared(values: SharedFormValues) = copy(
         weight = values.weight,
         progressionStep = values.progressionStep,
-        progressionDown = values.progressionDown
+        progressionDown = values.progressionDown,
+        note = values.note
     )
 }
 
 /**
- * Gewicht, Progressionsschritt und Richtung – die Felder des Formulars, die nicht an der Zeile
- * hängen, sondern am Namen: Sie gelten für jede gleichnamige Übung (siehe [ExerciseDefinition]).
+ * Gewicht, Progressionsschritt, Richtung und Notiz – die Felder des Formulars, die nicht an der
+ * Zeile hängen, sondern am Namen: Sie gelten für jede gleichnamige Übung (siehe
+ * [ExerciseDefinition]).
  */
 data class SharedFormValues(
     val weight: String = "",
     val progressionStep: String = DEFAULT_PROGRESSION_STEP_KG.toDecimalString(),
-    val progressionDown: Boolean = false
+    val progressionDown: Boolean = false,
+    val note: String = ""
 )
 
 private fun ExerciseDefinition.toSharedFormValues() = SharedFormValues(
     weight = weightKg?.toDecimalString().orEmpty(),
     progressionStep = progressionStepKg.toDecimalString(),
-    progressionDown = progressionDown
+    progressionDown = progressionDown,
+    note = note.orEmpty()
 )
 
 /** Ersetzt den Text zwischen den Leerzeichen am Rand: `" rudern "` mit `"Rudern"` → `" Rudern "`. */

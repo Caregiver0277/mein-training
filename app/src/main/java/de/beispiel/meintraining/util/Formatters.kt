@@ -80,6 +80,19 @@ fun exerciseTitle(name: String, variation: String?): String =
     if (variation.isNullOrBlank()) name else "$name (${variation.trim()})"
 
 /**
+ * Die Notiz als eine Zeile für die Karte: Zeilenumbrüche werden zu „ · “, leere Zeilen fallen
+ * weg. `"Sitz 4\nPolster 2" → "Sitz 4 · Polster 2"`; ohne Inhalt `null` – dann bleibt die Karte,
+ * wie sie ohne Notiz aussieht.
+ */
+fun noteLine(note: String?): String? = note?.lines()
+    ?.map { it.trim() }
+    ?.filter { it.isNotEmpty() }
+    ?.takeIf { it.isNotEmpty() }
+    ?.joinToString(NOTE_LINE_SEPARATOR)
+
+private const val NOTE_LINE_SEPARATOR = " · "
+
+/**
  * Gewichtslabel für die Karte. `20.0 → "20 Kg"`, `22.5 → "22,5 Kg"`.
  * [unit] kommt aus den String-Ressourcen.
  */

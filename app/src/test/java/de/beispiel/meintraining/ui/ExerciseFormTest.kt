@@ -8,7 +8,7 @@ import org.junit.Test
 
 /** Die Übungen, die es schon gibt – so, wie das ViewModel sie dem Formular mitgibt. */
 private val BEKANNT = listOf(
-    ExerciseDefinition(name = "Rudern", weightKg = 40.0, progressionStepKg = 2.5),
+    ExerciseDefinition(name = "Rudern", weightKg = 40.0, progressionStepKg = 2.5, note = "Griff eng"),
     ExerciseDefinition(name = "Rudern eng", weightKg = 50.0, progressionStepKg = 2.5),
     ExerciseDefinition(name = "Curls", weightKg = 12.5, progressionStepKg = 1.25),
     ExerciseDefinition(
@@ -126,6 +126,24 @@ class ExerciseFormTest {
         assertEquals("40", form.weight)
         // Und zurück: Die eigene Eingabe ist nicht verloren.
         assertEquals("15", form.tippeName("Rudernx").weight)
+    }
+
+    // --- Notiz --------------------------------------------------------------
+
+    /** Die Notiz hängt am Namen wie das Gewicht: Ein bekannter Name bringt seine mit. */
+    @Test
+    fun einBekannterNameBringtSeineNotizMit() {
+        assertEquals("Griff eng", ExerciseForm().tippeName("Rudern").note)
+    }
+
+    /** Und sie geht wieder, wenn der Name nicht mehr passt – die eigene kommt zurück. */
+    @Test
+    fun ohneTrefferKommtDieEigeneNotizZurueck() {
+        val form = ExerciseForm()
+            .let { it.withChange(it.copy(note = "Bank Stufe 3"), BEKANNT) }
+            .tippeName("Rudern")
+        assertEquals("Griff eng", form.note)
+        assertEquals("Bank Stufe 3", form.tippeName("Rudern x").note)
     }
 
     // --- Übrige Felder -----------------------------------------------------

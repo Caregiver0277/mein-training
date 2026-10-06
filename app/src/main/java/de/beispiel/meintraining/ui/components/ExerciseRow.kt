@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -45,6 +46,10 @@ import de.beispiel.meintraining.ui.theme.TextSecondary
 /**
  * Eine Übungszeile. Die Composable ist zustandslos.
  *
+ * [note] steht als zweite, kleine Zeile unter dem Namen – eine Zeile, bei Überlänge als
+ * Laufschrift wie der Name. Die Karte wird dafür nicht höher; ohne Notiz sieht sie aus wie
+ * immer.
+ *
  * [weightLabel] und [setsLabel] sind `null`, wenn nichts eingetragen ist. Ohne Gewicht rückt
  * der Name in dessen Spalte vor; die Sätze-Spalte bleibt dabei an ihrem Platz, weil sie
  * rechts am Pfeilbutton hängt. Sind beide leer, entfällt der Wertebereich ganz.
@@ -71,6 +76,7 @@ fun ExerciseRow(
     onLongClick: () -> Unit,
     onProgressClick: () -> Unit,
     modifier: Modifier = Modifier,
+    note: String? = null,
     onProgressLongClick: () -> Unit = {},
     progressionDown: Boolean = false,
     isDragging: Boolean = false,
@@ -121,16 +127,26 @@ fun ExerciseRow(
             } else {
                 Spacer(modifier = Modifier.width(Dimens.CardPaddingStart))
             }
-            Text(
-                text = name,
-                style = AppTextStyles.ExerciseName,
-                color = TextPrimary,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier
-                    .weight(1f)
-                    .loopingMarquee()
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style = AppTextStyles.ExerciseName,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.loopingMarquee()
+                )
+                if (note != null) {
+                    Text(
+                        text = note,
+                        style = AppTextStyles.ExerciseNote,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.loopingMarquee()
+                    )
+                }
+            }
             if (weightLabel != null || setsLabel != null) {
                 // Ohne Gewicht entfällt die Spalte ganz und der Name bekommt ihre Breite.
                 if (weightLabel != null) {
@@ -224,7 +240,8 @@ private fun ExerciseRowPreview() {
             onClick = {},
             onLongClick = {},
             onProgressClick = {},
-            modifier = Modifier.padding(Dimens.ScreenPaddingHorizontal)
+            modifier = Modifier.padding(Dimens.ScreenPaddingHorizontal),
+            note = "Kabel ganz oben · Ellbogen fest"
         )
     }
 }

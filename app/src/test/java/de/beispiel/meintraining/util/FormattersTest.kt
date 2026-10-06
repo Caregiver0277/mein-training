@@ -101,4 +101,19 @@ class FormattersTest {
         val sets: Int? = null
         assertNull(sets.toSetsRepsLabel(4, 6))
     }
+
+    // --- Notiz -------------------------------------------------------------
+
+    @Test
+    fun eineMehrzeiligeNotizStehtInEinerZeile() {
+        assertEquals("Sitz 4 · Polster 2", noteLine("Sitz 4\nPolster 2"))
+        assertEquals("Sitz 4 · Polster 2", noteLine("  Sitz 4 \n\n Polster 2\n"))
+    }
+
+    @Test
+    fun eineLeereNotizErgibtKeineZeile() {
+        assertNull(noteLine(null))
+        assertNull(noteLine(""))
+        assertNull(noteLine(" \n  "))
+    }
 }

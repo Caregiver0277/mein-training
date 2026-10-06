@@ -105,6 +105,7 @@ import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.deloadSets
 import de.beispiel.meintraining.util.exerciseTitle
+import de.beispiel.meintraining.util.noteLine
 import de.beispiel.meintraining.util.toSetsRepsLabel
 import de.beispiel.meintraining.util.toWeightLabel
 import kotlinx.coroutines.flow.Flow
@@ -423,6 +424,7 @@ private fun TrainingContent(
                         ) {
                             ExerciseRow(
                                 name = exerciseTitle(exercise.name, exercise.variation),
+                                note = noteLine(exercise.note),
                                 // Nur die eingetragene Last – beim Trainieren zählt, was auf die
                                 // Stange kommt. Ohne Gewicht bleibt die Spalte leer.
                                 weightLabel = exercise.weightKg?.toWeightLabel(unit),

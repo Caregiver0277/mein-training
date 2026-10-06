@@ -32,6 +32,8 @@
     <string name="cd_remove_variation">Variation entfernen</string>
     <string name="field_weight">Gewicht (kg)</string>
     <string name="hint_weight_shared">Gilt an allen Tagen mit dieser Übung.</string>
+    <string name="field_note">Notiz</string>
+    <string name="hint_note_shared">Etwa „Sitz 4, Polster 2“ oder ein Technik-Hinweis. Gilt an allen Tagen mit dieser Übung.</string>
     <!-- Verlauf unter dem Gewichtsfeld: „60 kg seit 12 Tagen · zuletzt +2,5 kg am 18. Sept.“ -->
     <plurals name="weight_history_since">
         <item quantity="one">%1$s kg seit %2$d Tag</item>
@@ -369,7 +371,7 @@
     <string name="about_tagline">Dein Trainingsplan mit Gewichten, Pausenuhren und Verlauf – alles an einem Ort.</string>
     <string name="about_guide_title">Kurzanleitung</string>
     <string name="about_guide_list">Trainingsliste</string>
-    <string name="about_guide_edit">Übung antippen, um sie zu bearbeiten. Das „+“ unter der Liste legt eine neue an.</string>
+    <string name="about_guide_edit">Übung antippen, um sie zu bearbeiten. Das „+“ unter der Liste legt eine neue an. Eine Notiz wie „Sitz 4, Polster 2“ steht klein unter dem Namen, an jedem Tag mit dieser Übung.</string>
     <string name="about_guide_progress">Der blaue Pfeil erhöht das Gewicht um den Progressionsschritt – zeigt er nach unten, senkt er es. Lang drücken geht einen Schritt in die Gegenrichtung, etwa wenn die letzte Steigerung zu viel war. Das gilt an jedem Tag mit dieser Übung. Beim Bearbeiten zeigt eine Zeile unter dem Gewicht, seit wann es so steht und wie es sich zuletzt verändert hat.</string>
     <string name="about_guide_select">Lang drücken startet die Auswahl. Markierte Übungen lassen sich verschieben, löschen oder über das Menü oben zu einem Superset verbinden – und dort auch an einen anderen Tag kopieren oder verschieben.</string>
     <string name="about_guide_check">Der Haken trägt das Training in den Verlauf ein, ein zweites Tippen nimmt es zurück. Ein grüner Punkt auf dem Reiter zeigt, welche Tage der Runde schon erledigt sind.</string>

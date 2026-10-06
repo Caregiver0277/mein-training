@@ -34,6 +34,13 @@ object AppTextStyles {
         fontSize = 15.sp
     )
 
+    /** Die Notiz unter dem Namen – kleiner als er, damit beide in die Karte passen. */
+    val ExerciseNote = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp
+    )
+
     val ChipText = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
