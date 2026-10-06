@@ -83,8 +83,9 @@
     <string name="set_log_column_weight">Gewicht (kg)</string>
     <string name="set_log_column_reps">Wiederh.</string>
     <string name="set_log_add_set">Satz</string>
-    <string name="cd_save_set">Satz %1$d speichern</string>
-    <string name="cd_edit_set">Satz %1$d korrigieren</string>
+    <!-- Die Zahl ist die Nummer des Satzes, keine Anzahl: Eine Mehrzahl-Form gäbe es nie zu wählen. -->
+    <string name="cd_save_set" tools:ignore="PluralsCandidate">Satz %1$d speichern</string>
+    <string name="cd_edit_set" tools:ignore="PluralsCandidate">Satz %1$d korrigieren</string>
     <string name="cd_less_weight">Weniger Gewicht</string>
     <string name="cd_more_weight">Mehr Gewicht</string>
     <string name="cd_fewer_reps">Eine Wiederholung weniger</string>
