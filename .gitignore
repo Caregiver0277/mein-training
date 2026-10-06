@@ -18,6 +18,10 @@ local.properties
 *.aab
 captures/
 
+# Signaturschluessel: gehoeren nie ins Repo
+*.jks
+*.keystore
+
 # Betriebssystem
 .DS_Store
 Thumbs.db
