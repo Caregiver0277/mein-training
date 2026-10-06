@@ -15,10 +15,12 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import de.beispiel.meintraining.ui.TrainingActions
 import de.beispiel.meintraining.ui.TrainingViewModel
 import de.beispiel.meintraining.ui.screen.TrainingScreen
 import de.beispiel.meintraining.ui.theme.MeinTrainingTheme
+import kotlinx.coroutines.launch
 
 /** Single Activity – die gesamte Oberfläche ist Compose. */
 class MainActivity : ComponentActivity() {
@@ -58,6 +60,14 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
         )
         super.onCreate(savedInstanceState)
+
+        // Nur beim echten Start, nicht nach jedem Drehen: Läuft die automatische Sicherung noch?
+        // Nach einem Handywechsel wäre sie sonst still tot – siehe ensureAutoBackup.
+        if (savedInstanceState == null) {
+            lifecycleScope.launch {
+                (application as MeinTrainingApp).backupRepository.ensureAutoBackup()
+            }
+        }
 
         setContent {
             MeinTrainingTheme {

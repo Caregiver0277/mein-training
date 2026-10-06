@@ -75,7 +75,25 @@ class BackupWorker(
          * [ExistingPeriodicWorkPolicy.UPDATE] statt `KEEP`, damit ein geänderter Abstand sofort
          * gilt – sonst liefe stillschweigend der alte weiter.
          */
-        fun schedule(context: Context, intervalDays: Int) {
+        fun schedule(context: Context, intervalDays: Int) =
+            enqueue(context, intervalDays, ExistingPeriodicWorkPolicy.UPDATE)
+
+        /**
+         * Meldet die wiederkehrende Sicherung an, falls sie fehlt – beim Start der App, siehe
+         * [BackupRepository.ensureAutoBackup].
+         *
+         * Hier [ExistingPeriodicWorkPolicy.KEEP]: Ein laufender Auftrag bleibt unberührt. Mit
+         * `UPDATE` begänne der Takt bei jedem Start neu, und wer die App täglich öffnet, käme
+         * bei einem Abstand von sieben Tagen nie zu einer Sicherung.
+         */
+        fun ensureScheduled(context: Context, intervalDays: Int) =
+            enqueue(context, intervalDays, ExistingPeriodicWorkPolicy.KEEP)
+
+        private fun enqueue(
+            context: Context,
+            intervalDays: Int,
+            policy: ExistingPeriodicWorkPolicy
+        ) {
             val request = PeriodicWorkRequestBuilder<BackupWorker>(
                 intervalDays.toLong().coerceAtLeast(1L),
                 TimeUnit.DAYS
@@ -94,7 +112,7 @@ class BackupWorker(
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
+                policy,
                 request
             )
         }

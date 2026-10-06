@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.core.net.toUri
 import androidx.room.withTransaction
+import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.local.AppDatabase
 import de.beispiel.meintraining.data.local.SettingsSnapshot
 import de.beispiel.meintraining.data.local.SettingsStore
@@ -17,6 +18,8 @@ import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -204,6 +207,52 @@ class BackupRepository(
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
+        }
+    }
+
+    /**
+     * Ist die automatische Sicherung eingeschaltet, aber zuletzt gescheitert? Dann zeigt die
+     * Einstellungs-Übersicht einen Hinweis. Ist sie aus, zählt ein alter Fehler nicht mehr.
+     */
+    val autoBackupFailing: Flow<Boolean> = combine(
+        settingsStore.backupEnabled,
+        settingsStore.lastBackupError
+    ) { enabled, error -> enabled && error != null }
+
+    /**
+     * Stellt beim Start der App sicher, dass eine eingeschaltete automatische Sicherung auch
+     * wirklich läuft.
+     *
+     * Nach einem Handywechsel stellt Android die Einstellungen wieder her – Schalter an, alte
+     * Zieladresse, alter Erfolg –, aber weder den Auftrag bei WorkManager noch die dauerhafte
+     * Berechtigung für die Datei. Ohne diese Prüfung würde nie mehr gesichert, und nichts wiese
+     * darauf hin.
+     *
+     * Steht die Berechtigung noch, wird der Auftrag angemeldet, ohne seinen Takt neu zu beginnen
+     * (siehe [BackupWorker.ensureScheduled]). Fehlt sie, lässt sich nichts retten: Die Datei
+     * muss neu ausgewählt werden, und genau das steht dann als Fehler der letzten Sicherung da.
+     */
+    suspend fun ensureAutoBackup() {
+        val accessible = appContext.contentResolver.persistedUriPermissions
+            .filter { it.isWritePermission }
+            .mapTo(HashSet()) { it.uri.toString() }
+        val check = autoBackupCheck(
+            enabled = settingsStore.backupEnabled.first(),
+            target = settingsStore.backupTargetUri.first(),
+            accessibleTargets = accessible
+        )
+        when (check) {
+            AutoBackupCheck.OFF -> Unit
+            AutoBackupCheck.SCHEDULE ->
+                BackupWorker.ensureScheduled(appContext, settingsStore.backupIntervalDays.first())
+            AutoBackupCheck.ACCESS_LOST -> {
+                val reason = appContext.getString(R.string.backup_error_access_lost)
+                // Einmal vermerkt genügt – sonst rückte der Zeitpunkt bei jedem Start nach, und
+                // es sähe aus, als sei eben erst eine Sicherung versucht worden.
+                if (settingsStore.lastBackupError.first() != reason) {
+                    settingsStore.setLastBackupResult(System.currentTimeMillis(), reason)
+                }
+            }
         }
     }
 

@@ -232,6 +232,13 @@ fun SettingsScreen(
             SubmenuRow(
                 title = stringResource(R.string.settings_backup),
                 subtitle = stringResource(R.string.settings_backup_summary),
+                // Eine Sicherung, die still versagt, ist schlimmer als keine: Der Hinweis steht
+                // schon hier und nicht erst im Untermenü, das man sonst nie wieder öffnet.
+                warning = if (uiState.backupFailing) {
+                    stringResource(R.string.settings_backup_failed)
+                } else {
+                    null
+                },
                 onClick = onManageBackup
             )
 
@@ -779,7 +786,12 @@ private const val VOLUME_STEPS = 19
 private const val PERCENT = 100
 
 @Composable
-private fun SubmenuRow(title: String, subtitle: String, onClick: () -> Unit) {
+private fun SubmenuRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    warning: String? = null
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -797,6 +809,14 @@ private fun SubmenuRow(title: String, subtitle: String, onClick: () -> Unit) {
                 color = TextSecondary,
                 modifier = Modifier.padding(top = Dimens.SectionSpacingSmall / 2)
             )
+            warning?.let {
+                Text(
+                    text = it,
+                    style = AppTextStyles.ColumnLabel,
+                    color = AccentRed,
+                    modifier = Modifier.padding(top = Dimens.SectionSpacingSmall / 2)
+                )
+            }
         }
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,

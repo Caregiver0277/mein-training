@@ -111,6 +111,9 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
             settings.setLastBackupResult(System.currentTimeMillis(), null)
             // Erst wenn das neue Ziel wirklich steht, den Zugriff auf das alte zurückgeben.
             previous?.takeIf { it != uri.toString() }?.let { backups.releaseAccess(it.toUri()) }
+            // Der Weg zurück nach einem Handywechsel: Schalter und Abstand kamen mit, der
+            // Auftrag nicht. Mit der neu gewählten Datei läuft er wieder an.
+            backups.ensureAutoBackup()
             BackupMessage.Exported
         }
     }

@@ -124,6 +124,7 @@
     <!-- Sicherung -->
     <string name="settings_backup">Sicherung</string>
     <string name="settings_backup_summary">Alle Daten in eine Datei sichern und wieder einlesen.</string>
+    <string name="settings_backup_failed">Die letzte automatische Sicherung ist fehlgeschlagen.</string>
     <string name="backup_manual_title">Von Hand</string>
     <string name="backup_export">Jetzt sichern …</string>
     <string name="backup_export_hint">Schreibt alle Daten in eine Datei deiner Wahl – auch in Google Drive, wenn du es im Speicherdialog auswählst.</string>
@@ -161,6 +162,7 @@
     <string name="backup_error_not_read_back">Die Sicherung ließ sich nach dem Schreiben nicht wieder einlesen.</string>
     <string name="backup_error_incomplete">Die geschriebene Sicherung ist unvollständig.</string>
     <string name="backup_error_no_target">Keine Sicherungsdatei ausgewählt.</string>
+    <string name="backup_error_access_lost">Kein Zugriff mehr auf die Sicherungsdatei – bitte neu auswählen.</string>
     <string name="backup_error_no_content">Keine Daten zum Sichern – die vorhandene Datei bleibt unverändert.</string>
 
     <string name="backup_import_title">Daten wirklich einlesen?</string>

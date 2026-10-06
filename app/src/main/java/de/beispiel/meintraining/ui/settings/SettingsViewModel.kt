@@ -62,7 +62,9 @@ data class SettingsUiState(
     val timerSoundEnabled: Boolean = true,
     /** Wie laut dieser Ton ist, 0 bis 1. */
     val timerSoundVolume: Float = DEFAULT_TIMER_SOUND_VOLUME,
-    val exercises: List<ManagedExercise> = emptyList()
+    val exercises: List<ManagedExercise> = emptyList(),
+    /** Ist die automatische Sicherung an, aber zuletzt gescheitert? */
+    val backupFailing: Boolean = false
 )
 
 @OptIn(FlowPreview::class)
@@ -73,7 +75,10 @@ class SettingsViewModel(
      */
     private val appContext: Context,
     private val repository: TrainingRepository,
-    /** Nur fürs Zurücksetzen: Die automatische Sicherung muss dabei mit abbestellt werden. */
+    /**
+     * Fürs Zurücksetzen – die automatische Sicherung muss dabei mit abbestellt werden – und für
+     * den Hinweis auf eine gescheiterte Sicherung in der Übersicht.
+     */
     private val backups: BackupRepository,
     /**
      * Der Ton am Ende einer Pause wird hier umgeschaltet, liegt aber bei den Uhren: Der
@@ -116,6 +121,8 @@ class SettingsViewModel(
         }
     ) { title, weeks, dayCount, hidden, sound ->
         GeneralSettings(title, weeks, dayCount, hidden, sound)
+    }.combine(backups.autoBackupFailing) { settings, failing ->
+        settings.copy(backupFailing = failing)
     }
 
     val uiState = combine(
@@ -140,6 +147,7 @@ class SettingsViewModel(
             deloadCycleWeeks = general.cycleWeeks,
             timerSoundEnabled = general.sound.enabled,
             timerSoundVolume = general.sound.volume,
+            backupFailing = general.backupFailing,
             exercises = names.map { name ->
                 ManagedExercise(
                     name = name,
@@ -264,7 +272,9 @@ class SettingsViewModel(
         val cycleWeeks: Int,
         val dayCount: Int,
         val hiddenExerciseNames: Set<String>,
-        val sound: TimerSound
+        val sound: TimerSound,
+        /** Siehe [BackupRepository.autoBackupFailing]. */
+        val backupFailing: Boolean = false
     )
 
     /** Schalter und Regler des Tons am Pausenende. */
