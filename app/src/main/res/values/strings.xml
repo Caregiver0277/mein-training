@@ -185,7 +185,7 @@
     <string name="settings_hidden_note">%1$s · ausgeblendet</string>
     <string name="settings_delete_everywhere">Überall löschen</string>
     <string name="settings_delete_title">„%1$s“ überall löschen?</string>
-    <string name="settings_delete_body">Die Übung verschwindet von allen Trainingstagen, aus den Namensvorschlägen und samt Gewichtsverlauf aus dem Tracking. Das lässt sich nicht rückgängig machen.</string>
+    <string name="settings_delete_body">Die Übung verschwindet von allen Trainingstagen, aus den Namensvorschlägen und samt Gewichtsverlauf und Satz-Protokoll aus dem Tracking. Das lässt sich nicht rückgängig machen.</string>
     <string name="settings_select_all">Alle auswählen</string>
 
     <!-- Sicherung -->
@@ -242,7 +242,7 @@
     <string name="settings_delete_all">Alle Daten löschen</string>
     <string name="settings_delete_all_summary">Verlauf, Gewichtsverlauf, Übungen und Einstellungen – alles, was die App gesammelt hat.</string>
     <string name="settings_delete_all_title">Wirklich alle Daten löschen?</string>
-    <string name="settings_delete_all_body">Das löscht endgültig alle abgehakten Trainings, den kompletten Gewichtsverlauf, alle Übungen samt Gewichten, die Namen der Trainingstage und alle Einstellungen.\n\nÜbrig bleiben die leeren Trainingstage. Das lässt sich nicht rückgängig machen.</string>
+    <string name="settings_delete_all_body">Das löscht endgültig alle abgehakten Trainings, den kompletten Gewichtsverlauf, das Satz-Protokoll, alle Übungen samt Gewichten, die Namen der Trainingstage und alle Einstellungen.\n\nÜbrig bleiben die leeren Trainingstage. Das lässt sich nicht rückgängig machen.</string>
     <!-- Das Wort, das zur Bestätigung eingetippt werden muss. Umlaute sind egal: „löschen“ zählt auch. -->
     <string name="settings_delete_all_word">loeschen</string>
     <string name="settings_delete_all_prompt">Tippe zum Bestätigen „%1$s“ ein.</string>
@@ -252,7 +252,7 @@
         <item quantity="one">%1$d Übung überall löschen?</item>
         <item quantity="other">%1$d Übungen überall löschen?</item>
     </plurals>
-    <string name="settings_delete_selected_body">Die ausgewählten Übungen verschwinden von allen Trainingstagen, aus den Namensvorschlägen und samt Gewichtsverlauf aus dem Tracking. Das lässt sich nicht rückgängig machen.\n\n%1$s</string>
+    <string name="settings_delete_selected_body">Die ausgewählten Übungen verschwinden von allen Trainingstagen, aus den Namensvorschlägen und samt Gewichtsverlauf und Satz-Protokoll aus dem Tracking. Das lässt sich nicht rückgängig machen.\n\n%1$s</string>
     <plurals name="settings_only_history">
         <item quantity="one">Nur noch im Verlauf (%1$d Eintrag)</item>
         <item quantity="other">Nur noch im Verlauf (%1$d Einträge)</item>
@@ -351,7 +351,7 @@
     <string name="stats_duration">Trainingsdauer</string>
     <string name="stats_duration_average">Ø Dauer</string>
     <string name="stats_minutes_value">%1$d min</string>
-    <string name="stats_duration_none">Noch keine Dauer gemessen. Sie läuft ab der ersten Pausenuhr nach dem letzten Abhaken bis zum Haken oder bis zur letzten Aktivität, wenn das Training nach 30 Minuten Ruhe von selbst endet – zwischen 10 Minuten und 4 Stunden zählt sie.</string>
+    <string name="stats_duration_none">Noch keine Dauer gemessen. Sie läuft ab der ersten Pausenuhr oder dem ersten protokollierten Satz nach dem letzten Abhaken bis zum Haken oder bis zur letzten Aktivität, wenn das Training nach 30 Minuten Ruhe von selbst endet – zwischen 10 Minuten und 4 Stunden zählt sie.</string>
     <string name="stats_progress">Fortschritt</string>
     <string name="stats_total_gain">Gesamtzuwachs</string>
     <string name="stats_heaviest">Schwerste Übung</string>
@@ -420,14 +420,15 @@
     <string name="about_guide_list">Trainingsliste</string>
     <string name="about_guide_edit">Übung antippen, um sie zu bearbeiten. Das „+“ unter der Liste legt eine neue an. Eine Notiz wie „Sitz 4, Polster 2“ steht klein unter dem Namen, an jedem Tag mit dieser Übung.</string>
     <string name="about_guide_progress">Der blaue Pfeil erhöht das Gewicht um den Progressionsschritt – zeigt er nach unten, senkt er es. Lang drücken geht einen Schritt in die Gegenrichtung, etwa wenn die letzte Steigerung zu viel war. Das gilt an jedem Tag mit dieser Übung. Beim Bearbeiten zeigt eine Zeile unter dem Gewicht, seit wann es so steht und wie es sich zuletzt verändert hat.</string>
+    <string name="about_guide_sets">Mit „Sätze protokollieren“ im Bearbeiten-Sheet öffnet ein Tipp auf die Sätze in der Liste das Satz-Protokoll: Gewicht und Wiederholungen je Satz, vorbelegt mit dem aktuellen Gewicht und dem letzten Mal. ✓ speichert einen Satz sofort, ein Tipp auf einen gespeicherten korrigiert oder löscht ihn, „+ Satz“ hängt einen an. Der Chip füllt sich grün, ein Haken zeigt, dass alle Sätze drin sind. Hat das letzte vollständige Training jeden Satz beim aktuellen Gewicht am oberen Ende der Spanne geschafft, leuchtet der Pfeil grün, und das Protokoll schlägt vor, das Gewicht zu erhöhen – außer in der Deload-Woche.</string>
     <string name="about_guide_select">Lang drücken startet die Auswahl. Markierte Übungen lassen sich verschieben, löschen oder über das Menü oben zu einem Superset verbinden – und dort auch an einen anderen Tag kopieren oder verschieben.</string>
-    <string name="about_guide_check">Ein Training beginnt mit der ersten Pausenuhr nach dem letzten Abhaken. Es endet mit dem Haken unter der Liste – oder von selbst nach 30 Minuten ohne Aktivität, eine laufende Pausenuhr zählt dabei bis zu ihrem Ende. Dann steht es mit der letzten Aktivität als Ende im Verlauf. Ein zweites Tippen auf den Haken nimmt das Abhaken zurück, auch das automatische. Ein grüner Punkt auf dem Reiter zeigt, welche Tage der Runde schon erledigt sind. Die Dauer steht im Verlauf an jedem Eintrag und in der Statistik, wenn sie zwischen 10 Minuten und 4 Stunden liegt.</string>
+    <string name="about_guide_check">Ein Training beginnt mit der ersten Pausenuhr oder dem ersten protokollierten Satz nach dem letzten Abhaken. Es endet mit dem Haken unter der Liste – oder von selbst nach 30 Minuten ohne Aktivität, eine laufende Pausenuhr zählt dabei bis zu ihrem Ende. Dann steht es mit der letzten Aktivität als Ende im Verlauf. Ein zweites Tippen auf den Haken nimmt das Abhaken zurück, auch das automatische. Ein grüner Punkt auf dem Reiter zeigt, welche Tage der Runde schon erledigt sind. Die Dauer steht im Verlauf an jedem Eintrag und in der Statistik, wenn sie zwischen 10 Minuten und 4 Stunden liegt.</string>
     <string name="about_guide_cycle">Am letzten Tag beginnt der Pfeil neben dem Haken die nächste Runde – auch wenn ein Tag ausgefallen ist. Wer so weitergeschaltet hat, findet am ersten Tag einen Pfeil zurück, solange in der neuen Runde noch nichts abgehakt ist.</string>
     <string name="about_guide_timers">Pausenuhren</string>
     <string name="about_guide_timer_toggle">Tippen startet die Pause und hält sie an, lang auf den runden Knopf drücken setzt sie zurück.</string>
     <string name="about_guide_timer_config">Lang auf die Uhr drücken stellt ihre Dauer ein. Ist die Pause um, vibriert das Handy – auch bei geschlossener App.</string>
     <string name="about_guide_more">Verlauf, Tracking und Einstellungen</string>
-    <string name="about_guide_history">Im Verlauf trägt das „+“ ein vergessenes Training nach – auf Wunsch mit Dauer –, lang drücken löscht einen Eintrag.</string>
+    <string name="about_guide_history">Im Verlauf trägt das „+“ ein vergessenes Training nach – auf Wunsch mit Dauer. Ein Tipp auf einen Eintrag zeigt seine Dauer und die protokollierten Sätze, lang drücken löscht ihn.</string>
     <string name="about_guide_tracking">Im Tracking wählt die Liste oben rechts die Übungen aus. Lang auf eine davon drücken zeigt ihre einzelnen Datenpunkte. Jeder Punkt ist eine Gewichtsänderung; blasse Linienstücke ohne Punkt zeigen den Stand, der von vorher weiter gilt. Tippen oder Ziehen auf dem Graphen zeigt Übung, Gewicht und Datum des nächsten Punkts; Tippen daneben blendet das wieder aus. Oben rechts schaltet „kg | %“ auf die Veränderung in Prozent seit Beginn des Zeitraums – so lassen sich leichte und schwere Übungen vergleichen; bei Übungen mit Pfeil nach unten zählt eine Senkung als Plus.</string>
     <string name="about_guide_keep_screen_on">Unter Einstellungen → Allgemein hält „Bildschirm anlassen“ das Display an, solange die App offen ist.</string>
     <string name="about_guide_manage">Unter „Übungen verwalten“ lässt sich eine Übung an allen Tagen ausblenden – oder überall endgültig löschen.</string>
