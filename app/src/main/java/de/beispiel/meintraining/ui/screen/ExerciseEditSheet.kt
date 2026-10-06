@@ -50,6 +50,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
@@ -58,6 +59,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.ui.ExerciseForm
+import de.beispiel.meintraining.ui.components.Sparkline
 import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AccentBlueSurface
 import de.beispiel.meintraining.ui.theme.AppTextStyles
@@ -70,8 +72,13 @@ import de.beispiel.meintraining.ui.theme.TextDisabled
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.PROGRESSION_STEP_SUGGESTIONS
+import de.beispiel.meintraining.util.WeightChange
+import de.beispiel.meintraining.util.WeightHistory
+import de.beispiel.meintraining.util.formatShortDate
 import de.beispiel.meintraining.util.parseProgressionStep
 import de.beispiel.meintraining.util.toDecimalString
+import de.beispiel.meintraining.util.toSignedDecimalString
+import java.time.LocalDate
 import kotlin.math.abs
 
 /** Bottom-Sheet zum Anlegen und Bearbeiten einer Übung. */
@@ -79,6 +86,8 @@ import kotlin.math.abs
 @Composable
 fun ExerciseEditSheet(
     form: ExerciseForm,
+    /** Verlauf der Übung, deren Gewicht in den Feldern steht; `null` blendet die Zeile aus. */
+    weightHistory: WeightHistory?,
     knownExerciseNames: List<String>,
     onFormChange: (ExerciseForm) -> Unit,
     onVariationToggle: () -> Unit,
@@ -96,6 +105,7 @@ fun ExerciseEditSheet(
     ) {
         ExerciseEditSheetContent(
             form = form,
+            weightHistory = weightHistory,
             knownExerciseNames = knownExerciseNames,
             onFormChange = onFormChange,
             onVariationToggle = onVariationToggle,
@@ -109,6 +119,7 @@ fun ExerciseEditSheet(
 @Composable
 private fun ExerciseEditSheetContent(
     form: ExerciseForm,
+    weightHistory: WeightHistory?,
     knownExerciseNames: List<String>,
     onFormChange: (ExerciseForm) -> Unit,
     onVariationToggle: () -> Unit,
@@ -182,6 +193,7 @@ private fun ExerciseEditSheetContent(
             keyboardType = KeyboardType.Decimal,
             supportingText = stringResource(R.string.hint_weight_shared)
         )
+        weightHistory?.let { WeightHistoryLine(history = it) }
 
         SheetTextField(
             value = form.sets,
@@ -464,6 +476,53 @@ private fun VariationToggle(expanded: Boolean, onClick: () -> Unit) {
  * Tastatur aber klein.
  */
 @OptIn(ExperimentalMaterial3Api::class)
+/**
+ * „60 kg seit 12 Tagen · zuletzt +2,5 kg am 18. Sept.“ und daneben die kleine Kurve der
+ * jüngsten Werte – damit beim Anpassen des Gewichts sichtbar ist, wie es bisher lief.
+ *
+ * Das Gewicht kommt aus dem Verlauf, nicht aus dem Feld darüber: Die Zeile erzählt, was war,
+ * und springt nicht beim Tippen mit.
+ */
+@Composable
+private fun WeightHistoryLine(history: WeightHistory) {
+    val weight = history.currentKg.toDecimalString()
+    val since = if (history.daysSince == 0) {
+        stringResource(R.string.weight_history_since_today, weight)
+    } else {
+        pluralStringResource(
+            R.plurals.weight_history_since,
+            history.daysSince,
+            weight,
+            history.daysSince
+        )
+    }
+    val text = history.lastChange?.let { change: WeightChange ->
+        stringResource(
+            R.string.weight_history_with_change,
+            since,
+            change.deltaKg.toSignedDecimalString(),
+            formatShortDate(change.date)
+        )
+    } ?: since
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimens.SectionSpacingLarge),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            style = AppTextStyles.ColumnLabel,
+            color = TextSecondary,
+            modifier = Modifier.weight(1f)
+        )
+        Sparkline(
+            values = history.recentWeights,
+            modifier = Modifier.padding(start = Dimens.SectionSpacingMedium)
+        )
+    }
+}
+
 @Composable
 private fun SheetTextField(
     value: String,
@@ -531,6 +590,13 @@ private fun ExerciseEditSheetContentPreview() {
                 repsMax = "6",
                 // Die feinste Stufe: In der Schnellauswahl steht sie blau da.
                 progressionStep = "0,625"
+            ),
+            weightHistory = WeightHistory(
+                currentKg = 20.0,
+                since = LocalDate.of(2026, 9, 18),
+                daysSince = 12,
+                lastChange = WeightChange(deltaKg = 0.625, date = LocalDate.of(2026, 9, 18)),
+                recentWeights = listOf(17.5, 18.125, 18.75, 18.75, 19.375, 20.0)
             ),
             knownExerciseNames = listOf("Trizeps", "Bankdrücken"),
             onFormChange = {},

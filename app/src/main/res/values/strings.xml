@@ -32,6 +32,14 @@
     <string name="cd_remove_variation">Variation entfernen</string>
     <string name="field_weight">Gewicht (kg)</string>
     <string name="hint_weight_shared">Gilt an allen Tagen mit dieser Übung.</string>
+    <!-- Verlauf unter dem Gewichtsfeld: „60 kg seit 12 Tagen · zuletzt +2,5 kg am 18. Sept.“ -->
+    <plurals name="weight_history_since">
+        <item quantity="one">%1$s kg seit %2$d Tag</item>
+        <item quantity="other">%1$s kg seit %2$d Tagen</item>
+    </plurals>
+    <string name="weight_history_since_today">%1$s kg seit heute</string>
+    <!-- %2$s trägt sein Vorzeichen selbst: „+2,5“ oder „−2,5“. -->
+    <string name="weight_history_with_change">%1$s · zuletzt %2$s kg am %3$s</string>
     <string name="field_sets">Sätze</string>
     <string name="field_reps_min">Wiederh. von</string>
     <string name="field_reps_max">Wiederh. bis</string>
@@ -337,7 +345,7 @@
     <string name="about_guide_title">Kurzanleitung</string>
     <string name="about_guide_list">Trainingsliste</string>
     <string name="about_guide_edit">Übung antippen, um sie zu bearbeiten. Das „+“ unter der Liste legt eine neue an.</string>
-    <string name="about_guide_progress">Der blaue Pfeil erhöht das Gewicht um den Progressionsschritt – zeigt er nach unten, senkt er es. Lang drücken geht einen Schritt in die Gegenrichtung, etwa wenn die letzte Steigerung zu viel war. Das gilt an jedem Tag mit dieser Übung.</string>
+    <string name="about_guide_progress">Der blaue Pfeil erhöht das Gewicht um den Progressionsschritt – zeigt er nach unten, senkt er es. Lang drücken geht einen Schritt in die Gegenrichtung, etwa wenn die letzte Steigerung zu viel war. Das gilt an jedem Tag mit dieser Übung. Beim Bearbeiten zeigt eine Zeile unter dem Gewicht, seit wann es so steht und wie es sich zuletzt verändert hat.</string>
     <string name="about_guide_select">Lang drücken startet die Auswahl. Markierte Übungen lassen sich verschieben, löschen oder über das Menü oben zu einem Superset verbinden.</string>
     <string name="about_guide_check">Der Haken trägt das Training in den Verlauf ein, ein zweites Tippen nimmt es zurück. Ein grüner Punkt auf dem Reiter zeigt, welche Tage der Runde schon erledigt sind.</string>
     <string name="about_guide_cycle">Am letzten Tag beginnt der Pfeil neben dem Haken die nächste Runde – auch wenn ein Tag ausgefallen ist. Wer so weitergeschaltet hat, findet am ersten Tag einen Pfeil zurück, solange in der neuen Runde noch nichts abgehakt ist.</string>

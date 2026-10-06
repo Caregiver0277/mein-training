@@ -106,6 +106,12 @@ object Dimens {
 
     // Bearbeiten-Sheet
     val SheetPadding = 20.dp
+
+    /** Kleine Kurve der jüngsten Gewichte unter dem Gewichtsfeld. */
+    val SparklineWidth = 64.dp
+    val SparklineHeight = 20.dp
+    val SparklineStroke = 1.5.dp
+    val SparklineDot = 2.dp
     val SheetFieldSpacing = 12.dp
 
     /** Höhe eines OutlinedTextField ohne Hilfetext – daran richtet sich der „+“-Knopf aus. */

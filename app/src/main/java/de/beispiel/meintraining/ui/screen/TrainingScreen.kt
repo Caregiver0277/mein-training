@@ -95,6 +95,7 @@ import de.beispiel.meintraining.ui.timer.RestTimerBar
 import de.beispiel.meintraining.ui.timer.RestTimerRoute
 import de.beispiel.meintraining.ui.tracking.TrackingRoute
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
+import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.deloadSets
 import de.beispiel.meintraining.util.exerciseTitle
 import de.beispiel.meintraining.util.toSetsRepsLabel
@@ -111,6 +112,8 @@ fun TrainingScreen(
     uiState: TrainingUiState,
     /** Offenes Bearbeiten-Sheet; steht neben [uiState], weil es bei jedem Tastendruck wechselt. */
     editorForm: ExerciseForm?,
+    /** Verlauf der Übung im Sheet, siehe [TrainingViewModel.weightHistory]. */
+    weightHistory: WeightHistory?,
     events: Flow<TrainingEvent>,
     /** Eine volle Runde – der einzige Anlass, zu dem es Konfetti regnet. */
     celebrations: Flow<Unit>,
@@ -216,6 +219,7 @@ fun TrainingScreen(
     editorForm?.let { form ->
         ExerciseEditSheet(
             form = form,
+            weightHistory = weightHistory,
             knownExerciseNames = uiState.knownExerciseNames,
             onFormChange = actions.onFormChange,
             onVariationToggle = actions.onVariationToggle,

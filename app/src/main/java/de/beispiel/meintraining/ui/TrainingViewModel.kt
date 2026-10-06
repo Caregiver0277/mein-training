@@ -13,6 +13,7 @@ import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
 import de.beispiel.meintraining.util.RotationEntry
+import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.deloadStatus
@@ -21,6 +22,8 @@ import de.beispiel.meintraining.util.parseOptionalInt
 import de.beispiel.meintraining.util.parseProgressionStep
 import de.beispiel.meintraining.util.toDecimalString
 import de.beispiel.meintraining.util.toLocalDate
+import de.beispiel.meintraining.util.weightHistory
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +31,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
@@ -50,6 +57,31 @@ class TrainingViewModel(
      * zusammengesetzt, obwohl sich dort nichts geändert hat.
      */
     val editorForm: StateFlow<ExerciseForm?> = formState.asStateFlow()
+
+    /**
+     * Der Gewichtsverlauf zur Übung im offenen Sheet – für die Zeile unter dem Gewichtsfeld.
+     *
+     * Gemeint ist die Übung, deren Werte gerade in den Feldern stehen: eine andere bekannte,
+     * sobald der getippte Name auf sie passt, sonst die bearbeitete selbst – deren Verlauf zieht
+     * beim Umbenennen mit. Eine neue Übung ohne Treffer hat noch keinen.
+     *
+     * Abgefragt wird nur bei einem Wechsel dieser Übung, nicht bei jedem Tastendruck, und nur
+     * ihr Verlauf statt des ganzen.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val weightHistory: StateFlow<WeightHistory?> = formState
+        .map { form -> form?.let { it.matchedName ?: it.originalName } }
+        .distinctUntilChanged()
+        .flatMapLatest { name ->
+            if (name == null) {
+                flowOf(null)
+            } else {
+                combine(repository.observeWeightLogs(name), currentDate.flow) { logs, today ->
+                    weightHistory(logs, today)
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
 
     private val selectedIds = MutableStateFlow<Set<Long>>(emptySet())
 

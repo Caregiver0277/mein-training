@@ -131,6 +131,9 @@ class TrainingRepository(
     /** Der komplette Gewichtsverlauf – Grundlage für den Tracking-Graphen. */
     fun observeWeightLogs(): Flow<List<WeightLog>> = weightLogDao.observeAll()
 
+    /** Der Gewichtsverlauf einer Übung, älteste Änderung zuerst. */
+    fun observeWeightLogs(name: String): Flow<List<WeightLog>> = weightLogDao.observeByName(name)
+
     /** Alle abgehakten Trainings, das jüngste zuerst. */
     fun observeSessions(): Flow<List<WorkoutSession>> = sessionDao.observeAll()
 

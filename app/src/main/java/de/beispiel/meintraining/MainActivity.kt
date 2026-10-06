@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
                 // Getrennt eingesammelt: Das Formular ändert sich bei jedem Tastendruck und
                 // soll damit nicht den ganzen Hauptscreen neu zusammensetzen.
                 val editorForm by viewModel.editorForm.collectAsStateWithLifecycle()
+                val weightHistory by viewModel.weightHistory.collectAsStateWithLifecycle()
 
                 // Über Nacht offen gebliebene App: Beim Zurückkehren kann ein neuer Tag
                 // angebrochen sein.
@@ -129,6 +130,7 @@ class MainActivity : ComponentActivity() {
                 TrainingScreen(
                     uiState = uiState,
                     editorForm = editorForm,
+                    weightHistory = weightHistory,
                     events = viewModel.events,
                     celebrations = viewModel.celebrations,
                     actions = actions

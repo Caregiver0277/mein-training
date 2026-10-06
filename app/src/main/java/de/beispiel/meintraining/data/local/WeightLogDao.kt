@@ -12,6 +12,10 @@ interface WeightLogDao {
     @Query("SELECT * FROM WeightLog ORDER BY recordedAt ASC, id ASC")
     fun observeAll(): Flow<List<WeightLog>>
 
+    /** Der Verlauf einer einzelnen Übung – für die Zeile unter dem Gewichtsfeld im Sheet. */
+    @Query("SELECT * FROM WeightLog WHERE exerciseName = :name ORDER BY recordedAt ASC, id ASC")
+    fun observeByName(name: String): Flow<List<WeightLog>>
+
     /** Der komplette Verlauf – für die Sicherung. */
     @Query("SELECT * FROM WeightLog ORDER BY recordedAt ASC, id ASC")
     suspend fun listAll(): List<WeightLog>
