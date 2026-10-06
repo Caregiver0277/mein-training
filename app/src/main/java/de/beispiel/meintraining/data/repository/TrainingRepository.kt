@@ -283,6 +283,11 @@ class TrainingRepository(
     /** Im Tracking ausgeblendete Übungen. */
     val hiddenTrackingNames: Flow<Set<String>> = settingsStore.hiddenTrackingNames
 
+    /** Zeigt das Tracking Prozent statt Kilogramm? Siehe [SettingsStore.trackingPercent]. */
+    val trackingPercent: Flow<Boolean> = settingsStore.trackingPercent
+
+    suspend fun setTrackingPercent(percent: Boolean) = settingsStore.setTrackingPercent(percent)
+
     /** An den Trainingstagen ausgeblendete Übungen – siehe [SettingsStore.hiddenExerciseNames]. */
     val hiddenExerciseNames: Flow<Set<String>> = settingsStore.hiddenExerciseNames
 

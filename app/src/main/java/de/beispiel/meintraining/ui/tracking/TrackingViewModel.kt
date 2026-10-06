@@ -11,6 +11,8 @@ import de.beispiel.meintraining.util.CurrentDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -34,6 +36,8 @@ data class TrackingUiState(
     val visibleNames: Set<String> = emptySet(),
     val availableYears: List<Int> = emptyList(),
     val series: List<ChartSeries> = emptyList(),
+    /** Zeigt der Graph Prozent statt Kilogramm? Siehe [toPercentSeries]. */
+    val isPercent: Boolean = false,
     val window: TimeWindow = TimeWindow(0, 0),
     val ticks: List<AxisTick> = emptyList(),
     val pickerOpen: Boolean = false,
@@ -48,7 +52,9 @@ data class TrackingUiState(
     /** Warum der Graph leer ist; `null`, solange er etwas zeigt. */
     val emptyReason: ChartEmptyReason?
         get() = when {
-            series.isNotEmpty() -> null
+            series.any { it.points.isNotEmpty() } -> null
+            // Kurven gibt es, aber keine mit Punkten: in Prozent lauter Übungen ab 0 kg.
+            series.isNotEmpty() -> ChartEmptyReason.NO_PERCENT_BASE
             trackedNames.isEmpty() -> ChartEmptyReason.NOTHING_RECORDED
             visibleNames.isEmpty() -> ChartEmptyReason.NOTHING_SELECTED
             else -> ChartEmptyReason.NOTHING_IN_RANGE
@@ -89,6 +95,11 @@ class TrackingViewModel(
         repository.hiddenExerciseNames
     ) { exercises, dayCount, hidden -> activeExerciseNames(exercises, dayCount, hidden) }
 
+    /** Übungen mit Pfeil nach unten: In Prozent zählt bei ihnen eine Senkung als Fortschritt. */
+    private val decreasingNames = repository.observeDefinitions()
+        .map { definitions -> definitions.filter { it.progressionDown }.map { it.name }.toSet() }
+        .distinctUntilChanged()
+
     /**
      * Der Graph für sich, getrennt von den Fensterzuständen.
      *
@@ -96,7 +107,7 @@ class TrackingViewModel(
      * jeder Haken sämtliche Kurven samt Zeitachse neu berechnen – Arbeit, die mit jedem
      * Trainingsjahr wächst, für eine Änderung, die den Graphen gar nicht betrifft.
      */
-    private val chart = combine(
+    private val kgChart = combine(
         logs,
         combine(range, manualYear) { range, year -> range to year },
         hiddenNames,
@@ -124,6 +135,22 @@ class TrackingViewModel(
         )
     }
 
+    /**
+     * Der Graph in der gewählten Einheit. Die Umrechnung in Prozent sitzt obendrauf und ist
+     * billig: Das Umschalten rechnet die Kurven nicht neu aus dem Verlauf.
+     */
+    private val chart = combine(
+        kgChart,
+        repository.trackingPercent,
+        decreasingNames
+    ) { state, percent, decreasing ->
+        if (percent) {
+            state.copy(series = toPercentSeries(state.series, decreasing), isPercent = true)
+        } else {
+            state
+        }
+    }
+
     val uiState = combine(
         chart,
         logs,
@@ -137,6 +164,7 @@ class TrackingViewModel(
             visibleNames = chartState.visibleNames,
             availableYears = chartState.availableYears,
             series = chartState.series,
+            isPercent = chartState.isPercent,
             window = chartState.window,
             ticks = chartState.ticks,
             pickerOpen = isPickerOpen,
@@ -162,7 +190,8 @@ class TrackingViewModel(
         val availableYears: List<Int>,
         val series: List<ChartSeries>,
         val window: TimeWindow,
-        val ticks: List<AxisTick>
+        val ticks: List<AxisTick>,
+        val isPercent: Boolean = false
     )
 
     fun onRangeSelected(newRange: TimeRange) {
@@ -172,6 +201,11 @@ class TrackingViewModel(
     fun onManualYearSelected(year: Int) {
         manualYear.value = year
         range.value = TimeRange.MANUAL_YEAR
+    }
+
+    /** Umschalter „kg | %“; die Wahl bleibt über Neustarts erhalten. */
+    fun onPercentSelected(percent: Boolean) {
+        viewModelScope.launch { repository.setTrackingPercent(percent) }
     }
 
     fun onPickerOpen() {

@@ -48,6 +48,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,6 +66,7 @@ import de.beispiel.meintraining.ui.theme.MenuButtonIcon
 import de.beispiel.meintraining.ui.theme.TabActiveSurface
 import de.beispiel.meintraining.ui.theme.TabActiveText
 import de.beispiel.meintraining.ui.theme.TabInactiveText
+import de.beispiel.meintraining.ui.theme.TextDisabled
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.formatFullDate
@@ -84,6 +88,7 @@ fun TrackingRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onBack = onBack,
         onRangeSelected = viewModel::onRangeSelected,
         onManualYearSelected = viewModel::onManualYearSelected,
+        onPercentSelected = viewModel::onPercentSelected,
         onPickerOpen = viewModel::onPickerOpen,
         onPickerDismiss = viewModel::onPickerDismiss,
         onExerciseToggled = viewModel::onExerciseToggled,
@@ -101,6 +106,7 @@ fun TrackingScreen(
     onBack: () -> Unit,
     onRangeSelected: (TimeRange) -> Unit,
     onManualYearSelected: (Int) -> Unit,
+    onPercentSelected: (Boolean) -> Unit,
     onPickerOpen: () -> Unit,
     onPickerDismiss: () -> Unit,
     onExerciseToggled: (String) -> Unit,
@@ -137,6 +143,7 @@ fun TrackingScreen(
                     .weight(1f)
                     .padding(start = Dimens.SectionSpacingSmall)
             )
+            UnitToggle(isPercent = uiState.isPercent, onPercentSelected = onPercentSelected)
             IconButton(onClick = onPickerOpen, modifier = Modifier.size(Dimens.TouchTargetSize)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.List,
@@ -165,9 +172,11 @@ fun TrackingScreen(
                 when (uiState.emptyReason) {
                     ChartEmptyReason.NOTHING_SELECTED -> R.string.tracking_empty_selection
                     ChartEmptyReason.NOTHING_IN_RANGE -> R.string.tracking_empty_range
+                    ChartEmptyReason.NO_PERCENT_BASE -> R.string.tracking_empty_percent
                     else -> R.string.tracking_empty
                 }
-            )
+            ),
+            isPercent = uiState.isPercent
         )
 
         Spacer(modifier = Modifier.height(Dimens.SectionSpacingMedium))
@@ -286,6 +295,58 @@ private fun DataPointsDialog(
     )
 }
 
+/**
+ * Umschalter „kg | %“: Gewichte oder ihre Veränderung seit Beginn des Zeitraums.
+ *
+ * Zwei kleine Reiter im Stil der Zeitraum-Auswahl, damit er als Auswahl und nicht als Knopf
+ * gelesen wird.
+ */
+@Composable
+private fun UnitToggle(isPercent: Boolean, onPercentSelected: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(Dimens.CornerTab)
+            .background(ChipBackground)
+    ) {
+        UnitChip(
+            label = stringResource(R.string.tracking_unit_kg),
+            description = stringResource(R.string.cd_tracking_unit_kg),
+            isSelected = !isPercent,
+            onClick = { onPercentSelected(false) }
+        )
+        UnitChip(
+            label = stringResource(R.string.tracking_unit_percent),
+            description = stringResource(R.string.cd_tracking_unit_percent),
+            isSelected = isPercent,
+            onClick = { onPercentSelected(true) }
+        )
+    }
+}
+
+@Composable
+private fun UnitChip(label: String, description: String, isSelected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .height(Dimens.UnitToggleHeight)
+            .width(Dimens.UnitToggleWidth)
+            .clip(Dimens.CornerTab)
+            .background(if (isSelected) TabActiveSurface else ChipBackground)
+            .clickable(role = Role.Tab, onClick = onClick)
+            .semantics {
+                selected = isSelected
+                contentDescription = description
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = AppTextStyles.TabLabel,
+            color = if (isSelected) TabActiveText else TabInactiveText,
+            maxLines = 1
+        )
+    }
+}
+
 /** Zeitraum-Auswahl; „Jahr“ öffnet eine Liste der Jahre, für die es Daten gibt. */
 @Composable
 private fun RangeSelector(
@@ -373,7 +434,12 @@ private fun RangeChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Legende: kurzes Linienstück im Aussehen der Kurve, dahinter der Name. */
+/**
+ * Legende: kurzes Linienstück im Aussehen der Kurve, dahinter der Name.
+ *
+ * Eine Kurve ohne Bezugswert für Prozent steht ausgegraut da, mit dem Grund dahinter – sonst
+ * sähe es aus, als fehlte sie aus Versehen.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Legend(series: List<ChartSeries>, modifier: Modifier = Modifier) {
@@ -383,7 +449,9 @@ private fun Legend(series: List<ChartSeries>, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall)
     ) {
         series.forEachIndexed { index, line ->
-            val appearance = appearanceFor(index)
+            val appearance = appearanceFor(index).let {
+                if (line.hasNoPercentBase) it.copy(color = it.color.copy(alpha = NO_BASE_ALPHA)) else it
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Canvas(
                     modifier = Modifier
@@ -406,9 +474,13 @@ private fun Legend(series: List<ChartSeries>, modifier: Modifier = Modifier) {
                 }
                 Spacer(modifier = Modifier.width(Dimens.SectionSpacingSmall))
                 Text(
-                    text = line.name,
+                    text = if (line.hasNoPercentBase) {
+                        stringResource(R.string.tracking_legend_no_base, line.name)
+                    } else {
+                        line.name
+                    },
                     style = AppTextStyles.ColumnLabel,
-                    color = TextSecondary,
+                    color = if (line.hasNoPercentBase) TextDisabled else TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -416,6 +488,9 @@ private fun Legend(series: List<ChartSeries>, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** Wie blass eine Kurve ohne Bezugswert in der Legende steht. */
+private const val NO_BASE_ALPHA = 0.4f
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

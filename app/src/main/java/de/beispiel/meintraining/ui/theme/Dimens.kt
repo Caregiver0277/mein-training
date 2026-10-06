@@ -59,6 +59,10 @@ object Dimens {
     val LegendLineHeight = 12.dp
     val PickerMaxHeight = 320.dp
 
+    /** Ein Reiter des Umschalters „kg | %“ – schmal, er teilt sich die Kopfzeile. */
+    val UnitToggleWidth = 40.dp
+    val UnitToggleHeight = 32.dp
+
     // Chips – feste Breiten, damit Spaltenkopf und Karte exakt übereinander liegen
     val ChipHeight = 30.dp
     val ChipWeightWidth = 66.dp

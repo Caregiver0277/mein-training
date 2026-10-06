@@ -157,6 +157,18 @@ class SettingsStore(context: Context) {
     }
 
     /**
+     * Zeigt das Tracking Prozent statt Kilogramm? Vorgabe: Kilogramm.
+     *
+     * Nicht in [snapshot] und damit nicht in der Sicherung: Es ist eine Ansicht, mit einem
+     * Tippen gewechselt – anders als die Ausblendliste, hinter der eine ganze Auswahl steckt.
+     */
+    val trackingPercent: Flow<Boolean> = preference { prefs -> prefs[KEY_TRACKING_PERCENT] ?: false }
+
+    suspend fun setTrackingPercent(percent: Boolean) {
+        store.edit { prefs -> prefs[KEY_TRACKING_PERCENT] = percent }
+    }
+
+    /**
      * An den Trainingstagen ausgeblendete Übungen.
      *
      * Getrennt von den im Tracking ausgeblendeten: Das eine ist eine Übung, die gerade nicht
@@ -287,6 +299,7 @@ class SettingsStore(context: Context) {
         val KEY_APP_TITLE = stringPreferencesKey("app_title")
         val KEY_KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
         val KEY_HIDDEN_TRACKING = stringSetPreferencesKey("hidden_tracking_names")
+        val KEY_TRACKING_PERCENT = booleanPreferencesKey("tracking_percent")
         val KEY_HIDDEN_EXERCISES = stringSetPreferencesKey("hidden_exercise_names")
         val KEY_LAST_DAY_ADVANCE = longPreferencesKey("last_day_advance")
         val KEY_ROTATION_CUTS = stringPreferencesKey("rotation_cuts")

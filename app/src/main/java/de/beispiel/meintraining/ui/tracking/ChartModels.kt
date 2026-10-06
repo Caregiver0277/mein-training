@@ -2,6 +2,7 @@ package de.beispiel.meintraining.ui.tracking
 
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.WeightLog
+import de.beispiel.meintraining.util.toDecimalString
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -31,13 +32,30 @@ enum class TimeRange {
 data class ChartPoint(
     val timeMillis: Long,
     val weightKg: Double,
-    val isCarried: Boolean = false
-)
+    val isCarried: Boolean = false,
+    /**
+     * Veränderung gegenüber dem ersten Wert der Kurve in Prozent – nur in der %-Ansicht
+     * gesetzt, siehe [toPercentSeries].
+     */
+    val percent: Double? = null
+) {
+    /**
+     * Der Wert, nach dem der Punkt in der Höhe steht: in der %-Ansicht die Veränderung, sonst
+     * das Gewicht. Skala und Zeichnen fragen nur danach und wissen so nichts von Kilogramm.
+     */
+    val plotted: Double get() = percent ?: weightKg
+}
 
 /** Der Verlauf einer Übung, ältester Punkt zuerst. */
 data class ChartSeries(
     val name: String,
-    val points: List<ChartPoint>
+    val points: List<ChartPoint>,
+    /**
+     * In der %-Ansicht: Die Kurve beginnt bei 0 kg und hat damit keinen Bezugswert. Sie bleibt
+     * ohne Punkte in der Liste stehen, damit die Legende sie vermerken kann und die übrigen
+     * Kurven ihre Farben aus der kg-Ansicht behalten.
+     */
+    val hasNoPercentBase: Boolean = false
 ) {
     /**
      * Die Linie, zerlegt in Stücke gleicher Art: echte Strecken zwischen zwei Änderungen und
@@ -72,7 +90,10 @@ enum class ChartEmptyReason {
     NOTHING_SELECTED,
 
     /** Die gewählten Übungen haben im Zeitraum keinen Stand. */
-    NOTHING_IN_RANGE
+    NOTHING_IN_RANGE,
+
+    /** In der %-Ansicht: Jede gewählte Übung beginnt bei 0 kg, keine hat einen Bezugswert. */
+    NO_PERCENT_BASE
 }
 
 /** Eine Beschriftung der X-Achse. */
@@ -197,6 +218,42 @@ fun buildSeries(
         ChartSeries(name = name, points = points)
     }
 }
+
+/**
+ * Rechnet die Kurven in Prozent um: jeder Punkt als Veränderung gegenüber dem ersten Wert seiner
+ * Kurve im Zeitraum. So lassen sich Übungen mit ganz verschiedenen Gewichten nebeneinanderlegen
+ * – 5 kg mehr beim Kreuzheben sind etwas anderes als 5 kg mehr beim Seitheben.
+ *
+ * Der erste Wert ist der erste Punkt der Linie, also auch ein übernommener Stand am linken Rand:
+ * Die Kurve beginnt im Zeitraum bei 0 % und zeigt, was sich *darin* getan hat.
+ *
+ * Bei Übungen in [decreasingNames] – Pfeil nach unten – ist eine Senkung der Fortschritt und
+ * zählt deshalb positiv: 20 kg auf 15 kg ergibt +25 %.
+ *
+ * Eine Kurve, die bei 0 kg beginnt, hat keinen Bezugswert; durch null teilen lässt sich nicht.
+ * Sie verliert ihre Punkte und ist als [ChartSeries.hasNoPercentBase] markiert.
+ */
+fun toPercentSeries(series: List<ChartSeries>, decreasingNames: Set<String>): List<ChartSeries> =
+    series.map { line ->
+        val base = line.points.firstOrNull()?.weightKg ?: return@map line
+        if (base <= 0.0) return@map line.copy(points = emptyList(), hasNoPercentBase = true)
+        val direction = if (line.name in decreasingNames) -1.0 else 1.0
+        line.copy(
+            points = line.points.map { point ->
+                point.copy(percent = direction * (point.weightKg - base) / base * PERCENT)
+            }
+        )
+    }
+
+/**
+ * Zahl an der Prozent-Achse: `10.0 → "10"`, `-5.0 → "−5"` – mit echtem Minuszeichen, ohne Plus:
+ * Die Null steht als eigene Linie dazwischen.
+ */
+fun Double.toAxisNumber(): String =
+    if (this < 0) "$MINUS_SIGN${(-this).toDecimalString()}" else toDecimalString()
+
+private const val PERCENT = 100.0
+private const val MINUS_SIGN = '\u2212'
 
 /**
  * Die Übungen, die noch an einem Trainingstag stehen – ihr letzter Stand läuft im Graphen bis

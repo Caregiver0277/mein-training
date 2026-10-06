@@ -317,4 +317,65 @@ class ChartModelsTest {
         assertTrue(first.color != second.color)
         assertTrue(first.style != second.style)
     }
+
+    // --- Prozent -----------------------------------------------------------
+
+    @Test
+    fun prozentZaehlenAbDemErstenWertImZeitraum() {
+        val line = ChartSeries(
+            "Bankdrücken",
+            listOf(ChartPoint(0, 80.0, isCarried = true), ChartPoint(1, 88.0), ChartPoint(2, 100.0))
+        )
+        val percent = toPercentSeries(listOf(line), emptySet()).single()
+        // Der übernommene Stand am linken Rand ist der Bezug: Die Kurve beginnt bei 0 %.
+        assertEquals(listOf(0.0, 10.0, 25.0), percent.points.map { it.percent })
+        // Das Gewicht bleibt erhalten – die Beschriftung am Cursor braucht beides.
+        assertEquals(listOf(80.0, 88.0, 100.0), percent.points.map { it.weightKg })
+        assertEquals(listOf(0.0, 10.0, 25.0), percent.points.map { it.plotted })
+    }
+
+    @Test
+    fun beiPfeilNachUntenIstEineSenkungEinPlus() {
+        val line = ChartSeries("Latzug Unterstützung", listOf(ChartPoint(0, 20.0), ChartPoint(1, 15.0)))
+        val percent = toPercentSeries(listOf(line), setOf("Latzug Unterstützung")).single()
+        assertEquals(25.0, percent.points.last().percent!!, 1e-9)
+    }
+
+    @Test
+    fun eineKurveAbNullKgHatKeinenBezugswert() {
+        val zero = ChartSeries("Klimmzüge", listOf(ChartPoint(0, 0.0), ChartPoint(1, 5.0)))
+        val other = ChartSeries("Rudern", listOf(ChartPoint(0, 50.0)))
+        val percent = toPercentSeries(listOf(zero, other), emptySet())
+        // Sie bleibt an ihrer Stelle stehen – die Farben der anderen rutschen nicht nach.
+        assertEquals(listOf("Klimmzüge", "Rudern"), percent.map { it.name })
+        assertTrue(percent[0].hasNoPercentBase)
+        assertTrue(percent[0].points.isEmpty())
+        assertFalse(percent[1].hasNoPercentBase)
+    }
+
+    @Test
+    fun nurKurvenOhneBezugswertErgebenEinenEigenenHinweis() {
+        val state = TrackingUiState(
+            trackedNames = listOf("Klimmzüge"),
+            visibleNames = setOf("Klimmzüge"),
+            series = listOf(ChartSeries("Klimmzüge", emptyList(), hasNoPercentBase = true)),
+            isPercent = true
+        )
+        assertEquals(ChartEmptyReason.NO_PERCENT_BASE, state.emptyReason)
+    }
+
+    @Test
+    fun dieSkalaRichtetSichInProzentNachDenProzenten() {
+        val line = ChartSeries("A", listOf(ChartPoint(0, 100.0, percent = 0.0), ChartPoint(1, 120.0, percent = 20.0)))
+        val scale = verticalScaleFor(listOf(line))
+        assertTrue(scale.min <= 0.0 && scale.max >= 20.0)
+        assertTrue("Skala reicht bis ${scale.max}", scale.max < 100.0)
+    }
+
+    @Test
+    fun prozentAchseMitEchtemMinus() {
+        assertEquals("10", 10.0.toAxisNumber())
+        assertEquals("0", 0.0.toAxisNumber())
+        assertEquals("\u22122,5", (-2.5).toAxisNumber())
+    }
 }
