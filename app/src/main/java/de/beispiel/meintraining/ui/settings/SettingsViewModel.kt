@@ -28,7 +28,19 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/**
+ * Die offenen Umbenennungen, nachdem [written] in die Datenbank geschrieben wurde.
+ *
+ * Ausgetragen wird nur, was seitdem nicht wieder geändert wurde: Wer während des Schreibens
+ * weitertippt, dessen neuer Stand muss noch hinterher.
+ */
+internal fun withoutWrittenNames(
+    pending: Map<Int, String>,
+    written: Map<Int, String>
+): Map<Int, String> = pending.filter { (dayId, name) -> written[dayId] != name }
 
 /** Eine Übung, wie sie in den Einstellungen zum Ausblenden und Löschen angeboten wird. */
 data class ManagedExercise(
@@ -150,11 +162,13 @@ class SettingsViewModel(
             }
         }
         viewModelScope.launch {
-            // Ohne Aufräumen: Die Sammlung ist auf vier Tage begrenzt, und ein erneutes
-            // Schreiben desselben Namens ändert nichts.
             dayNameInput.filter { it.isNotEmpty() }.debounce(INPUT_DEBOUNCE_MILLIS)
                 .collect { pending ->
                     pending.forEach { (dayId, name) -> repository.renameDay(dayId, name) }
+                    // Geschriebenes austragen: Sonst schriebe jede spätere Umbenennung alle
+                    // Namen dieser Sitzung erneut – nach „Alle Daten löschen“ oder einer
+                    // eingelesenen Sicherung also alte Namen über die neuen.
+                    dayNameInput.update { withoutWrittenNames(it, pending) }
                 }
         }
     }
