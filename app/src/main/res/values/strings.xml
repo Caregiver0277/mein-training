@@ -75,7 +75,11 @@
     <string name="set_log_top_reached_raise">Oberes Ende erreicht – Gewicht erhöhen?</string>
     <string name="set_log_top_reached_lower">Oberes Ende erreicht – Gewicht senken?</string>
     <string name="cd_top_reached">Oberes Ende erreicht</string>
-    <string name="set_log_column_set">Satz</string>
+    <!-- Ein gespeicherter Satz ohne Gewicht: „8 Wiederholungen“. -->
+    <plurals name="set_log_reps">
+        <item quantity="one">%1$d Wiederholung</item>
+        <item quantity="other">%1$d Wiederholungen</item>
+    </plurals>
     <string name="set_log_column_weight">Gewicht (kg)</string>
     <string name="set_log_column_reps">Wiederh.</string>
     <string name="set_log_add_set">Satz</string>

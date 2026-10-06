@@ -211,7 +211,12 @@ private fun SetLogSheetContent(
             if (saved != null && editing != number) {
                 SavedSetRow(
                     number = number,
-                    text = formatSetSeries(listOf(saved), weightLabel),
+                    // Ohne Gewicht stünde da eine nackte Zahl; ausgeschrieben ist klar, was sie zählt.
+                    text = if (saved.weightKg == null) {
+                        pluralStringResource(R.plurals.set_log_reps, saved.reps, saved.reps)
+                    } else {
+                        formatSetSeries(listOf(saved), weightLabel)
+                    },
                     onEdit = {
                         drafts[number] = SetDraft(saved.weightKg, saved.reps)
                         editing = number
@@ -400,7 +405,9 @@ private fun SetColumnHeaders(showWeight: Boolean) {
         horizontalArrangement = Arrangement.spacedBy(Dimens.SetLogRowSpacing),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ColumnHeader(stringResource(R.string.set_log_column_set), Dimens.SetLogNumberWidth)
+        // Über der Nummer steht nichts – „Satz“ passte nicht in die schmale Spalte, und die Zahl
+        // erklärt sich selbst.
+        Spacer(modifier = Modifier.width(Dimens.SetLogNumberWidth))
         if (showWeight) {
             ColumnHeader(stringResource(R.string.set_log_column_weight), Dimens.SetLogWeightBlockWidth)
         }
@@ -550,7 +557,10 @@ private fun SetNumber(number: Int) {
     )
 }
 
-/** „−  60  +“: ein Wert mit je einem Knopf links und rechts. */
+/**
+ * „−  60  +“: ein Wert mit je einem Knopf links und rechts, gemeinsam auf einer Fläche – so ist
+ * klar, dass das „+“ des Gewichts und das „−“ der Wiederholungen daneben zu Verschiedenem gehören.
+ */
 @Composable
 private fun Stepper(
     value: String,
@@ -560,7 +570,12 @@ private fun Stepper(
     onLess: () -> Unit,
     onMore: () -> Unit
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(CardBackground),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         StepperButton(
             painter = painterResource(R.drawable.ic_remove),
             label = lessLabel,
@@ -589,7 +604,6 @@ private fun StepperButton(painter: Painter, label: String, onClick: () -> Unit) 
         modifier = Modifier
             .size(Dimens.StepperButtonSize)
             .clip(CircleShape)
-            .background(CardBackground)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
