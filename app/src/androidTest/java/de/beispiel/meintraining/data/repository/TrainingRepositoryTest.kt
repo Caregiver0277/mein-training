@@ -437,4 +437,74 @@ class TrainingRepositoryTest {
     /** Die aufgezeichneten Gewichte einer Übung, ältestes zuerst. */
     private suspend fun verlaufVon(name: String): List<Double> =
         database.weightLogDao().listAll().filter { it.exerciseName == name }.map { it.weightKg }
+
+    // --- Kopieren und Verschieben ------------------------------------------
+
+    /**
+     * Kopieren hängt die Übungen in ihrer Reihenfolge ans Ende des Ziel-Tages; der Ausgangstag
+     * bleibt, wie er war. Ein vollständig mitgenommenes Superset bleibt im Ziel eines, mit neuer
+     * Kennung – das Original behält seine.
+     */
+    @Test
+    fun kopierenHaengtAnsEndeUndBehaeltVollstaendigeSupersets() = runBlocking {
+        val ziel = anlegen(name = "Kniebeuge", weightKg = 100.0, stepKg = 5.0, dayId = 2)
+        val bizeps = anlegen(name = "Bizeps", weightKg = 15.0, stepKg = 1.25)
+        val trizeps = anlegen(name = "Trizeps", weightKg = 20.0, stepKg = 1.25)
+        anlegen(name = "Seitheben", weightKg = 8.0, stepKg = 1.0)
+        repository.createSuperset(dayId = 1, ids = setOf(bizeps, trizeps))
+
+        val transfer = repository.transferExercises(1, setOf(trizeps, bizeps), toDayId = 2, move = false)!!
+
+        val tag2 = database.exerciseDao().listByDay(2)
+        assertEquals(listOf("Kniebeuge", "Bizeps", "Trizeps"), tag2.map { it.name })
+        assertEquals(ziel, tag2.first().id)
+        val kopien = tag2.drop(1)
+        assertTrue(kopien.all { it.supersetId != null && it.supersetId == kopien.first().supersetId })
+        val original = database.exerciseDao().listByDay(1)
+        assertEquals(listOf("Bizeps", "Trizeps", "Seitheben"), original.map { it.name })
+        assertTrue(kopien.first().supersetId != original.first().supersetId)
+        // Gewicht hängt am Namen: Die Kopie zeigt dasselbe, ohne neuen Verlaufspunkt.
+        assertEquals(listOf(15.0), verlaufVon("Bizeps"))
+
+        repository.undoTransfer(transfer)
+        assertEquals(listOf("Kniebeuge"), database.exerciseDao().listByDay(2).map { it.name })
+        assertEquals(3, database.exerciseDao().listByDay(1).size)
+    }
+
+    /**
+     * Verschieben nimmt nur einen Teil eines Supersets mit: Im Ziel löst er sich auf, und am
+     * Ausgangstag bleibt ein einzelnes Mitglied übrig, dessen Superset ebenfalls aufgeräumt wird.
+     * „Rückgängig“ stellt beides wieder her – auch das Superset, das es am Ausgangstag nur durch
+     * das Aufräumen verloren hatte.
+     */
+    @Test
+    fun verschiebenLoestHalbeSupersetsAufUndLaesstSichZuruecknehmen() = runBlocking {
+        val bizeps = anlegen(name = "Bizeps", weightKg = 15.0, stepKg = 1.25)
+        val trizeps = anlegen(name = "Trizeps", weightKg = 20.0, stepKg = 1.25)
+        val seitheben = anlegen(name = "Seitheben", weightKg = 8.0, stepKg = 1.0)
+        repository.createSuperset(dayId = 1, ids = setOf(bizeps, trizeps))
+        val vorher = database.exerciseDao().listByDay(1)
+
+        val transfer = repository.transferExercises(1, setOf(trizeps, seitheben), toDayId = 3, move = true)!!
+
+        val tag3 = database.exerciseDao().listByDay(3)
+        assertEquals(listOf(trizeps, seitheben), tag3.map { it.id })
+        assertTrue(tag3.all { it.supersetId == null })
+        val tag1 = database.exerciseDao().listByDay(1)
+        assertEquals(listOf(bizeps), tag1.map { it.id })
+        assertNull(tag1.single().supersetId)
+
+        repository.undoTransfer(transfer)
+        assertEquals(vorher, database.exerciseDao().listByDay(1))
+        assertTrue(database.exerciseDao().listByDay(3).isEmpty())
+    }
+
+    /** Derselbe Tag als Ziel oder eine leere Auswahl: Es passiert nichts. */
+    @Test
+    fun ohneZielOderAuswahlPassiertNichts() = runBlocking {
+        val bizeps = anlegen(name = "Bizeps", weightKg = 15.0, stepKg = 1.25)
+        assertNull(repository.transferExercises(1, setOf(bizeps), toDayId = 1, move = true))
+        assertNull(repository.transferExercises(1, emptySet(), toDayId = 2, move = false))
+        assertEquals(1, database.exerciseDao().listByDay(1).size)
+    }
 }

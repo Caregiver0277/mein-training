@@ -90,6 +90,17 @@ interface ExerciseDao {
     @Query("UPDATE Exercise SET supersetId = :supersetId WHERE id = :id")
     suspend fun updateSuperset(id: Long, supersetId: Long?)
 
+    /**
+     * Setzt eine Zeile an einen Platz – Tag, Position, Superset – und lässt alles andere stehen.
+     * Fürs Verschieben an einen anderen Tag und dessen Rücknahme: Was inzwischen an Sätzen oder
+     * Wiederholungen geändert wurde, bleibt so erhalten.
+     */
+    @Query(
+        "UPDATE Exercise SET dayId = :dayId, position = :position, supersetId = :supersetId " +
+            "WHERE id = :id"
+    )
+    suspend fun updatePlace(id: Long, dayId: Int, position: Int, supersetId: Long?)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(exercise: Exercise): Long
 

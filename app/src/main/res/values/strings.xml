@@ -62,6 +62,10 @@
     <string name="action_done">Fertig</string>
     <string name="action_superset">Superset</string>
     <string name="action_superset_dissolve">Superset auflösen</string>
+    <string name="action_copy_to">Kopieren nach …</string>
+    <string name="action_move_to">Verschieben nach …</string>
+    <string name="dialog_copy_to">Kopieren nach</string>
+    <string name="dialog_move_to">Verschieben nach</string>
     <string name="cd_end_selection">Auswahl beenden</string>
     <string name="cd_selected">Ausgewählt</string>
     <string name="cd_not_selected">Nicht ausgewählt</string>
@@ -232,6 +236,15 @@
     <string name="snackbar_weight_decreased">Gewicht auf %1$s gesenkt</string>
     <string name="snackbar_exercise_deleted">„%1$s“ gelöscht</string>
     <string name="snackbar_cycle_started">Neue Runde begonnen</string>
+    <!-- %2$s ist der Name des Ziel-Tages. -->
+    <plurals name="snackbar_exercises_copied">
+        <item quantity="one">%1$d Übung nach „%2$s“ kopiert</item>
+        <item quantity="other">%1$d Übungen nach „%2$s“ kopiert</item>
+    </plurals>
+    <plurals name="snackbar_exercises_moved">
+        <item quantity="one">%1$d Übung nach „%2$s“ verschoben</item>
+        <item quantity="other">%1$d Übungen nach „%2$s“ verschoben</item>
+    </plurals>
     <plurals name="snackbar_exercises_deleted">
         <item quantity="one">%1$d Übung gelöscht</item>
         <item quantity="other">%1$d Übungen gelöscht</item>
@@ -358,7 +371,7 @@
     <string name="about_guide_list">Trainingsliste</string>
     <string name="about_guide_edit">Übung antippen, um sie zu bearbeiten. Das „+“ unter der Liste legt eine neue an.</string>
     <string name="about_guide_progress">Der blaue Pfeil erhöht das Gewicht um den Progressionsschritt – zeigt er nach unten, senkt er es. Lang drücken geht einen Schritt in die Gegenrichtung, etwa wenn die letzte Steigerung zu viel war. Das gilt an jedem Tag mit dieser Übung. Beim Bearbeiten zeigt eine Zeile unter dem Gewicht, seit wann es so steht und wie es sich zuletzt verändert hat.</string>
-    <string name="about_guide_select">Lang drücken startet die Auswahl. Markierte Übungen lassen sich verschieben, löschen oder über das Menü oben zu einem Superset verbinden.</string>
+    <string name="about_guide_select">Lang drücken startet die Auswahl. Markierte Übungen lassen sich verschieben, löschen oder über das Menü oben zu einem Superset verbinden – und dort auch an einen anderen Tag kopieren oder verschieben.</string>
     <string name="about_guide_check">Der Haken trägt das Training in den Verlauf ein, ein zweites Tippen nimmt es zurück. Ein grüner Punkt auf dem Reiter zeigt, welche Tage der Runde schon erledigt sind.</string>
     <string name="about_guide_cycle">Am letzten Tag beginnt der Pfeil neben dem Haken die nächste Runde – auch wenn ein Tag ausgefallen ist. Wer so weitergeschaltet hat, findet am ersten Tag einen Pfeil zurück, solange in der neuen Runde noch nichts abgehakt ist.</string>
     <string name="about_guide_timers">Pausenuhren</string>

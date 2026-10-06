@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -32,6 +35,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,6 +76,7 @@ import de.beispiel.meintraining.ui.components.DayTabRow
 import de.beispiel.meintraining.ui.components.DraggableItem
 import de.beispiel.meintraining.ui.components.ExerciseRow
 import de.beispiel.meintraining.ui.components.FloatingCheckOverlay
+import de.beispiel.meintraining.ui.components.dayLabel
 import de.beispiel.meintraining.ui.components.draggableItem
 import de.beispiel.meintraining.ui.components.floatingCheckArea
 import de.beispiel.meintraining.ui.components.floatingCheckSlot
@@ -79,9 +84,11 @@ import de.beispiel.meintraining.ui.components.rememberDragDropState
 import de.beispiel.meintraining.ui.components.rememberFloatingCheck
 import de.beispiel.meintraining.ui.components.rememberUnconfirmedBlur
 import de.beispiel.meintraining.ui.components.unconfirmedBlur
+import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AccentGreen
 import de.beispiel.meintraining.ui.theme.AccentGreenSurface
 import de.beispiel.meintraining.ui.theme.AppTextStyles
+import de.beispiel.meintraining.ui.theme.CardBackground
 import de.beispiel.meintraining.ui.theme.Dimens
 import de.beispiel.meintraining.ui.theme.MeinTrainingTheme
 import de.beispiel.meintraining.ui.theme.MenuButtonIcon
@@ -167,6 +174,18 @@ fun TrainingScreen(
                         event.exercises.size
                     )
                 }
+                is TrainingEvent.ExercisesTransferred -> resources.getQuantityString(
+                    if (event.transfer.isMove) {
+                        R.plurals.snackbar_exercises_moved
+                    } else {
+                        R.plurals.snackbar_exercises_copied
+                    },
+                    event.transfer.count,
+                    event.transfer.count,
+                    event.targetDayName.ifBlank {
+                        resources.getString(R.string.day_name, event.transfer.toDayId)
+                    }
+                )
                 TrainingEvent.CycleStarted -> resources.getString(R.string.snackbar_cycle_started)
             }
             val result = snackbarHostState.showSnackbar(
@@ -358,10 +377,13 @@ private fun TrainingContent(
                     count = uiState.selectedIds.size,
                     canCreateSuperset = uiState.canCreateSuperset,
                     canDissolveSuperset = uiState.canDissolveSuperset,
+                    targetDays = uiState.transferTargetDays,
                     onClear = actions.onSelectionClear,
                     onDelete = actions.onDeleteSelected,
                     onCreateSuperset = actions.onCreateSuperset,
-                    onDissolveSuperset = actions.onDissolveSuperset
+                    onDissolveSuperset = actions.onDissolveSuperset,
+                    onCopyTo = actions.onCopySelected,
+                    onMoveTo = actions.onMoveSelected
                 )
             } else {
                 ScreenHeader(
@@ -550,13 +572,20 @@ private fun SelectionBar(
     count: Int,
     canCreateSuperset: Boolean,
     canDissolveSuperset: Boolean,
+    /** Tage, an die sich die Auswahl kopieren oder verschieben lässt; leer: keine Einträge dafür. */
+    targetDays: List<TrainingDay>,
     onClear: () -> Unit,
     onDelete: () -> Unit,
     onCreateSuperset: () -> Unit,
     onDissolveSuperset: () -> Unit,
+    onCopyTo: (Int) -> Unit,
+    onMoveTo: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    // Kopieren oder Verschieben, dessen Ziel-Tag gerade gewählt wird; `null`: kein Dialog.
+    var transferMove by remember { mutableStateOf<Boolean?>(null) }
+    val canTransfer = targetDays.isNotEmpty()
 
     Row(
         modifier = modifier
@@ -591,7 +620,8 @@ private fun SelectionBar(
         Box {
             IconButton(
                 onClick = { menuOpen = true },
-                enabled = canCreateSuperset || canDissolveSuperset,
+                // Mit Kopieren und Verschieben gibt es bei mehreren Tagen immer etwas zu wählen.
+                enabled = canCreateSuperset || canDissolveSuperset || canTransfer,
                 modifier = Modifier.size(Dimens.TouchTargetSize)
             ) {
                 Icon(
@@ -620,9 +650,78 @@ private fun SelectionBar(
                         }
                     )
                 }
+                if (canTransfer) {
+                    DropdownMenuItem(
+                        text = { Text(text = stringResource(R.string.action_copy_to)) },
+                        onClick = {
+                            menuOpen = false
+                            transferMove = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(text = stringResource(R.string.action_move_to)) },
+                        onClick = {
+                            menuOpen = false
+                            transferMove = true
+                        }
+                    )
+                }
             }
         }
     }
+
+    transferMove?.let { move ->
+        TargetDayDialog(
+            title = stringResource(if (move) R.string.dialog_move_to else R.string.dialog_copy_to),
+            days = targetDays,
+            onDaySelected = { dayId ->
+                transferMove = null
+                if (move) onMoveTo(dayId) else onCopyTo(dayId)
+            },
+            onDismiss = { transferMove = null }
+        )
+    }
+}
+
+/** Auswahl des Ziel-Tages fürs Kopieren und Verschieben: ein Eintrag je Tag, Tippen wählt. */
+@Composable
+private fun TargetDayDialog(
+    title: String,
+    days: List<TrainingDay>,
+    onDaySelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CardBackground,
+        titleContentColor = TextPrimary,
+        title = { Text(text = title) },
+        text = {
+            Column {
+                days.forEach { day ->
+                    Text(
+                        text = dayLabel(day.id, day.name),
+                        style = AppTextStyles.Body,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(Dimens.CornerChip)
+                            .clickable { onDaySelected(day.id) }
+                            .heightIn(min = Dimens.TouchTargetSize)
+                            .wrapContentHeight(Alignment.CenterVertically)
+                            .padding(horizontal = Dimens.SectionSpacingSmall)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_cancel), color = AccentBlue)
+            }
+        }
+    )
 }
 
 @Composable

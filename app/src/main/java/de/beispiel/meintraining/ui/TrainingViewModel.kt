@@ -462,6 +462,31 @@ class TrainingViewModel(
         }
     }
 
+    // --- Kopieren und Verschieben -----------------------------------------
+
+    /** Kopiert die Auswahl ans Ende von Tag [dayId]. */
+    fun onCopySelected(dayId: Int) = transferSelected(dayId, move = false)
+
+    /** Verschiebt die Auswahl ans Ende von Tag [dayId]. */
+    fun onMoveSelected(dayId: Int) = transferSelected(dayId, move = true)
+
+    /** Meldung samt „Rückgängig“ wie beim Löschen – siehe [TrainingRepository.undoTransfer]. */
+    private fun transferSelected(dayId: Int, move: Boolean) {
+        val selection = selectedIds.value
+        if (selection.isEmpty()) return
+        val targetName = uiState.value.days.firstOrNull { it.id == dayId }?.name.orEmpty()
+        selectedIds.value = emptySet()
+        viewModelScope.launch {
+            val transfer = repository.transferExercises(
+                fromDayId = repository.currentSelectedDay(),
+                ids = selection,
+                toDayId = dayId,
+                move = move
+            ) ?: return@launch
+            eventChannel.send(TrainingEvent.ExercisesTransferred(transfer, targetName))
+        }
+    }
+
     // --- Bearbeiten-Sheet --------------------------------------------------
 
     /**
@@ -612,6 +637,8 @@ class TrainingViewModel(
                 )
                 is TrainingEvent.ExercisesDeleted ->
                     repository.restoreExercises(event.exercises)
+                is TrainingEvent.ExercisesTransferred ->
+                    repository.undoTransfer(event.transfer)
                 TrainingEvent.CycleStarted -> returnToPreviousCycle()
             }
         }

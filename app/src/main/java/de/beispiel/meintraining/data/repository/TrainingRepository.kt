@@ -27,6 +27,7 @@ import de.beispiel.meintraining.util.keepSupersetBlocksTogether
 import de.beispiel.meintraining.util.nextOpenDayId
 import de.beispiel.meintraining.util.rotations
 import de.beispiel.meintraining.util.stepWeight
+import de.beispiel.meintraining.util.supersetsAfterTransfer
 import de.beispiel.meintraining.util.survivingSupersetMembers
 import de.beispiel.meintraining.util.toLocalDate
 import kotlinx.coroutines.flow.Flow
@@ -755,6 +756,81 @@ class TrainingRepository(
     }
 
     /**
+     * Kopiert oder verschiebt die Übungen [ids] von Tag [fromDayId] ans Ende von Tag [toDayId].
+     *
+     * Sie landen in ihrer Reihenfolge hinter den Übungen des Zieltages. Gewicht, Schritt und
+     * Richtung hängen am Namen und gelten dort ohnehin; Sätze, Wiederholungen und Variation
+     * kommen mit. Ein Superset, das vollständig mitwandert, bleibt eines, sonst löst es sich im
+     * Ziel auf (siehe [supersetsAfterTransfer]). Danach werden beide Tage aufgeräumt – am
+     * Ausgangstag kann ein Superset nach dem Verschieben zu klein geworden sein.
+     *
+     * Beim Kopieren entstehen neue Zeilen, beim Verschieben ziehen die vorhandenen samt ihrer
+     * Kennung um. Zurück kommt, was zum Rückgängigmachen nötig ist (siehe [undoTransfer]), oder
+     * `null`, wenn es nichts zu tun gab.
+     */
+    suspend fun transferExercises(
+        fromDayId: Int,
+        ids: Set<Long>,
+        toDayId: Int,
+        move: Boolean
+    ): ExerciseTransfer? = database.withTransaction {
+        if (fromDayId == toDayId) return@withTransaction null
+        val source = exerciseDao.listByDay(fromDayId)
+        val selected = source.filter { it.id in ids }
+        if (selected.isEmpty()) return@withTransaction null
+
+        val supersets = supersetsAfterTransfer(
+            movedSupersetIds = selected.map { it.supersetId },
+            sourceSupersetIds = source.map { it.supersetId },
+            firstNewId = exerciseDao.nextSupersetId()
+        )
+        val firstPosition = exerciseDao.nextPosition(toDayId)
+        val createdIds = selected.mapIndexed { index, exercise ->
+            val position = firstPosition + index
+            if (move) {
+                exerciseDao.updatePlace(exercise.id, toDayId, position, supersets[index])
+                exercise.id
+            } else {
+                exerciseDao.insert(
+                    exercise.copy(id = 0, dayId = toDayId, position = position, supersetId = supersets[index])
+                )
+            }
+        }
+        if (move) normalizeSupersets(fromDayId)
+        normalizeSupersets(toDayId)
+        ExerciseTransfer(
+            isMove = move,
+            count = selected.size,
+            toDayId = toDayId,
+            createdIds = if (move) emptyList() else createdIds,
+            previousPlaces = if (move) source.map { it.toPlace() } else emptyList()
+        )
+    }
+
+    /**
+     * Nimmt ein Kopieren oder Verschieben zurück – für „Rückgängig“ in der Meldung.
+     *
+     * Kopien verschwinden wieder. Verschobene Zeilen kehren an ihren alten Platz zurück, und der
+     * Ausgangstag bekommt auch seine Supersets zurück, die das Aufräumen nach dem Wegziehen
+     * aufgelöst hatte. Gesetzt werden dabei nur die Plätze: Wer zwischendurch Sätze geändert
+     * hat, behält sie.
+     */
+    suspend fun undoTransfer(transfer: ExerciseTransfer) = database.withTransaction {
+        if (transfer.isMove) {
+            transfer.previousPlaces.forEach { place ->
+                exerciseDao.updatePlace(place.id, place.dayId, place.position, place.supersetId)
+            }
+            transfer.previousPlaces.map { it.dayId }.distinct().forEach { normalizeSupersets(it) }
+        } else {
+            exerciseDao.deleteByIds(transfer.createdIds)
+            definitionDao.deleteOrphans()
+        }
+        normalizeSupersets(transfer.toDayId)
+    }
+
+    private fun Exercise.toPlace() = ExercisePlace(id, dayId, position, supersetId)
+
+    /**
      * Räumt Supersets auf, nachdem sich die Reihenfolge geändert hat. Welche Mitglieder
      * zusammenbleiben, entscheidet [survivingSupersetMembers]; hier wird das Ergebnis nur noch
      * in die Datenbank geschrieben.
@@ -813,3 +889,21 @@ class TrainingRepository(
         ensureDaysExist(settingsStore.dayCount.first())
     }
 }
+
+/** Wo eine Übung stand: Tag, Position und Superset – siehe [TrainingRepository.undoTransfer]. */
+data class ExercisePlace(val id: Long, val dayId: Int, val position: Int, val supersetId: Long?)
+
+/**
+ * Ein Kopieren oder Verschieben an einen anderen Tag, festgehalten fürs Rückgängigmachen.
+ *
+ * Beim Kopieren genügen die neuen Zeilen ([createdIds]); beim Verschieben braucht es die Plätze
+ * *aller* Zeilen des Ausgangstages vorher ([previousPlaces]) – auch der gebliebenen, deren
+ * Superset das Wegziehen womöglich aufgelöst hat.
+ */
+data class ExerciseTransfer(
+    val isMove: Boolean,
+    val count: Int,
+    val toDayId: Int,
+    val createdIds: List<Long>,
+    val previousPlaces: List<ExercisePlace>
+)

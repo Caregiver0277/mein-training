@@ -115,6 +115,8 @@ class MainActivity : ComponentActivity() {
                         onDeleteSelected = viewModel::onDeleteSelected,
                         onCreateSuperset = viewModel::onCreateSuperset,
                         onDissolveSuperset = viewModel::onDissolveSuperset,
+                        onCopySelected = viewModel::onCopySelected,
+                        onMoveSelected = viewModel::onMoveSelected,
                         onProgressClick = viewModel::onProgressClick,
                         onProgressLongClick = viewModel::onProgressLongClick,
                         onReorder = viewModel::onReorder,

@@ -130,4 +130,39 @@ class SupersetsTest {
         )
         assertEquals(listOf(1L, 2L, 9L, 8L, 3L), arranged)
     }
+
+    // --- Kopieren und Verschieben ------------------------------------------
+
+    @Test
+    fun einVollstaendigesSupersetBleibtMitNeuerKennungEines() {
+        // Tag: 1 [2 3] 4 – mitgenommen werden 2 und 3, also das ganze Superset 7.
+        val target = supersetsAfterTransfer(
+            movedSupersetIds = listOf(7L, 7L),
+            sourceSupersetIds = listOf(null, 7L, 7L, null),
+            firstNewId = 20L
+        )
+        assertEquals(listOf(20L, 20L), target)
+    }
+
+    @Test
+    fun einHalbesSupersetLoestSichImZielAuf() {
+        // [1 2 3] – nur zwei der drei wandern mit: im Ziel kein Superset.
+        val target = supersetsAfterTransfer(
+            movedSupersetIds = listOf(7L, 7L),
+            sourceSupersetIds = listOf(7L, 7L, 7L),
+            firstNewId = 20L
+        )
+        assertEquals(listOf(null, null), target)
+    }
+
+    @Test
+    fun mehrereSupersetsBekommenJeEineEigeneKennung() {
+        // [1 2] 3 [4 5] – alles wandert mit, dazu eine Übung ohne Superset.
+        val target = supersetsAfterTransfer(
+            movedSupersetIds = listOf(7L, 7L, null, 9L, 9L),
+            sourceSupersetIds = listOf(7L, 7L, null, 9L, 9L),
+            firstNewId = 20L
+        )
+        assertEquals(listOf(20L, 20L, null, 21L, 21L), target)
+    }
 }

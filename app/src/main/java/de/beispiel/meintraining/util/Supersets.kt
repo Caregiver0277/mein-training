@@ -51,6 +51,34 @@ fun survivingSupersetMembers(
 }
 
 /**
+ * Die Superset-Kennungen der Übungen, die an einen anderen Tag kopiert oder verschoben werden.
+ *
+ * Ein Superset, das *vollständig* mitwandert, bleibt im Ziel eines – mit neuer Kennung, damit es
+ * sich nicht mit dem Original (beim Kopieren) oder einem Superset des Zieltages vermischt. Ein
+ * Superset, von dem nur ein Teil mitkommt, löst sich im Ziel auf: Die Hälfte eines Paars ist dort
+ * kein Superset mehr, und zwei Mitglieder von dreien sollen nicht stillschweigend ein neues bilden.
+ *
+ * [movedSupersetIds] sind die Kennungen der mitwandernden Zeilen in Anzeigereihenfolge,
+ * [sourceSupersetIds] die *aller* Zeilen des Ausgangstages – nur so lässt sich sagen, ob ein
+ * Superset vollständig dabei ist. Neue Kennungen werden ab [firstNewId] vergeben, in der
+ * Reihenfolge, in der die Supersets auftauchen.
+ *
+ * Zurück kommt für jede mitwandernde Zeile ihre Kennung im Ziel (`null` = kein Superset).
+ */
+fun supersetsAfterTransfer(
+    movedSupersetIds: List<Long?>,
+    sourceSupersetIds: List<Long?>,
+    firstNewId: Long
+): List<Long?> {
+    val sourceSizes = sourceSupersetIds.filterNotNull().groupingBy { it }.eachCount()
+    val movedSizes = movedSupersetIds.filterNotNull().groupingBy { it }.eachCount()
+    val complete = movedSizes.filter { (id, count) -> count == sourceSizes[id] }.keys
+    val renamed = movedSupersetIds.filterNotNull().distinct().filter { it in complete }
+        .withIndex().associate { (index, id) -> id to firstNewId + index }
+    return movedSupersetIds.map { id -> id?.let { renamed[it] } }
+}
+
+/**
  * Rückt Zeilen, die beim Umsortieren mitten in einem Superset gelandet sind, hinter dessen Block.
  *
  * Gemeint sind die [pinned] Zeilen: die ausgeblendeten, die beim Umsortieren ihren Platz zwischen

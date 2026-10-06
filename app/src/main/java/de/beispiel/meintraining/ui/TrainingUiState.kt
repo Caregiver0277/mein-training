@@ -5,6 +5,7 @@ import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.FIRST_DAY_ID
 import de.beispiel.meintraining.data.model.TrainingDay
+import de.beispiel.meintraining.data.repository.ExerciseTransfer
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
@@ -80,6 +81,9 @@ data class TrainingUiState(
 
     /** Auflösen geht, sobald mindestens eine markierte Zeile zu einem Superset gehört. */
     val canDissolveSuperset: Boolean get() = selectedExercises.any { it.supersetId != null }
+
+    /** Wohin sich die Auswahl kopieren oder verschieben lässt: jeder sichtbare Tag außer diesem. */
+    val transferTargetDays: List<TrainingDay> get() = days.filter { it.id != selectedDayId }
 }
 
 /**
@@ -106,6 +110,8 @@ data class TrainingActions(
     val onDeleteSelected: () -> Unit = {},
     val onCreateSuperset: () -> Unit = {},
     val onDissolveSuperset: () -> Unit = {},
+    val onCopySelected: (Int) -> Unit = {},
+    val onMoveSelected: (Int) -> Unit = {},
     val onProgressClick: (ExerciseItem) -> Unit = {},
     val onProgressLongClick: (ExerciseItem) -> Unit = {},
     val onReorder: (List<Long>) -> Unit = {},
@@ -267,6 +273,17 @@ sealed interface TrainingEvent {
 
     /** Übungen wurden gelöscht; die Kopien erlauben das Wiederherstellen. */
     data class ExercisesDeleted(val exercises: List<ExerciseItem>) : TrainingEvent
+
+    /**
+     * Übungen wurden an einen anderen Tag kopiert oder verschoben.
+     *
+     * [targetDayName] ist der gespeicherte Name des Zieltages, so wie er beim Auslösen hieß;
+     * leer heißt wie überall „Tag N“.
+     */
+    data class ExercisesTransferred(
+        val transfer: ExerciseTransfer,
+        val targetDayName: String
+    ) : TrainingEvent
 
     /**
      * Eine neue Runde wurde von Hand begonnen.
