@@ -86,7 +86,9 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
         // Verlaufseinträge kommen älteste zuerst – genau die Reihenfolge, die der Zuwachs braucht.
         val gains = exerciseGains(logs.map { it.exerciseName to it.weightKg }, decreasing)
         val lastChanged = logs.groupBy { it.exerciseName }
-            .mapValues { (_, entries) -> entries.maxOf { it.recordedAt }.toLocalDate() }
+            .mapValues { (_, entries) -> entries.maxOf { it.recordedAt } }
+        val plannedDays = planned.groupBy({ it.name }, { it.dayId })
+            .mapValues { (_, dayIds) -> dayIds.toSet() }
         val currentWeights = definitions
             .filter { it.name in plannedNames }
             .mapNotNull { definition -> definition.weightKg?.let { definition.name to it } }
@@ -100,7 +102,13 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             weekdayCounts = weekdayDistribution(dates),
             typicalTime = typicalTimeOfDay(times),
             totalGainKg = gains.sumOf { it.gainKg },
-            stagnating = stagnatingExercises(lastChanged, currentWeights, today).take(TOP_ENTRIES),
+            stagnating = stagnatingExercises(
+                lastChanged = lastChanged,
+                currentWeights = currentWeights,
+                plannedDays = plannedDays,
+                sessions = sessions.map { it.dayId to it.completedAt },
+                today = today
+            ).take(TOP_ENTRIES),
             exerciseCount = planned.size,
             // Die Last einer Übung mit Pfeil nach unten ist Unterstützung, keine Last – die
             // schwerste Übung wäre sonst womöglich die, bei der am meisten geholfen wird.

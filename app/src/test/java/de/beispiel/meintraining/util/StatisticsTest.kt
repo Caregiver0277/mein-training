@@ -7,6 +7,7 @@ import org.junit.Test
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 
 /** Ein Sonntag – so lässt sich das Wochenende sauber gegen die Woche abgrenzen. */
 private val TODAY: LocalDate = LocalDate.of(2026, 8, 2)
@@ -158,18 +159,75 @@ class StatisticsTest {
         assertEquals(25.0, gains.sumOf { it.gainKg }, 0.0)
     }
 
+    // --- Festgefahren -----------------------------------------------------
+
+    /** Mittag des Tages [daysAgo] Tage vor heute, als Zeitstempel. */
+    private fun at(daysAgo: Long): Long =
+        TODAY.minusDays(daysAgo).atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    /** Trainings an Tag [dayId], eines je angegebenem Abstand zu heute. */
+    private fun sessions(dayId: Int, vararg daysAgo: Long) = daysAgo.map { dayId to at(it) }
+
+    private fun stagnating(
+        lastChanged: Map<String, Long>,
+        currentWeights: Map<String, Double>,
+        sessions: List<Pair<Int, Long>>,
+        plannedDays: Map<String, Set<Int>> = currentWeights.mapValues { setOf(1) }
+    ) = stagnatingExercises(lastChanged, currentWeights, plannedDays, sessions, TODAY)
+
     @Test
-    fun stagnationGreiftErstNachDerWartezeit() {
-        val stagnating = stagnatingExercises(
-            lastChanged = mapOf(
-                "Alt" to TODAY.minusDays(40),
-                "Frisch" to TODAY.minusDays(3)
-            ),
+    fun stagnationGreiftErstNachSechsTrainings() {
+        val result = stagnating(
+            lastChanged = mapOf("Alt" to at(43), "Frisch" to at(10)),
             currentWeights = mapOf("Alt" to 60.0, "Frisch" to 20.0),
-            today = TODAY
+            sessions = sessions(1, 42, 35, 28, 21, 14, 9, 2)
         )
-        assertEquals(listOf("Alt"), stagnating.map { it.name })
-        assertEquals(40L, stagnating.first().sinceDays)
+        assertEquals(listOf("Alt"), result.map { it.name })
+        assertEquals(7, result.single().sinceSessions)
+        assertEquals(43L, result.single().sinceDays)
     }
 
+    @Test
+    fun eineTrainingspauseMachtNichtsFestgefahren() {
+        // Seit 60 Tagen unverändert, aber nur zweimal trainiert – dazwischen war Pause.
+        val result = stagnating(
+            lastChanged = mapOf("Bank" to at(60)),
+            currentWeights = mapOf("Bank" to 60.0),
+            sessions = sessions(1, 59, 3)
+        )
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun gezaehltWirdNurAnDenTagenDerUebung() {
+        // Sechs Trainings seit der Änderung, aber nur zwei davon an Tag 2, wo die Übung steht.
+        val result = stagnating(
+            lastChanged = mapOf("Kreuzheben" to at(30)),
+            currentWeights = mapOf("Kreuzheben" to 100.0),
+            sessions = sessions(1, 28, 21, 14, 7) + sessions(2, 25, 11),
+            plannedDays = mapOf("Kreuzheben" to setOf(2))
+        )
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun uebungenOhneGewichtSindNieFestgefahren() {
+        val result = stagnating(
+            lastChanged = mapOf("Nordic curl" to at(100), "Dips" to at(100)),
+            currentWeights = mapOf("Nordic curl" to 0.0),
+            sessions = sessions(1, 90, 80, 70, 60, 50, 40, 30)
+        )
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun amLaengstenFestgefahrenSteht() {
+        val result = stagnating(
+            lastChanged = mapOf("Kurz" to at(20), "Lang" to at(50)),
+            currentWeights = mapOf("Kurz" to 20.0, "Lang" to 40.0),
+            sessions = sessions(1, 45, 40, 35, 30, 19, 15, 10, 5, 4, 3, 2, 1)
+        )
+        assertEquals(listOf("Lang", "Kurz"), result.map { it.name })
+        assertEquals(listOf(12, 8), result.map { it.sinceSessions })
+    }
 }

@@ -266,7 +266,13 @@
     <string name="stats_no_gains">Noch keine Gewichtssteigerung aufgezeichnet.</string>
     <string name="stats_kg_value">%1$s kg</string>
     <string name="stats_stagnation">Festgefahren</string>
-    <string name="stats_stagnation_hint">Seit über %1$d Tagen unverändert – vielleicht Zeit für einen Sprung oder eine Variation.</string>
+    <string name="stats_stagnation_hint">Seit mindestens %1$d Trainings unverändert – vielleicht Zeit für einen Sprung oder eine Variation.</string>
+    <!-- Etwa „seit 7 Trainings (43 Tage)“: erst die Trainings, dann die Kalendertage. -->
+    <string name="stats_stagnation_since">%1$s (%2$s)</string>
+    <plurals name="stats_stagnation_sessions">
+        <item quantity="one">seit %1$d Training</item>
+        <item quantity="other">seit %1$d Trainings</item>
+    </plurals>
     <plurals name="stats_weeks">
         <item quantity="one">%1$d Woche</item>
         <item quantity="other">%1$d Wochen</item>

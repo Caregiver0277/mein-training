@@ -37,7 +37,7 @@ import de.beispiel.meintraining.ui.theme.Dimens
 import de.beispiel.meintraining.ui.theme.MeinTrainingTheme
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
-import de.beispiel.meintraining.util.STAGNATION_DAYS
+import de.beispiel.meintraining.util.STAGNATION_SESSIONS
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.formatFullDate
 import de.beispiel.meintraining.util.toDecimalString
@@ -256,7 +256,7 @@ private fun ProgressCard(uiState: StatsUiState) {
 private fun StagnationCard(entries: List<StagnatingExercise>) {
     StatsCard(title = stringResource(R.string.stats_stagnation)) {
         Text(
-            text = stringResource(R.string.stats_stagnation_hint, STAGNATION_DAYS.toInt()),
+            text = stringResource(R.string.stats_stagnation_hint, STAGNATION_SESSIONS),
             style = AppTextStyles.ColumnLabel,
             color = TextSecondary
         )
@@ -276,10 +276,18 @@ private fun StagnationCard(entries: List<StagnatingExercise>) {
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = pluralStringResource(
-                        R.plurals.stats_days,
-                        entry.sinceDays.toInt(),
-                        entry.sinceDays.toInt()
+                    text = stringResource(
+                        R.string.stats_stagnation_since,
+                        pluralStringResource(
+                            R.plurals.stats_stagnation_sessions,
+                            entry.sinceSessions,
+                            entry.sinceSessions
+                        ),
+                        pluralStringResource(
+                            R.plurals.stats_days,
+                            entry.sinceDays.toInt(),
+                            entry.sinceDays.toInt()
+                        )
                     ),
                     style = AppTextStyles.ColumnLabel,
                     color = TextSecondary
@@ -357,7 +365,7 @@ private fun StatsScreenPreview() {
                 weekdayCounts = listOf(8, 2, 7, 1, 9, 4, 3),
                 typicalTime = java.time.LocalTime.of(18, 40),
                 totalGainKg = 47.5,
-                stagnating = listOf(StagnatingExercise("Nordic curl", 0.0, 43)),
+                stagnating = listOf(StagnatingExercise("Nordic curl", 20.0, 7, 43)),
                 exerciseCount = 38,
                 heaviestExercise = "Adductor/Abductor" to 85.0
             ),

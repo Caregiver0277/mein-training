@@ -13,8 +13,13 @@ import kotlin.math.sin
 
 private const val SECONDS_PER_DAY = 24 * 60 * 60
 
-/** Ab dieser Ruhezeit gilt das Gewicht einer Übung als festgefahren. */
-const val STAGNATION_DAYS = 28L
+/**
+ * Ab so vielen Trainings ohne Gewichtsänderung gilt eine Übung als festgefahren.
+ *
+ * Gezählt werden Trainings und keine Kalendertage: Nach einer Pause von ein paar Wochen ist
+ * nichts festgefahren, es wurde nur nicht trainiert.
+ */
+const val STAGNATION_SESSIONS = 6
 
 /**
  * Gewichtsentwicklung einer Übung vom ersten bis zum aktuellen Eintrag.
@@ -33,8 +38,16 @@ data class ExerciseGain(
     val gainPercent: Double get() = if (fromKg > 0.0) gainKg / fromKg * 100.0 else 0.0
 }
 
-/** Übung, deren Gewicht seit [sinceDays] Tagen unverändert ist. */
-data class StagnatingExercise(val name: String, val weightKg: Double, val sinceDays: Long)
+/**
+ * Übung, deren Gewicht seit [sinceSessions] Trainings unverändert ist – an den Tagen, an denen
+ * sie im Plan steht. [sinceDays] ist dieselbe Spanne in Kalendertagen, zur Einordnung.
+ */
+data class StagnatingExercise(
+    val name: String,
+    val weightKg: Double,
+    val sinceSessions: Int,
+    val sinceDays: Long
+)
 
 /**
  * Trainings pro Woche über den gesamten bisherigen Zeitraum.
@@ -136,18 +149,34 @@ fun exerciseGains(
         .sortedByDescending { it.gainKg }
 
 /**
- * Übungen, deren Gewicht seit mindestens [minDays] Tagen steht.
- * [lastChanged] hält je Übung den Zeitpunkt der letzten Gewichtsänderung.
+ * Übungen, deren Gewicht seit mindestens [minSessions] Trainings steht.
+ *
+ * [lastChanged] hält je Übung den Zeitpunkt der letzten Gewichtsänderung, [plannedDays] die
+ * Trainingstage, an denen sie im Plan steht. [sessions] sind die abgehakten Trainings als Paare
+ * aus Trainingstag und Zeitpunkt. Gezählt wird, wie oft seit der letzten Änderung ein Tag der
+ * Übung abgehakt wurde – nur dann wurde sie auch trainiert.
+ *
+ * Übungen ohne Gewicht oder mit 0 kg fehlen: Bei ihnen gibt es nichts zu steigern, sie stünden
+ * sonst für immer in der Liste.
  */
 fun stagnatingExercises(
-    lastChanged: Map<String, LocalDate>,
+    lastChanged: Map<String, Long>,
     currentWeights: Map<String, Double>,
+    plannedDays: Map<String, Set<Int>>,
+    sessions: List<Pair<Int, Long>>,
     today: LocalDate,
-    minDays: Long = STAGNATION_DAYS
+    minSessions: Int = STAGNATION_SESSIONS
 ): List<StagnatingExercise> = lastChanged.mapNotNull { (name, changedAt) ->
-    val weight = currentWeights[name] ?: return@mapNotNull null
-    val days = ChronoUnit.DAYS.between(changedAt, today)
-    if (days < minDays) null else StagnatingExercise(name, weight, days)
-}.sortedByDescending { it.sinceDays }
+    val weight = currentWeights[name]?.takeIf { it > 0.0 } ?: return@mapNotNull null
+    val days = plannedDays[name].orEmpty()
+    val count = sessions.count { (dayId, completedAt) -> dayId in days && completedAt > changedAt }
+    if (count < minSessions) return@mapNotNull null
+    StagnatingExercise(
+        name = name,
+        weightKg = weight,
+        sinceSessions = count,
+        sinceDays = ChronoUnit.DAYS.between(changedAt.toLocalDate(), today)
+    )
+}.sortedWith(compareByDescending<StagnatingExercise> { it.sinceSessions }.thenByDescending { it.sinceDays })
 
 private fun LocalDate.weekStart(): LocalDate = with(DayOfWeek.MONDAY)
