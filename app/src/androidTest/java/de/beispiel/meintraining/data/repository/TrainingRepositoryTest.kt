@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import de.beispiel.meintraining.data.local.AppDatabase
 import de.beispiel.meintraining.data.local.SettingsStore
+import de.beispiel.meintraining.data.model.WorkoutSession
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -16,6 +17,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Das Zusammenspiel von Übung, geteiltem Gewicht und Verlauf.
@@ -308,6 +311,31 @@ class TrainingRepositoryTest {
 
         assertEquals(listOf(30.0), verlaufVon("Schulterdrücken"))
         assertEquals(emptyList<Double>(), verlaufVon("Nackendrücken"))
+    }
+
+    // --- Weiterschalten am neuen Tag ---------------------------------------
+
+    /**
+     * Tag 3 ausgelassen, Tag 4 gemacht: Am nächsten Morgen ist Tag 3 dran und nicht der in dieser
+     * Runde schon erledigte Tag 1.
+     */
+    @Test
+    fun amNeuenTagIstDerUebersprungeneTagDran() = runBlocking {
+        val today = LocalDate.now()
+        settingsStore.setDayCount(4)
+        settingsStore.setRotationCuts(emptyList())
+        settingsStore.setLastDayAdvance(0L)
+        listOf(1, 2, 4).forEachIndexed { index, dayId ->
+            val completedAt = today.minusDays(1).atTime(10 + index, 0)
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            database.workoutSessionDao().insert(WorkoutSession(dayId = dayId, completedAt = completedAt))
+        }
+
+        repository.advanceDayIfNewDate(today)
+
+        assertEquals(3, repository.currentSelectedDay())
+        assertEquals(3, repository.nextDayInRotation(today))
+        settingsStore.setLastDayAdvance(0L)
     }
 
     // --- Hilfen ------------------------------------------------------------
