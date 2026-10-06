@@ -396,9 +396,8 @@ private fun TrainingContent(
                         ) {
                             ExerciseRow(
                                 name = exerciseTitle(exercise.name, exercise.variation),
-                                // Nur die eingetragene Last. Bei Körpergewichtsübungen ist das die
-                                // Zusatzlast – das eigene Körpergewicht gehört ins Tracking, beim
-                                // Trainieren zählt, was auf die Stange kommt.
+                                // Nur die eingetragene Last – beim Trainieren zählt, was auf die
+                                // Stange kommt. Ohne Gewicht bleibt die Spalte leer.
                                 weightLabel = exercise.weightKg?.toWeightLabel(unit),
                                 // In der Deload-Woche zeigt die Liste halbierte Sätze; der
                                 // gespeicherte Plan bleibt davon unberührt.

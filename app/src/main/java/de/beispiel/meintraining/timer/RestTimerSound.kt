@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.timer
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
@@ -172,6 +173,7 @@ object RestTimerSound {
      * Die Werte sind Konstanten und werden beim Übersetzen eingesetzt; auf älteren
      * Android-Fassungen meldet das Gerät die neueren Arten schlicht nie.
      */
+    @SuppressLint("InlinedApi") // Siehe oben: Konstanten, die ältere Geräte nie melden.
     private val HEADPHONE_TYPES = listOf(
         AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
         AudioDeviceInfo.TYPE_WIRED_HEADSET,

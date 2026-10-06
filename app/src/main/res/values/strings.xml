@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Theos Trainingsapp</string>
     <string name="screen_title">MEIN TRAINING</string>
 
@@ -100,7 +100,8 @@
     <string name="settings_days_hint">Wie viele Tage eine Runde hat und wie sie heißen. Eine Runde ist durch, wenn jeder Tag einmal abgehakt wurde.</string>
     <string name="settings_day_count">Anzahl Trainingstage</string>
     <string name="settings_day_count_card">Anzahl</string>
-    <string name="settings_day_count_hint">%1$d bis %2$d. Beim Verkleinern bleiben die Übungen der ausgeblendeten Tage erhalten.</string>
+    <!-- Ein Bereich, keine Anzahl: Die Grenzen stehen fest, eine Mehrzahl-Form gäbe es nie zu wählen. -->
+    <string name="settings_day_count_hint" tools:ignore="PluralsCandidate">%1$d bis %2$d. Beim Verkleinern bleiben die Übungen der ausgeblendeten Tage erhalten.</string>
     <string name="settings_day_names">Namen</string>
     <plurals name="settings_day_count_summary">
         <item quantity="one">%1$d Tag in der Runde</item>
@@ -137,7 +138,8 @@
     <string name="backup_target_current">Ziel: %1$s</string>
     <string name="backup_target_missing">Noch keine Sicherungsdatei ausgewählt.</string>
     <string name="backup_interval">Abstand in Tagen</string>
-    <string name="backup_interval_hint">%1$d bis %2$d Tage. Android bündelt Hintergrundarbeit, der genaue Zeitpunkt kann also etwas abweichen.</string>
+    <!-- Ein Bereich: „Tage“ gehört zur Obergrenze, und die ist nie 1. -->
+    <string name="backup_interval_hint" tools:ignore="PluralsCandidate">%1$d bis %2$d Tage. Android bündelt Hintergrundarbeit, der genaue Zeitpunkt kann also etwas abweichen.</string>
     <string name="backup_last_ok">Zuletzt gesichert: %1$s</string>
     <string name="backup_last_failed">Letzte Sicherung fehlgeschlagen (%1$s): %2$s</string>
     <string name="backup_never">Noch nie gesichert.</string>
@@ -232,6 +234,7 @@
     <string name="history_cycle_empty">noch kein Training</string>
     <string name="history_today">heute</string>
     <string name="history_yesterday">gestern</string>
+    <string name="history_future">in der Zukunft</string>
     <string name="history_delete_title">Eintrag löschen?</string>
     <string name="history_delete_body">„%1$s“ vom %2$s wird aus dem Verlauf entfernt. Das beeinflusst auch die Deload-Berechnung.</string>
 
@@ -268,7 +271,10 @@
     <string name="stats_no_gains">Noch keine Gewichtssteigerung aufgezeichnet.</string>
     <string name="stats_kg_value">%1$s kg</string>
     <string name="stats_stagnation">Festgefahren</string>
-    <string name="stats_stagnation_hint">Seit mindestens %1$d Trainings unverändert – vielleicht Zeit für einen Sprung oder eine Variation.</string>
+    <plurals name="stats_stagnation_hint">
+        <item quantity="one">Seit mindestens %1$d Training unverändert – vielleicht Zeit für einen Sprung oder eine Variation.</item>
+        <item quantity="other">Seit mindestens %1$d Trainings unverändert – vielleicht Zeit für einen Sprung oder eine Variation.</item>
+    </plurals>
     <!-- Etwa „seit 7 Trainings (43 Tage)“: erst die Trainings, dann die Kalendertage. -->
     <string name="stats_stagnation_since">%1$s (%2$s)</string>
     <plurals name="stats_stagnation_sessions">
@@ -297,7 +303,8 @@
     <string name="deload_detail_resting">Du hast länger nicht trainiert. Diese Pause erholt genauso wie ein Deload, deshalb startet der Zyklus beim nächsten Training neu.</string>
     <string name="deload_detail_no_data">Sobald du dein erstes Training abhakst, beginnt der Zyklus.</string>
     <string name="deload_detail_upcoming">Geplant ab %1$s.</string>
-    <string name="deload_cycle_title">Block über %1$d Wochen</string>
+    <!-- Ein Block dauert mindestens zwei Wochen (MIN_CYCLE_WEEKS): Die Einzahl kommt nie vor. -->
+    <string name="deload_cycle_title" tools:ignore="PluralsCandidate">Block über %1$d Wochen</string>
     <string name="deload_cycle_hint">Die %1$d. Woche ist die Deload-Woche.</string>
     <string name="deload_fact_cycle_start">Block begonnen am</string>
     <string name="deload_fact_last_session">Letztes Training</string>
@@ -307,11 +314,11 @@
     <string name="deload_rule_sets">Im Deload werden die Sätze halbiert und aufgerundet: aus 3 werden 2, aus 4 werden 2.</string>
     <string name="deload_rule_weights">Die Gewichte bleiben unverändert.</string>
     <string name="deload_rule_cycle">Gezählt wird durchgehendes Training, nicht der Kalender: In der %1$d. Trainingswoche eines Blocks ist Deload.</string>
-    <string name="deload_rule_rest">Ab %1$d Tagen ohne Training zählt die Pause selbst als Deload – der Block beginnt danach von vorn.</string>
+    <!-- Eine feste Zahl weit über 1 (REST_RESETS_CYCLE_DAYS): Die Einzahl kommt nie vor. -->
+    <string name="deload_rule_rest" tools:ignore="PluralsCandidate">Ab %1$d Tagen ohne Training zählt die Pause selbst als Deload – der Block beginnt danach von vorn.</string>
     <string name="deload_rule_display">Der Deload ändert nur die Anzeige. Dein Plan bleibt unangetastet und steht danach wieder vollständig da.</string>
 
     <!-- Drawer -->
-    <string name="drawer_title">Menü</string>
     <string name="drawer_tracking">Tracking</string>
     <string name="drawer_stats">Statistiken</string>
     <string name="drawer_history">Verlauf</string>
@@ -334,7 +341,7 @@
     <string name="about_guide_timer_config">Lang auf die Uhr drücken stellt ihre Dauer ein. Ist die Pause um, vibriert das Handy – auch bei geschlossener App.</string>
     <string name="about_guide_more">Verlauf, Tracking und Einstellungen</string>
     <string name="about_guide_history">Im Verlauf trägt das „+“ ein vergessenes Training nach, lang drücken löscht einen Eintrag.</string>
-    <string name="about_guide_tracking">Im Tracking wählt die Liste oben rechts die Übungen aus. Lang auf eine davon drücken zeigt ihre einzelnen Datenpunkte.</string>
+    <string name="about_guide_tracking">Im Tracking wählt die Liste oben rechts die Übungen aus. Lang auf eine davon drücken zeigt ihre einzelnen Datenpunkte. Jeder Punkt ist eine Gewichtsänderung; blasse Linienstücke ohne Punkt zeigen den Stand, der von vorher weiter gilt.</string>
     <string name="about_guide_manage">Unter „Übungen verwalten“ lässt sich eine Übung an allen Tagen ausblenden – oder überall endgültig löschen.</string>
     <string name="about_data_title">Deine Daten</string>
     <string name="about_data_body">Die App kommt ohne Konto und ohne Internet aus – sie hat nicht einmal die Berechtigung dafür. Deine Daten liegen auf diesem Gerät und, falls eingeschaltet, in der Android-Gerätesicherung. Eine eigene Sicherungsdatei, auf Wunsch automatisch und auch in Google Drive, legst du unter Einstellungen → Sicherung an.</string>

@@ -41,7 +41,10 @@ data class SettingsSnapshot(
     val hiddenExerciseNames: Set<String>
 )
 
-/** Kleine Einstellungen, die nicht in die Datenbank gehören (aktuell nur der gewählte Tag). */
+/**
+ * Kleine Einstellungen, die nicht in die Datenbank gehören: gewählter Tag, Rundenlänge und
+ * -schnitte, Überschrift, Blocklänge, Ausblendlisten und die Angaben zur Sicherung.
+ */
 class SettingsStore(context: Context) {
 
     private val store = context.applicationContext.dataStore

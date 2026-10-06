@@ -256,7 +256,11 @@ private fun ProgressCard(uiState: StatsUiState) {
 private fun StagnationCard(entries: List<StagnatingExercise>) {
     StatsCard(title = stringResource(R.string.stats_stagnation)) {
         Text(
-            text = stringResource(R.string.stats_stagnation_hint, STAGNATION_SESSIONS),
+            text = pluralStringResource(
+                R.plurals.stats_stagnation_hint,
+                STAGNATION_SESSIONS,
+                STAGNATION_SESSIONS
+            ),
             style = AppTextStyles.ColumnLabel,
             color = TextSecondary
         )

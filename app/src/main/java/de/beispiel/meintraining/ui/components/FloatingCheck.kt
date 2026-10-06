@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -63,7 +64,7 @@ class FloatingCheck internal constructor(
         internal set
 
     /** Wohin der Haken gerade unterwegs ist. Getrieben von [rememberFloatingCheck]. */
-    internal var target: Float by mutableStateOf(initialTarget)
+    internal var target: Float by mutableFloatStateOf(initialTarget)
 
     /**
      * Ob der Anflug auf den Effekt des Drucks warten soll.

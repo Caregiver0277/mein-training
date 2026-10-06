@@ -52,6 +52,7 @@ import de.beispiel.meintraining.ui.theme.MenuButtonIcon
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.formatFullDate
+import de.beispiel.meintraining.util.sessionsInLastDays
 import de.beispiel.meintraining.util.toClockTime
 import de.beispiel.meintraining.util.toLocalDate
 import java.time.LocalDate
@@ -152,8 +153,8 @@ fun HistoryScreen(
         // ändern, wenn ein Training dazukommt oder der Kalendertag wechselt.
         val summary = remember(entries, today) {
             HistorySummary(
-                last7 = entries.count { ChronoUnit.DAYS.between(it.date, today) < DAYS_WEEK },
-                last30 = entries.count { ChronoUnit.DAYS.between(it.date, today) < DAYS_MONTH },
+                last7 = sessionsInLastDays(entries.map { it.date }, today, DAYS_WEEK),
+                last30 = sessionsInLastDays(entries.map { it.date }, today, DAYS_MONTH),
                 total = entries.size
             )
         }
@@ -379,9 +380,12 @@ private fun HistoryRow(
         }
         val daysAgo = ChronoUnit.DAYS.between(date, today).toInt()
         Text(
-            text = when (daysAgo) {
-                0 -> stringResource(R.string.history_today)
-                1 -> stringResource(R.string.history_yesterday)
+            text = when {
+                // Durch einen Zeitzonenwechsel oder eine eingelesene Sicherung kann ein Eintrag
+                // nach heute datiert sein – „vor -1 Tagen“ wäre dafür kein Satz.
+                daysAgo < 0 -> stringResource(R.string.history_future)
+                daysAgo == 0 -> stringResource(R.string.history_today)
+                daysAgo == 1 -> stringResource(R.string.history_yesterday)
                 else -> pluralStringResource(R.plurals.history_days_ago, daysAgo, daysAgo)
             },
             style = AppTextStyles.ColumnLabel,

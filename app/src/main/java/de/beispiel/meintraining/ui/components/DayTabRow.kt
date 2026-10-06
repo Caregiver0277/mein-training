@@ -29,7 +29,7 @@ import de.beispiel.meintraining.ui.theme.TabActiveText
 import de.beispiel.meintraining.ui.theme.TabInactiveSurface
 import de.beispiel.meintraining.ui.theme.TabInactiveText
 
-/** Vier gleich breite Pill-Buttons für die Tagesauswahl. */
+/** Gleich breite Pill-Buttons für die Tagesauswahl – einer je Tag der Runde, bis zu sieben. */
 @Composable
 fun DayTabRow(
     days: List<TrainingDay>,

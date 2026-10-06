@@ -62,6 +62,16 @@ fun sessionsPerWeek(dates: List<LocalDate>, today: LocalDate): Double {
 }
 
 /**
+ * Trainings in den letzten [days] Tagen, heute eingeschlossen.
+ *
+ * Einträge mit einem Datum nach [today] zählen nicht – sie kommen durch einen
+ * Zeitzonenwechsel oder eine eingelesene Sicherung zustande und liegen in keiner Spanne,
+ * die von heute aus rückwärts reicht.
+ */
+fun sessionsInLastDays(dates: List<LocalDate>, today: LocalDate, days: Int): Int =
+    dates.count { ChronoUnit.DAYS.between(it, today) in 0 until days }
+
+/**
  * Wochen in Folge mit mindestens einem Training, rückwärts gezählt.
  *
  * Die laufende Woche zählt nicht gegen die Serie, solange sie noch offen ist – sonst stünde

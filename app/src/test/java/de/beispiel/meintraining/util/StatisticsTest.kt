@@ -30,6 +30,20 @@ class StatisticsTest {
     }
 
     @Test
+    fun dieBilanzZaehltDieLetztenTageSamtHeute() {
+        val dates = listOf(TODAY, TODAY.minusDays(6), TODAY.minusDays(7), TODAY.minusDays(29))
+        assertEquals(2, sessionsInLastDays(dates, TODAY, 7))
+        assertEquals(4, sessionsInLastDays(dates, TODAY, 30))
+    }
+
+    @Test
+    fun eintraegeAusDerZukunftZaehlenInKeinerSpanne() {
+        // Durch Zeitzonenwechsel oder eine eingelesene Sicherung nach heute datiert.
+        val dates = listOf(TODAY.plusDays(1), TODAY)
+        assertEquals(1, sessionsInLastDays(dates, TODAY, 7))
+    }
+
+    @Test
     fun dasErsteTrainingWirdNichtAufSiebenHochgerechnet() {
         // Ein Training am ersten Tag: über eine Woche gerechnet ist das eines, nicht sieben.
         assertEquals(1.0, sessionsPerWeek(listOf(TODAY), TODAY), 0.01)

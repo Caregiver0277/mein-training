@@ -36,14 +36,15 @@ data class TrainingUiState(
     /**
      * Gilt das Training des angezeigten Tages als eingetragen?
      *
-     * Das ist mehr als [isSelectedDayCompleted], und zwar in genau einem Fall: Mit dem letzten
-     * Tag einer Runde beginnt die Zählung von vorn und jeder Haken steht wieder auf offen
-     * (siehe `completedDaysInRotation`). Wer gerade das letzte Training der Runde abgehakt hat,
-     * ist damit fertig – der Eintrag von heute sagt das unabhängig von der Runde.
+     * Das ist mehr als [isSelectedDayCompleted], und zwar in genau einem Fall: Wer heute
+     * trainiert und danach mit dem Pfeil die nächste Runde begonnen hat, findet in der neuen
+     * Runde jeden Haken wieder offen – auch den von heute (siehe `startNextRotation`). Fertig ist
+     * er trotzdem; der Eintrag von heute sagt das unabhängig von der Runde. Eine *volle* Runde
+     * braucht diesen Umweg nicht mehr: Sie bleibt bis Mitternacht stehen (siehe `rotations`).
      *
      * Die Unterscheidung zählt für alles, was auf das Abhaken *antwortet*: Der Schleier über
-     * den Übungen bliebe sonst ausgerechnet nach dem letzten Training der Runde liegen, als
-     * wäre der Haken nicht angekommen.
+     * den Übungen legte sich sonst nach dem Weiterschalten wieder über einen Tag, der heute
+     * schon erledigt ist, als wäre der Haken nicht angekommen.
      */
     val isSelectedDayConfirmed: Boolean
         get() = isSelectedDayCompleted || selectedDayId in todaysDayIds
