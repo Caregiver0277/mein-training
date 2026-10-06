@@ -50,12 +50,18 @@ class TrainingRepositoryTest {
             database = database,
             settingsStore = settingsStore
         )
-        runBlocking { settingsStore.setHiddenExerciseNames(emptySet()) }
+        runBlocking {
+            settingsStore.setHiddenExerciseNames(emptySet())
+            settingsStore.setWorkoutMarkers(current = null, consumed = null)
+        }
     }
 
     @After
     fun tearDown() {
-        runBlocking { settingsStore.setHiddenExerciseNames(emptySet()) }
+        runBlocking {
+            settingsStore.setHiddenExerciseNames(emptySet())
+            settingsStore.setWorkoutMarkers(current = null, consumed = null)
+        }
         database.close()
     }
 
@@ -454,6 +460,52 @@ class TrainingRepositoryTest {
         assertTrue(repository.observeSetLogs().first().isEmpty())
     }
 
+    // --- Trainingsdauer ----------------------------------------------------
+
+    /**
+     * Die erste Pausenuhr setzt den Beginn, der Haken übernimmt ihn als Dauer und verbraucht den
+     * Merker; ein zweites Tippen nimmt das Abhaken zurück und bringt den Merker wieder.
+     */
+    @Test
+    fun abhakenUebernimmtDenBeginnUndEinFehltippBringtIhnZurueck() = runBlocking {
+        val heute = LocalDate.now()
+        val beginn = System.currentTimeMillis() - 64 * MINUTE
+        repository.reportActivity(dayId = 2, at = beginn, activeUntil = beginn + 2 * MINUTE)
+        repository.reportActivity(dayId = 2, at = beginn + 20 * MINUTE)
+
+        val abgehakt = repository.toggleWorkout(dayId = 2, today = heute)
+        assertTrue(abgehakt.isCompleted)
+        assertEquals(beginn, database.workoutSessionDao().latestForDay(2)!!.startedAt)
+        assertNull(settingsStore.workoutMarker())
+
+        val zurueck = repository.toggleWorkout(dayId = 2, today = heute)
+        assertFalse(zurueck.isCompleted)
+        assertEquals(beginn, settingsStore.workoutMarker()!!.startedAt)
+
+        // Und noch einmal abgehakt: wieder mit derselben Dauer.
+        repository.toggleWorkout(dayId = 2, today = heute)
+        assertEquals(beginn, database.workoutSessionDao().latestForDay(2)!!.startedAt)
+    }
+
+    /** Fünf Minuten sind kein Training – abgehakt wird trotzdem, nur ohne Dauer. */
+    @Test
+    fun eineUnplausibleDauerBleibtLeer() = runBlocking {
+        repository.reportActivity(dayId = 1, at = System.currentTimeMillis() - 5 * MINUTE)
+
+        assertTrue(repository.toggleWorkout(dayId = 1).isCompleted)
+
+        assertNull(database.workoutSessionDao().latestForDay(1)!!.startedAt)
+        assertNull(settingsStore.workoutMarker())
+    }
+
+    @Test
+    fun nachgetragenMitDauer() = runBlocking {
+        val ende = System.currentTimeMillis() - 24 * 60 * MINUTE
+        repository.ensureSeeded()
+        assertTrue(repository.addSession(dayId = 1, completedAt = ende, startedAt = ende - 45 * MINUTE))
+        assertEquals(ende - 45 * MINUTE, database.workoutSessionDao().latestForDay(1)!!.startedAt)
+    }
+
     // --- Weiterschalten am neuen Tag ---------------------------------------
 
     /**
@@ -522,6 +574,10 @@ class TrainingRepositoryTest {
             progressionStepKg = 2.5,
             progressionDown = false
         )
+    }
+
+    private companion object {
+        const val MINUTE = 60_000L
     }
 
     private suspend fun zuruecknehmen(change: WeightChange, name: String): Boolean =

@@ -1,7 +1,9 @@
 package de.beispiel.meintraining.util
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private const val UNIT = "Kg"
@@ -166,5 +168,23 @@ class ParsingTest {
         assertEquals(0.0, stepWeight(0.0, 2.5, progressionDown = false, reverse = true), 0.0)
         // Bei einem Pfeil nach unten geht der Schritt zurück nach oben – auch von 0 aus.
         assertEquals(2.5, stepWeight(0.0, 2.5, progressionDown = true, reverse = true), 0.0)
+    }
+
+    // --- Dauer beim Nachtragen ---------------------------------------------
+
+    @Test
+    fun eineDauerInGanzenMinutenWirdAngenommen() {
+        assertEquals(64, parseDurationMinutes(" 64 "))
+        assertEquals(MAX_WORKOUT_MINUTES, parseDurationMinutes(MAX_WORKOUT_MINUTES.toString()))
+    }
+
+    @Test
+    fun eineLeereDauerIstErlaubtEineFalscheNicht() {
+        assertTrue(isValidDurationInput(""))
+        assertTrue(isValidDurationInput("45"))
+        assertFalse(isValidDurationInput("0"))
+        assertFalse(isValidDurationInput("1,5"))
+        assertFalse(isValidDurationInput((MAX_WORKOUT_MINUTES + 1).toString()))
+        assertNull(parseDurationMinutes(""))
     }
 }

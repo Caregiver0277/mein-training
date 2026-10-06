@@ -36,6 +36,24 @@ fun parseOptionalDecimal(input: String): Double? {
     return normalized.toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0.0 }
 }
 
+/** Längste Dauer, die sich nachtragen lässt – dieselbe Grenze wie beim Abhaken. */
+const val MAX_WORKOUT_MINUTES = (MAX_WORKOUT_MILLIS / 60_000L).toInt()
+
+/**
+ * Die Dauer aus dem Nachtragen-Dialog in Minuten: `"64" → 64`. Leer, ungültig oder außerhalb
+ * von 1 bis [MAX_WORKOUT_MINUTES] → `null`; ob das Feld leer oder falsch ist, sagt
+ * [isValidDurationInput].
+ *
+ * Kürzer als beim Abhaken darf es sein: Wer eine Dauer von Hand einträgt, weiß sie – die
+ * Untergrenze dort fängt nur aus Versehen gestartete Pausenuhren ab.
+ */
+fun parseDurationMinutes(input: String): Int? =
+    input.trim().toIntOrNull()?.takeIf { it in 1..MAX_WORKOUT_MINUTES }
+
+/** Leer (keine Angabe) oder eine Dauer, die [parseDurationMinutes] annimmt. */
+fun isValidDurationInput(input: String): Boolean =
+    input.isBlank() || parseDurationMinutes(input) != null
+
 /** Optionale Ganzzahl. Leer, ungültig oder negativ → `null`. */
 fun parseOptionalInt(input: String): Int? {
     val value = input.trim().toIntOrNull() ?: return null

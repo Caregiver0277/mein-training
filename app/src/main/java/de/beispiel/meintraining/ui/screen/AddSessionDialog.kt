@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import de.beispiel.meintraining.R
@@ -43,6 +48,7 @@ import de.beispiel.meintraining.ui.theme.CardBackground
 import de.beispiel.meintraining.ui.theme.ChipBackground
 import de.beispiel.meintraining.ui.theme.Dimens
 import de.beispiel.meintraining.ui.theme.MeinTrainingTheme
+import de.beispiel.meintraining.ui.theme.OutlineColor
 import de.beispiel.meintraining.ui.theme.TabActiveSurface
 import de.beispiel.meintraining.ui.theme.TabActiveText
 import de.beispiel.meintraining.ui.theme.TabInactiveSurface
@@ -51,7 +57,10 @@ import de.beispiel.meintraining.ui.theme.TextDisabled
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.formatClockTime
+import de.beispiel.meintraining.util.MAX_WORKOUT_MINUTES
 import de.beispiel.meintraining.util.formatFullDate
+import de.beispiel.meintraining.util.isValidDurationInput
+import de.beispiel.meintraining.util.parseDurationMinutes
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -60,7 +69,8 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 
 /**
- * Trägt ein vergessenes Training nach: Trainingstag, Datum, Uhrzeit.
+ * Trägt ein vergessenes Training nach: Trainingstag, Datum, Uhrzeit und – wer sie weiß – die
+ * Dauer. Die Uhrzeit ist das Ende; der Beginn liegt so viele Minuten davor.
  *
  * Der Haken hakt immer *jetzt* ab – wer ihn vergisst, hat sonst keine Möglichkeit mehr, das
  * Training von gestern in den Verlauf zu bekommen, und damit stimmen Runde, Streak und
@@ -80,7 +90,7 @@ fun AddSessionDialog(
     days: List<TrainingDay>,
     /** Kommt von außen, damit „heute“ auch nach Mitternacht noch heute ist. */
     today: LocalDate,
-    onConfirm: (dayId: Int, completedAt: Long) -> Unit,
+    onConfirm: (dayId: Int, completedAt: Long, startedAt: Long?) -> Unit,
     onDismiss: () -> Unit
 ) {
     // Gespeichert wird jeweils die schlichteste Form – Epochentag und Minute des Tages –, damit
@@ -99,6 +109,8 @@ fun AddSessionDialog(
 
     var epochDay by rememberSaveable { mutableLongStateOf(today.toEpochDay()) }
     var minuteOfDay by rememberSaveable { mutableIntStateOf(openedMinuteOfDay) }
+
+    var durationText by rememberSaveable { mutableStateOf("") }
 
     var isPickingDate by rememberSaveable { mutableStateOf(false) }
     var isPickingTime by rememberSaveable { mutableStateOf(false) }
@@ -124,7 +136,8 @@ fun AddSessionDialog(
     // Nur bei jeder Änderung geprüft, nicht laufend: Wer die Uhrzeit auf gleich stehen lässt,
     // bis sie vorbei ist, darf sie eintragen – dann hat das Training ja stattgefunden.
     val isFuture = remember(completedAt) { completedAt > System.currentTimeMillis() }
-    val canSave = selectedDayId != 0 && !isFuture
+    val isDurationValid = isValidDurationInput(durationText)
+    val canSave = selectedDayId != 0 && !isFuture && isDurationValid
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -173,6 +186,12 @@ fun AddSessionDialog(
                     )
                 }
 
+                DurationField(
+                    value = durationText,
+                    onValueChange = { durationText = it },
+                    isError = !isDurationValid
+                )
+
                 if (isFuture) {
                     Text(
                         text = stringResource(R.string.history_add_future),
@@ -189,7 +208,11 @@ fun AddSessionDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(selectedDayId, completedAt) },
+                onClick = {
+                    val startedAt = parseDurationMinutes(durationText)
+                        ?.let { completedAt - it * MILLIS_PER_MINUTE }
+                    onConfirm(selectedDayId, completedAt, startedAt)
+                },
                 enabled = canSave
             ) {
                 Text(
@@ -307,6 +330,44 @@ private fun DayChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
     )
 }
 
+/** „Dauer (min)“ – freiwillig; leer heißt, die Dauer bleibt unbekannt. */
+@Composable
+private fun DurationField(value: String, onValueChange: (String) -> Unit, isError: Boolean) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(text = stringResource(R.string.history_add_duration)) },
+        singleLine = true,
+        isError = isError,
+        supportingText = {
+            Text(
+                text = if (isError) {
+                    stringResource(R.string.history_add_duration_invalid, MAX_WORKOUT_MINUTES)
+                } else {
+                    stringResource(R.string.history_add_duration_hint)
+                },
+                style = AppTextStyles.ColumnLabel
+            )
+        },
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Done
+        ),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary,
+            focusedBorderColor = AccentBlue,
+            unfocusedBorderColor = OutlineColor,
+            focusedLabelColor = AccentBlue,
+            unfocusedLabelColor = TextSecondary,
+            cursorColor = AccentBlue,
+            focusedSupportingTextColor = TextSecondary,
+            unfocusedSupportingTextColor = TextSecondary
+        ),
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
 /** Beschriftetes Feld, das beim Antippen den passenden Wähler öffnet. */
 @Composable
 private fun PickerField(
@@ -338,6 +399,7 @@ private fun PickerField(
 
 private const val MINUTES_PER_HOUR = 60
 private const val MILLIS_PER_DAY = 24L * 60 * 60 * 1000
+private const val MILLIS_PER_MINUTE = 60_000L
 
 // Das Datum steht ausgeschrieben da und braucht mehr Platz als „18:42“.
 private const val WEIGHT_DATE = 2f
@@ -350,7 +412,7 @@ private fun AddSessionDialogPreview() {
         AddSessionDialog(
             days = (1..4).map { TrainingDay(id = it, name = "Tag $it") },
             today = LocalDate.now(),
-            onConfirm = { _, _ -> },
+            onConfirm = { _, _, _ -> },
             onDismiss = {}
         )
     }

@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.local.AppDatabase
 import de.beispiel.meintraining.data.local.ExerciseDao
+import de.beispiel.meintraining.data.local.ConsumedMarker
 import de.beispiel.meintraining.data.local.ExerciseDefinitionDao
 import de.beispiel.meintraining.data.local.SetLogDao
 import de.beispiel.meintraining.data.local.SettingsStore
@@ -27,11 +28,14 @@ import de.beispiel.meintraining.util.decreaseWeight
 import de.beispiel.meintraining.util.dueDayId
 import de.beispiel.meintraining.util.keepSupersetBlocksTogether
 import de.beispiel.meintraining.util.nextOpenDayId
+import de.beispiel.meintraining.util.plausibleStart
+import de.beispiel.meintraining.util.restoredMarker
 import de.beispiel.meintraining.util.rotations
 import de.beispiel.meintraining.util.stepWeight
 import de.beispiel.meintraining.util.supersetsAfterTransfer
 import de.beispiel.meintraining.util.survivingSupersetMembers
 import de.beispiel.meintraining.util.toLocalDate
+import de.beispiel.meintraining.util.withActivity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -187,13 +191,9 @@ class TrainingRepository(
     /** Alle abgehakten Trainings, das jüngste zuerst. */
     fun observeSessions(): Flow<List<WorkoutSession>> = sessionDao.observeAll()
 
-    /** Hakt das Training eines Tages ab und liefert die Kennung des Eintrags. */
-    suspend fun completeWorkout(dayId: Int): Long = sessionDao.insert(
-        WorkoutSession(dayId = dayId, completedAt = System.currentTimeMillis())
-    )
-
     /**
-     * Trägt ein vergessenes Training nach – mit frei gewähltem Tag und Zeitpunkt.
+     * Trägt ein vergessenes Training nach – mit frei gewähltem Tag und Zeitpunkt, auf Wunsch mit
+     * Beginn ([startedAt]) für die Dauer.
      *
      * Geprüft wird hier nur, was die Datenbank selbst nicht abfängt: ein Trainingstag, den es
      * gar nicht gibt. Der Zeitpunkt kommt aus dem Verlauf schon geprüft an; ein Eintrag in der
@@ -202,11 +202,44 @@ class TrainingRepository(
      *
      * Liefert `false`, wenn nichts eingetragen wurde.
      */
-    suspend fun addSession(dayId: Int, completedAt: Long): Boolean {
+    suspend fun addSession(dayId: Int, completedAt: Long, startedAt: Long? = null): Boolean {
         if (completedAt > System.currentTimeMillis()) return false
         if (dayDao.findById(dayId) == null) return false
-        sessionDao.insert(WorkoutSession(dayId = dayId, completedAt = completedAt))
+        sessionDao.insert(
+            WorkoutSession(
+                dayId = dayId,
+                completedAt = completedAt,
+                startedAt = startedAt?.takeIf { it < completedAt }
+            )
+        )
         return true
+    }
+
+    /**
+     * Hält Abhaken und Aktivität auseinander: Beide lesen den Merker des laufenden Trainings und
+     * schreiben ihn zurück, und dazwischen liegt beim Abhaken eine Transaktion. Liefen zwei davon
+     * gleichzeitig, ginge eine Änderung am Merker verloren – etwa ein Fehltipp auf den Haken,
+     * dessen Rücknahme den Merker zurückbringt, bevor das erste Tippen ihn verbraucht hat.
+     */
+    private val workoutLock = Mutex()
+
+    /**
+     * Meldet eine Aktivität im Training: Damit beginnt eines, oder das laufende geht weiter (siehe
+     * [withActivity]). Das ist die eine Stelle, an die alles berichtet, was zum Training gehört –
+     * der Start einer Pausenuhr, ein protokollierter Satz, ein Cardio-Eintrag.
+     *
+     * [dayId] ist der Trainingstag, an dem es geschah; [activeUntil] das Ende dessen, was die
+     * Aktivität angestoßen hat – bei einer Pausenuhr ihr Ablauf, bis dahin läuft das Training
+     * sicher noch.
+     */
+    suspend fun reportActivity(
+        dayId: Int,
+        at: Long = System.currentTimeMillis(),
+        activeUntil: Long = at
+    ) = workoutLock.withLock {
+        settingsStore.setWorkoutMarker(
+            settingsStore.workoutMarker().withActivity(dayId, at, activeUntil)
+        )
     }
 
     /**
@@ -230,27 +263,58 @@ class TrainingRepository(
      * denselben Tag an. Innerhalb der Transaktion sieht der zweite Tipp das Ergebnis des
      * ersten: Ohne WAL hat die Datenbank genau einen Schreiber, Transaktionen laufen also
      * nacheinander.
+     *
+     * Der Beginn des Trainings kommt aus dem Merker (siehe [reportActivity]) – nur bei
+     * plausibler Dauer, sonst bleibt er leer (siehe [plausibleStart]).
      */
-    suspend fun toggleWorkout(dayId: Int, today: LocalDate = LocalDate.now()): WorkoutToggle {
-        // Rundenlänge und Rundenschnitte stehen in DataStore und werden deshalb *vor* der
-        // Transaktion geholt: Room hat genau einen Transaktions-Thread, und ein Warten auf einen
-        // anderen Zufluss mitten drin blockiert ihn – im schlechtesten Fall, bis DataStore
-        // seinerseits auf die Platte wartet.
+    suspend fun toggleWorkout(
+        dayId: Int,
+        today: LocalDate = LocalDate.now(),
+        now: Long = System.currentTimeMillis()
+    ): WorkoutToggle = workoutLock.withLock {
+        // Rundenlänge, Rundenschnitte und der Merker des Trainings stehen in DataStore und werden
+        // deshalb *vor* der Transaktion geholt: Room hat genau einen Transaktions-Thread, und ein
+        // Warten auf einen anderen Zufluss mitten drin blockiert ihn – im schlechtesten Fall, bis
+        // DataStore seinerseits auf die Platte wartet.
         val dayCount = settingsStore.dayCount.first()
         val cuts = settingsStore.rotationCuts.first()
-        return database.withTransaction {
+        val marker = settingsStore.workoutMarker()
+        val consumed = settingsStore.consumedWorkoutMarker()
+        var sessionId = 0L
+        val toggle = database.withTransaction {
             val latest = sessionDao.latestForDay(dayId)
             if (latest != null && latest.completedAt.toLocalDate() == today) {
                 sessionDao.deleteById(latest.id)
+                sessionId = latest.id
                 WorkoutToggle(isCompleted = false, completesRotation = false)
             } else {
-                completeWorkout(dayId)
+                sessionId = sessionDao.insert(
+                    WorkoutSession(
+                        dayId = dayId,
+                        completedAt = now,
+                        startedAt = plausibleStart(marker?.startedAt, now)
+                    )
+                )
                 WorkoutToggle(
                     isCompleted = true,
                     completesRotation = isRotationFull(dayCount, today, cuts)
                 )
             }
         }
+        // Abgehakt: Der Merker ist verbraucht, damit eine zweite Einheit am selben Tag neu zählt –
+        // aufgehoben wird er trotzdem, für den Fall, dass gleich ein zweites Tippen kommt.
+        // Zurückgenommen: Er kommt wieder, sonst wäre die Dauer nach einem Fehltipp weg.
+        when {
+            toggle.isCompleted -> settingsStore.setWorkoutMarkers(
+                current = null,
+                consumed = marker?.let { ConsumedMarker(sessionId, it) }
+            )
+            consumed?.sessionId == sessionId -> settingsStore.setWorkoutMarkers(
+                current = restoredMarker(consumed.marker, marker),
+                consumed = null
+            )
+        }
+        toggle
     }
 
     /**

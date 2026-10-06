@@ -27,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.beispiel.meintraining.R
+import de.beispiel.meintraining.ui.components.dayLabel
 import de.beispiel.meintraining.ui.screen.SubScreenHeader
 import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AccentGreen
@@ -37,6 +38,7 @@ import de.beispiel.meintraining.ui.theme.Dimens
 import de.beispiel.meintraining.ui.theme.MeinTrainingTheme
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
+import de.beispiel.meintraining.util.DurationSummary
 import de.beispiel.meintraining.util.STAGNATION_SESSIONS
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.formatFullDate
@@ -83,6 +85,7 @@ fun StatsScreen(uiState: StatsUiState, onBack: () -> Unit, modifier: Modifier = 
             HeadlineTiles(uiState)
             WeekdayCard(uiState)
             RhythmCard(uiState)
+            DurationCard(uiState.duration, uiState.dayNames)
             ProgressCard(uiState)
             if (uiState.stagnating.isNotEmpty()) StagnationCard(uiState.stagnating)
             Spacer(modifier = Modifier.height(Dimens.ListBottomPadding))
@@ -221,6 +224,35 @@ private fun RhythmCard(uiState: StatsUiState) {
             label = stringResource(R.string.stats_exercise_count),
             value = uiState.exerciseCount.toString()
         )
+    }
+}
+
+/**
+ * Ø Dauer, gesamt und je Trainingstag. Gezählt werden nur Trainings mit bekannter Dauer; ohne
+ * eine einzige erklärt die Karte, woher die Dauer kommt.
+ */
+@Composable
+private fun DurationCard(duration: DurationSummary?, dayNames: Map<Int, String>) {
+    StatsCard(title = stringResource(R.string.stats_duration)) {
+        if (duration == null) {
+            Text(
+                text = stringResource(R.string.stats_duration_none),
+                style = AppTextStyles.ColumnLabel,
+                color = TextSecondary,
+                modifier = Modifier.padding(top = Dimens.SectionSpacingSmall)
+            )
+            return@StatsCard
+        }
+        Fact(
+            label = stringResource(R.string.stats_duration_average),
+            value = stringResource(R.string.stats_minutes_value, duration.averageMinutes)
+        )
+        duration.perDay.forEach { (dayId, minutes) ->
+            Fact(
+                label = dayLabel(dayId, dayNames[dayId]),
+                value = stringResource(R.string.stats_minutes_value, minutes)
+            )
+        }
     }
 }
 
@@ -371,7 +403,12 @@ private fun StatsScreenPreview() {
                 totalGainKg = 47.5,
                 stagnating = listOf(StagnatingExercise("Nordic curl", 20.0, 7, 43)),
                 exerciseCount = 38,
-                heaviestExercise = "Adductor/Abductor" to 85.0
+                heaviestExercise = "Adductor/Abductor" to 85.0,
+                duration = DurationSummary(
+                    averageMinutes = 64,
+                    perDay = listOf(1 to 58, 2 to 71, 3 to 62)
+                ),
+                dayNames = mapOf(1 to "Push", 2 to "Pull", 3 to "Beine")
             ),
             onBack = {}
         )

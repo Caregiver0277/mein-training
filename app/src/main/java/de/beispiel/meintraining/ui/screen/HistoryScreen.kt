@@ -51,6 +51,7 @@ import de.beispiel.meintraining.ui.theme.MeinTrainingTheme
 import de.beispiel.meintraining.ui.theme.MenuButtonIcon
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
+import de.beispiel.meintraining.util.durationMinutes
 import de.beispiel.meintraining.util.formatFullDate
 import de.beispiel.meintraining.util.sessionsInLastDays
 import de.beispiel.meintraining.util.toClockTime
@@ -105,7 +106,7 @@ fun HistoryScreen(
     /** Kommt von außen, damit „heute“ auch nach Mitternacht noch heute ist. */
     today: LocalDate,
     onDeleteSession: (Long) -> Unit,
-    onAddSession: (Int, Long) -> Unit,
+    onAddSession: (Int, Long, Long?) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -206,9 +207,9 @@ fun HistoryScreen(
         AddSessionDialog(
             days = selectableDays,
             today = today,
-            onConfirm = { dayId, completedAt ->
+            onConfirm = { dayId, completedAt, startedAt ->
                 isAdding = false
-                onAddSession(dayId, completedAt)
+                onAddSession(dayId, completedAt, startedAt)
             },
             onDismiss = { isAdding = false }
         )
@@ -310,18 +311,20 @@ private fun CycleHeader(cycle: HistoryCycle) {
 }
 
 /**
- * „Tag 2 · 18:30 Uhr“ – Name des Trainingstages und Uhrzeit.
+ * „Tag 2 · 18:30 Uhr · 64 min“ – Name des Trainingstages, Uhrzeit und, wenn bekannt, die Dauer.
  *
  * Fehlt der Name, weil der Tag inzwischen hinter einer verkürzten Runde liegt oder leer gelassen
  * wurde, tritt die Nummer an seine Stelle; ein Eintrag ohne Beschriftung wäre nicht
  * wiederzuerkennen.
  */
 @Composable
-private fun HistoryEntry.label(dayNames: Map<Int, String>): String = stringResource(
-    R.string.history_entry,
-    dayLabel(session.dayId, dayNames[session.dayId]),
-    session.completedAt.toClockTime()
-)
+private fun HistoryEntry.label(dayNames: Map<Int, String>): String {
+    val day = dayLabel(session.dayId, dayNames[session.dayId])
+    val time = session.completedAt.toClockTime()
+    val minutes = durationMinutes(session.startedAt, session.completedAt)
+        ?: return stringResource(R.string.history_entry, day, time)
+    return stringResource(R.string.history_entry_with_duration, day, time, minutes)
+}
 
 @Composable
 private fun SummaryTile(value: String, label: String, modifier: Modifier = Modifier) {
@@ -450,7 +453,7 @@ private fun HistoryScreenPreview() {
             selectableDays = (1..4).map { TrainingDay(id = it, name = "Tag $it") },
             today = LocalDate.now(),
             onDeleteSession = {},
-            onAddSession = { _, _ -> },
+            onAddSession = { _, _, _ -> },
             onBack = {}
         )
     }

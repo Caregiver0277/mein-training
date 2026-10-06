@@ -108,9 +108,9 @@ class HistoryViewModel(
      * noch einmal, weil ein solcher Eintrag Runde, Streak und Deload-Rechnung verstellte und
      * sich hinterher nur über den langen Druck auf die Zeile wieder loswerden ließe.
      */
-    fun onAddSession(dayId: Int, completedAt: Long) {
+    fun onAddSession(dayId: Int, completedAt: Long, startedAt: Long?) {
         if (completedAt > System.currentTimeMillis()) return
-        viewModelScope.launch { repository.addSession(dayId, completedAt) }
+        viewModelScope.launch { repository.addSession(dayId, completedAt, startedAt) }
     }
 
     companion object {

@@ -2,6 +2,7 @@ package de.beispiel.meintraining.data.local
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -22,6 +23,7 @@ import de.beispiel.meintraining.util.DEFAULT_DELOAD_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MAX_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MIN_CYCLE_WEEKS
 import de.beispiel.meintraining.util.NO_ROTATION_CUT
+import de.beispiel.meintraining.util.WorkoutMarker
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -42,9 +44,15 @@ data class SettingsSnapshot(
 )
 
 /**
+ * Ein beim Abhaken verbrauchter Merker samt dem Eintrag, in den er eingegangen ist – siehe
+ * [SettingsStore.consumedWorkoutMarker].
+ */
+data class ConsumedMarker(val sessionId: Long, val marker: WorkoutMarker)
+
+/**
  * Kleine Einstellungen, die nicht in die Datenbank gehören: gewählter Tag, Rundenlänge und
- * -schnitte, Überschrift, Blocklänge, Ausblendlisten, „Bildschirm anlassen“ und die Angaben
- * zur Sicherung.
+ * -schnitte, Überschrift, Blocklänge, Ausblendlisten, „Bildschirm anlassen“, der Merker des
+ * laufenden Trainings und die Angaben zur Sicherung.
  */
 class SettingsStore(context: Context) {
 
@@ -230,6 +238,86 @@ class SettingsStore(context: Context) {
         store.edit { prefs -> prefs[KEY_KEEP_SCREEN_ON] = enabled }
     }
 
+    // --- Laufendes Training ------------------------------------------------
+
+    /**
+     * Der Merker des laufenden Trainings – siehe [WorkoutMarker]; `null`, solange seit dem
+     * letzten Abhaken nichts geschah.
+     *
+     * Nicht in [snapshot] und damit nicht in der Sicherung: Er gilt für ein Training, das gerade
+     * läuft, und wäre auf einem anderen Gerät oder nach dem Einspielen bedeutungslos.
+     */
+    suspend fun workoutMarker(): WorkoutMarker? = readMarker(preferences.first(), MARKER_KEYS)
+
+    /**
+     * Der Merker, der beim letzten Abhaken verbraucht wurde, samt dessen Eintrag. Nimmt ein
+     * zweites Tippen genau diesen Eintrag zurück, kommt der Merker wieder.
+     */
+    suspend fun consumedWorkoutMarker(): ConsumedMarker? {
+        val prefs = preferences.first()
+        val sessionId = prefs[KEY_CONSUMED_SESSION] ?: return null
+        return readMarker(prefs, CONSUMED_KEYS)?.let { ConsumedMarker(sessionId, it) }
+    }
+
+    /**
+     * Schreibt den laufenden und den verbrauchten Merker in einem Zug – beim Abhaken wandert der
+     * eine in den anderen, und dazwischen darf kein halber Stand auf der Platte liegen.
+     */
+    suspend fun setWorkoutMarkers(current: WorkoutMarker?, consumed: ConsumedMarker?) {
+        store.edit { prefs ->
+            writeMarker(prefs, MARKER_KEYS, current)
+            writeMarker(prefs, CONSUMED_KEYS, consumed?.marker)
+            if (consumed == null) {
+                prefs.remove(KEY_CONSUMED_SESSION)
+            } else {
+                prefs[KEY_CONSUMED_SESSION] = consumed.sessionId
+            }
+        }
+    }
+
+    /** Nur den laufenden Merker; der verbrauchte bleibt, wie er ist. */
+    suspend fun setWorkoutMarker(marker: WorkoutMarker?) {
+        store.edit { prefs -> writeMarker(prefs, MARKER_KEYS, marker) }
+    }
+
+    private fun readMarker(prefs: Preferences, keys: MarkerKeys): WorkoutMarker? {
+        val dayId = prefs[keys.dayId] ?: return null
+        val startedAt = prefs[keys.startedAt] ?: return null
+        val last = prefs[keys.lastActivityAt] ?: return null
+        return WorkoutMarker(
+            dayId = dayId,
+            startedAt = startedAt,
+            lastActivityAt = last,
+            activeUntil = prefs[keys.activeUntil] ?: last
+        )
+    }
+
+    private fun writeMarker(
+        prefs: MutablePreferences,
+        keys: MarkerKeys,
+        marker: WorkoutMarker?
+    ) {
+        if (marker == null) {
+            prefs.remove(keys.dayId)
+            prefs.remove(keys.startedAt)
+            prefs.remove(keys.lastActivityAt)
+            prefs.remove(keys.activeUntil)
+        } else {
+            prefs[keys.dayId] = marker.dayId
+            prefs[keys.startedAt] = marker.startedAt
+            prefs[keys.lastActivityAt] = marker.lastActivityAt
+            prefs[keys.activeUntil] = marker.activeUntil
+        }
+    }
+
+    /** Die vier Schlüssel eines Merkers. */
+    private class MarkerKeys(prefix: String) {
+        val dayId = intPreferencesKey("${prefix}_day_id")
+        val startedAt = longPreferencesKey("${prefix}_started_at")
+        val lastActivityAt = longPreferencesKey("${prefix}_last_activity_at")
+        val activeUntil = longPreferencesKey("${prefix}_active_until")
+    }
+
     // --- Sicherung ---------------------------------------------------------
 
     /**
@@ -311,6 +399,10 @@ class SettingsStore(context: Context) {
         val KEY_BACKUP_ENABLED = booleanPreferencesKey("backup_enabled")
         val KEY_BACKUP_LAST_AT = longPreferencesKey("backup_last_at")
         val KEY_BACKUP_LAST_ERROR = stringPreferencesKey("backup_last_error")
+
+        val MARKER_KEYS = MarkerKeys("workout_marker")
+        val CONSUMED_KEYS = MarkerKeys("workout_marker_consumed")
+        val KEY_CONSUMED_SESSION = longPreferencesKey("workout_marker_consumed_session")
 
         const val CUT_SEPARATOR = ","
         const val MAX_ROTATION_CUTS = 100

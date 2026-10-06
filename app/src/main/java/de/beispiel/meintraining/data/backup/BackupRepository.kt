@@ -376,6 +376,9 @@ class BackupRepository(
             // die Datei: Ein Schnitt von diesem Gerät läge hinter allen eingespielten Trainings
             // und die laufende Runde stünde für immer auf null.
             settingsStore.setRotationCuts(emptyList())
+            // Ein laufendes Training gehört ebenso zum ersetzten Bestand: Sein Merker zeigte auf
+            // einen Tag und einen Eintrag, die es so nicht mehr gibt.
+            settingsStore.setWorkoutMarkers(current = null, consumed = null)
             // Ein ausgewählter Tag außerhalb der Runde wäre ein Reiter, den es nicht gibt:
             // Die Liste bliebe leer und keine Auswahl ließe sich mehr treffen.
             //

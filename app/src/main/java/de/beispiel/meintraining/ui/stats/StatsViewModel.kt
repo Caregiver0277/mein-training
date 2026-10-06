@@ -8,8 +8,11 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.CurrentDate
+import de.beispiel.meintraining.util.DurationSummary
+import de.beispiel.meintraining.util.SessionTimes
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.currentWeeklyStreak
+import de.beispiel.meintraining.util.durationSummary
 import de.beispiel.meintraining.util.exerciseGains
 import de.beispiel.meintraining.util.longestWeeklyStreak
 import de.beispiel.meintraining.util.sessionsPerWeek
@@ -38,7 +41,11 @@ data class StatsUiState(
     val totalGainKg: Double = 0.0,
     val stagnating: List<StagnatingExercise> = emptyList(),
     val exerciseCount: Int = 0,
-    val heaviestExercise: Pair<String, Double>? = null
+    val heaviestExercise: Pair<String, Double>? = null,
+    /** Ø Dauer gesamt und je Trainingstag; `null`, solange keine Dauer bekannt ist. */
+    val duration: DurationSummary? = null,
+    /** Namen der Trainingstage für [duration] – auch der hinter einer verkürzten Runde. */
+    val dayNames: Map<Int, String> = emptyMap()
 ) {
     val hasSessions: Boolean get() = totalSessions > 0
 }
@@ -49,7 +56,8 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
     private data class PlanView(
         val today: LocalDate,
         val dayCount: Int,
-        val hiddenExerciseNames: Set<String>
+        val hiddenExerciseNames: Set<String>,
+        val dayNames: Map<Int, String>
     )
 
     val uiState = combine(
@@ -64,8 +72,10 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             currentDate.flow,
             repository.dayCount,
             repository.hiddenExerciseNames,
-            ::PlanView
-        )
+            repository.observeDays()
+        ) { today, dayCount, hidden, days ->
+            PlanView(today, dayCount, hidden, days.associate { it.id to it.name })
+        }
     ) { sessions, logs, exercises, definitions, plan ->
         val today = plan.today
         val zone = ZoneId.systemDefault()
@@ -113,7 +123,11 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             // Die Last einer Übung mit Pfeil nach unten ist Unterstützung, keine Last – die
             // schwerste Übung wäre sonst womöglich die, bei der am meisten geholfen wird.
             heaviestExercise = currentWeights.filterKeys { it !in decreasing }
-                .maxByOrNull { it.value }?.toPair()
+                .maxByOrNull { it.value }?.toPair(),
+            duration = durationSummary(
+                sessions.map { SessionTimes(it.dayId, it.startedAt, it.completedAt) }
+            ),
+            dayNames = plan.dayNames
         )
     }.stateIn(
         scope = viewModelScope,

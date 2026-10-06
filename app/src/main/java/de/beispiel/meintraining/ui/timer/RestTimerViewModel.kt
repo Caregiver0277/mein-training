@@ -11,6 +11,7 @@ import de.beispiel.meintraining.data.local.REST_TIMER_COUNT
 import de.beispiel.meintraining.data.local.RestTimer
 import de.beispiel.meintraining.data.local.RestTimerStore
 import de.beispiel.meintraining.data.local.DEFAULT_REST_TIMER_SECONDS
+import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.timer.RestTimerAlarm
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,11 +28,15 @@ import kotlinx.coroutines.launch
  * den Wecker im System mit dem gespeicherten Endzeitpunkt gleich. Beides muss immer zusammen
  * passieren – ein Endzeitpunkt ohne Wecker klingelt nie, ein Wecker ohne Endzeitpunkt klingelt
  * zu einer Uhr, die längst zurückgesetzt wurde.
+ *
+ * Jeder Start meldet sich außerdem beim Training (siehe [TrainingRepository.reportActivity]):
+ * Die erste Pause nach dem Abhaken ist der Beginn des nächsten Trainings.
  */
 class RestTimerViewModel(
     /** Die Application, nicht die Activity: Der Wecker wird beim System angemeldet. */
     private val context: Application,
-    private val store: RestTimerStore
+    private val store: RestTimerStore,
+    private val repository: TrainingRepository
 ) : ViewModel() {
 
     val timers: StateFlow<List<RestTimer>> = store.timers.stateIn(
@@ -91,9 +96,16 @@ class RestTimerViewModel(
                 if (remaining <= 0L) store.clearRun(index) else store.setPaused(index, remaining)
             } else {
                 val millis = timer.pausedMillis ?: timer.durationSeconds * MILLIS_PER_SECOND
-                val endAt = System.currentTimeMillis() + millis
+                val now = System.currentTimeMillis()
+                val endAt = now + millis
                 store.setRunningUntil(index, endAt)
                 RestTimerAlarm.schedule(context, index, endAt)
+                // Der Tag kommt aus dem Repository und nicht aus der Anzeige – wie beim Abhaken.
+                repository.reportActivity(
+                    dayId = repository.currentSelectedDay(),
+                    at = now,
+                    activeUntil = endAt
+                )
             }
         }
     }
@@ -128,7 +140,7 @@ class RestTimerViewModel(
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as MeinTrainingApp
-                RestTimerViewModel(app, app.restTimerStore)
+                RestTimerViewModel(app, app.restTimerStore, app.repository)
             }
         }
     }
