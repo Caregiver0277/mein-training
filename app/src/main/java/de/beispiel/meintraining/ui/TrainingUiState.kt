@@ -43,9 +43,9 @@ data class TrainingUiState(
      * er trotzdem; der Eintrag von heute sagt das unabhängig von der Runde. Eine *volle* Runde
      * braucht diesen Umweg nicht mehr: Sie bleibt bis Mitternacht stehen (siehe `rotations`).
      *
-     * Die Unterscheidung zählt für alles, was auf das Abhaken *antwortet*: Der Schleier über
-     * den Übungen legte sich sonst nach dem Weiterschalten wieder über einen Tag, der heute
-     * schon erledigt ist, als wäre der Haken nicht angekommen.
+     * Die Unterscheidung zählt für alles, was auf das Abhaken *antwortet* – etwa ob der Pfeil in
+     * die nächste Runde grün steht: Ein heute schon erledigter Tag sähe sonst nach dem
+     * Weiterschalten aus, als wäre der Haken nicht angekommen.
      */
     val isSelectedDayConfirmed: Boolean
         get() = isSelectedDayCompleted || selectedDayId in todaysDayIds

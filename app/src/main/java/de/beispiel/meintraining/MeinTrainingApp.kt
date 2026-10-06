@@ -6,6 +6,7 @@ import de.beispiel.meintraining.data.local.AppDatabase
 import de.beispiel.meintraining.data.local.RestTimerStore
 import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.repository.TrainingRepository
+import de.beispiel.meintraining.data.repository.WorkoutEndWorker
 import de.beispiel.meintraining.util.CurrentDate
 
 /** Einfache manuelle Abhängigkeitsverwaltung – für diese App reicht das aus. */
@@ -29,7 +30,8 @@ class MeinTrainingApp : Application() {
         TrainingRepository(
             appContext = applicationContext,
             database = database,
-            settingsStore = settingsStore
+            settingsStore = settingsStore,
+            workoutEndScheduler = WorkoutEndWorker.scheduler(applicationContext)
         )
     }
 

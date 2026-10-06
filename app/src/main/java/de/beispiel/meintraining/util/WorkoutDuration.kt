@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.util
 
+import java.time.ZoneId
 import kotlin.math.roundToInt
 
 private const val MILLIS_PER_MINUTE = 60_000L
@@ -15,8 +16,8 @@ const val MIN_WORKOUT_MILLIS = 10 * MILLIS_PER_MINUTE
 const val MAX_WORKOUT_MILLIS = 4 * 60 * MILLIS_PER_MINUTE
 
 /**
- * So lange ohne Aktivität, und ein Training gilt als beendet: Eine neue Aktivität beginnt dann
- * ein neues.
+ * So lange ohne Aktivität, und ein Training gilt als beendet: Es wird von selbst abgehakt (siehe
+ * [autoEndDecision]), und eine neue Aktivität beginnt ein neues.
  */
 const val WORKOUT_IDLE_MILLIS = 30 * MILLIS_PER_MINUTE
 
@@ -79,6 +80,65 @@ fun restoredMarker(consumed: WorkoutMarker, current: WorkoutMarker?): WorkoutMar
         startedAt = minOf(consumed.startedAt, current.startedAt),
         lastActivityAt = maxOf(consumed.lastActivityAt, current.lastActivityAt),
         activeUntil = maxOf(consumed.activeUntil, current.activeUntil)
+    )
+}
+
+/** Was mit einem Training geschieht, in dem sich nichts mehr tut – siehe [autoEndDecision]. */
+sealed interface AutoEnd {
+
+    /** Es läuft kein Training. */
+    data object None : AutoEnd
+
+    /** Das Training läuft noch; nachsehen lohnt sich wieder um [at]. */
+    data class Wait(val at: Long) : AutoEnd
+
+    /** Der Merker gehört zu keinem Training, das sich eintragen ließe – er fällt weg. */
+    data object Discard : AutoEnd
+
+    /**
+     * Das Training ist vorbei: Tag [dayId] wird abgehakt, als Zeitpunkt zählt [endAt] – die
+     * letzte Aktivität, nicht der Moment, in dem die Ruhezeit um war. [startedAt] ist der Beginn
+     * wie beim Haken, also nur bei plausibler Dauer (siehe [plausibleStart]).
+     */
+    data class End(val dayId: Int, val endAt: Long, val startedAt: Long?) : AutoEnd
+}
+
+/**
+ * Endet das Training von selbst? Ja, wenn seit [WORKOUT_IDLE_MILLIS] nichts mehr geschah – eine
+ * Pausenuhr, die noch läuft, zählt bis zu ihrem Ende als Aktivität (siehe
+ * [WorkoutMarker.activeUntil]).
+ *
+ * Abgehakt wird der Tag der letzten Aktivität, zum Zeitpunkt der letzten Aktivität. Nicht
+ * abgehakt, sondern verworfen wird der Merker in zwei Fällen:
+ * - Der Tag ist am Datum der letzten Aktivität schon abgehakt ([lastCheckOffOfDay] ist das
+ *   jüngste Abhaken dieses Tages). Ein zweites Abhaken am selben Tag nähme das erste zurück –
+ *   der Haken ist sein eigenes „Rückgängig“.
+ * - Zwischen Beginn und letzter Aktivität liegen keine [MIN_WORKOUT_MILLIS]. Das war eine aus
+ *   Versehen gestartete Pausenuhr, kein Training; abgehakt veränderte es Runde und Deload-Zyklus,
+ *   ohne dass es jemand merkt.
+ *
+ * Über [MAX_WORKOUT_MILLIS] wird trotzdem abgehakt – trainiert wurde ja –, nur ohne Dauer.
+ */
+fun autoEndDecision(
+    marker: WorkoutMarker?,
+    lastCheckOffOfDay: Long?,
+    now: Long,
+    zone: ZoneId = ZoneId.systemDefault()
+): AutoEnd {
+    if (marker == null) return AutoEnd.None
+    val deadline = marker.quietSince + WORKOUT_IDLE_MILLIS
+    if (now < deadline) return AutoEnd.Wait(deadline)
+
+    val endAt = marker.lastActivityAt
+    if (endAt - marker.startedAt < MIN_WORKOUT_MILLIS) return AutoEnd.Discard
+    val endDate = endAt.toLocalDate(zone)
+    if (lastCheckOffOfDay != null && lastCheckOffOfDay.toLocalDate(zone) == endDate) {
+        return AutoEnd.Discard
+    }
+    return AutoEnd.End(
+        dayId = marker.dayId,
+        endAt = endAt,
+        startedAt = plausibleStart(marker.startedAt, endAt)
     )
 }
 

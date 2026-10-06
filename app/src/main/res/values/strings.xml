@@ -288,7 +288,7 @@
     <string name="history_add_time">Uhrzeit</string>
     <string name="history_add_duration">Dauer (min)</string>
     <string name="history_add_duration_hint">Freiwillig. Die Uhrzeit oben ist das Ende des Trainings.</string>
-    <string name="history_add_duration_invalid">Eine ganze Zahl von 1 bis %1$d Minuten – oder leer lassen.</string>
+    <string name="history_add_duration_invalid">Eine ganze Zahl von 1 bis %1$d – oder leer lassen.</string>
     <string name="history_add_future">Dieser Zeitpunkt liegt in der Zukunft. Nachtragen lässt sich nur, was schon stattgefunden hat.</string>
     <string name="history_add_no_days">Es gibt noch keine Trainingstage.</string>
     <string name="history_add_confirm">Eintragen</string>
@@ -312,7 +312,7 @@
     <string name="stats_duration">Trainingsdauer</string>
     <string name="stats_duration_average">Ø Dauer</string>
     <string name="stats_minutes_value">%1$d min</string>
-    <string name="stats_duration_none">Noch keine Dauer gemessen. Sie läuft ab der ersten Pausenuhr nach dem letzten Abhaken bis zum nächsten Haken – zwischen 10 Minuten und 4 Stunden zählt sie.</string>
+    <string name="stats_duration_none">Noch keine Dauer gemessen. Sie läuft ab der ersten Pausenuhr nach dem letzten Abhaken bis zum Haken oder bis zur letzten Aktivität, wenn das Training nach 30 Minuten Ruhe von selbst endet – zwischen 10 Minuten und 4 Stunden zählt sie.</string>
     <string name="stats_progress">Fortschritt</string>
     <string name="stats_total_gain">Gesamtzuwachs</string>
     <string name="stats_heaviest">Schwerste Übung</string>
@@ -382,7 +382,7 @@
     <string name="about_guide_edit">Übung antippen, um sie zu bearbeiten. Das „+“ unter der Liste legt eine neue an. Eine Notiz wie „Sitz 4, Polster 2“ steht klein unter dem Namen, an jedem Tag mit dieser Übung.</string>
     <string name="about_guide_progress">Der blaue Pfeil erhöht das Gewicht um den Progressionsschritt – zeigt er nach unten, senkt er es. Lang drücken geht einen Schritt in die Gegenrichtung, etwa wenn die letzte Steigerung zu viel war. Das gilt an jedem Tag mit dieser Übung. Beim Bearbeiten zeigt eine Zeile unter dem Gewicht, seit wann es so steht und wie es sich zuletzt verändert hat.</string>
     <string name="about_guide_select">Lang drücken startet die Auswahl. Markierte Übungen lassen sich verschieben, löschen oder über das Menü oben zu einem Superset verbinden – und dort auch an einen anderen Tag kopieren oder verschieben.</string>
-    <string name="about_guide_check">Der Haken trägt das Training in den Verlauf ein, ein zweites Tippen nimmt es zurück. Ein grüner Punkt auf dem Reiter zeigt, welche Tage der Runde schon erledigt sind. Die Dauer misst die App selbst: von der ersten Pausenuhr nach dem letzten Abhaken bis zum Haken. Sie steht im Verlauf an jedem Eintrag und in der Statistik, wenn sie zwischen 10 Minuten und 4 Stunden liegt.</string>
+    <string name="about_guide_check">Ein Training beginnt mit der ersten Pausenuhr nach dem letzten Abhaken. Es endet mit dem Haken unter der Liste – oder von selbst nach 30 Minuten ohne Aktivität, eine laufende Pausenuhr zählt dabei bis zu ihrem Ende. Dann steht es mit der letzten Aktivität als Ende im Verlauf. Ein zweites Tippen auf den Haken nimmt das Abhaken zurück, auch das automatische. Ein grüner Punkt auf dem Reiter zeigt, welche Tage der Runde schon erledigt sind. Die Dauer steht im Verlauf an jedem Eintrag und in der Statistik, wenn sie zwischen 10 Minuten und 4 Stunden liegt.</string>
     <string name="about_guide_cycle">Am letzten Tag beginnt der Pfeil neben dem Haken die nächste Runde – auch wenn ein Tag ausgefallen ist. Wer so weitergeschaltet hat, findet am ersten Tag einen Pfeil zurück, solange in der neuen Runde noch nichts abgehakt ist.</string>
     <string name="about_guide_timers">Pausenuhren</string>
     <string name="about_guide_timer_toggle">Tippen startet die Pause und hält sie an, lang auf den runden Knopf drücken setzt sie zurück.</string>

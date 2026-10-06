@@ -79,10 +79,6 @@ import kotlin.math.sin
  * wieder zurück; der Haken ist damit sein eigenes „Rückgängig“ und braucht keine Meldung, die
  * sich über ihn schiebt.
  *
- * Solange das Training aussteht, ist der Haken gar nicht hier, sondern schwebt groß über der
- * Liste – siehe [FloatingCheck]. [isCheckFloating] sagt, ob das gerade so ist; sein Platz
- * bleibt dann trotzdem stehen, damit die Zeile nicht springt und der Anflug ein Ziel hat.
- *
  * Am letzten Tag einer Runde schiebt sich zwischen beide der Pfeil in die nächste
  * ([showNextCycle]), am ersten der Pfeil zurück in die vorige ([showPreviousCycle]). Sie stehen
  * dort und nicht anderswo, weil sie zum Haken gehören: erst abhaken, dann weiterziehen.
@@ -97,9 +93,6 @@ fun ListActionButtons(
     onAddExercise: () -> Unit,
     isCompleted: Boolean,
     modifier: Modifier = Modifier,
-    isCheckFloating: Boolean = false,
-    /** Kommt von außen, weil nur der schwebende Haken wissen muss, wo sein Platz liegt. */
-    checkSlotModifier: Modifier = Modifier,
     showPreviousCycle: Boolean = false,
     onPreviousCycle: () -> Unit = {},
     showNextCycle: Boolean = false,
@@ -111,18 +104,13 @@ fun ListActionButtons(
     onNextCycle: () -> Unit = {}
 ) {
     Row(modifier = modifier.fillMaxWidth()) {
-        val slot = checkSlotModifier
-            .weight(1f)
-            .height(Dimens.AddButtonHeight)
-        if (isCheckFloating) {
-            Box(modifier = slot)
-        } else {
-            CompleteWorkoutButton(
-                onClick = onToggleWorkoutCompleted,
-                isCompleted = isCompleted,
-                modifier = slot
-            )
-        }
+        CompleteWorkoutButton(
+            onClick = onToggleWorkoutCompleted,
+            isCompleted = isCompleted,
+            modifier = Modifier
+                .weight(1f)
+                .height(Dimens.AddButtonHeight)
+        )
         CycleSlot(
             isVisible = showPreviousCycle,
             icon = Icons.AutoMirrored.Filled.ArrowBack,
@@ -147,10 +135,9 @@ fun ListActionButtons(
 /**
  * Ein Pfeil zwischen den Runden, der sich seinen Platz selbst schafft.
  *
- * Er taucht mitten in der Bewegung auf, mit der der Haken an sein Ziel fliegt. Erschiene er dabei
- * schlagartig, machte die Zeile einen Satz zur Seite und der Haken flöge auf ein Ziel zu, das
- * sich unter ihm wegbewegt. Deshalb wächst er auf: Breite und Deckkraft hängen an einem einzigen
- * Verlauf.
+ * Er taucht im Moment des Abhakens auf. Erschiene er schlagartig, machte die Zeile einen Satz
+ * zur Seite – der Haken rutschte unter dem Finger weg, während Ring und Funken noch laufen.
+ * Deshalb wächst er auf: Breite und Deckkraft hängen an einem einzigen Verlauf.
  *
  * Gelesen wird der erst beim Messen und beim Zeichnen. Der Knopf wird während des Aufziehens
  * kein einziges Mal neu zusammengesetzt – nur neu vermessen, und das muss die Zeile ohnehin.
@@ -219,32 +206,18 @@ private fun CycleSlot(
  * Beim Zurücknehmen federt der Knopf nur; Ring und Funken bleiben dem Abhaken vorbehalten.
  * Ein Feuerwerk fürs Rückgängigmachen wäre am Anlass vorbei.
  *
- * Seine Größe bringt der Knopf nicht selbst mit, sie kommt über [modifier]: Derselbe Knopf
- * steht einmal schmal am Listenende und einmal groß in der Bildmitte, und dazwischen wächst er
- * Bild für Bild – siehe [FloatingCheckOverlay].
- *
- * Fläche, Rahmen und Haken werden deshalb gezeichnet statt zusammengesetzt: Kein einziger Wert
- * dieses Knopfes wird beim Zusammensetzen gelesen, und während Anflug, Farbwechsel und
- * Federn wird nichts neu zusammengesetzt – es wird nur neu gezeichnet. Mit `background`,
- * `border` und einem `Icon` lief dagegen jedes Bild des Farbübergangs durch die ganze
- * Composable samt neuer Modifier-Kette, und das ausgerechnet in den ersten Millisekunden des
- * Anflugs, wo gleichzeitig der Schleier von der Liste zieht.
- *
- * @param iconScale wie groß der Haken darin ausfällt, 1 heißt: wie am Listenende, höchstens
- *   [MAX_ICON_SCALE]. Eine Funktion, weil der Wert sich während des Anflugs mit jedem Bild
- *   ändert und deshalb erst beim Zeichnen gelesen gehört.
+ * Fläche, Rahmen und Haken werden gezeichnet statt zusammengesetzt: Kein einziger Wert dieses
+ * Knopfes wird beim Zusammensetzen gelesen, und während Farbwechsel und Federn wird nichts neu
+ * zusammengesetzt – es wird nur neu gezeichnet. Mit `background`, `border` und einem `Icon`
+ * lief dagegen jedes Bild des Farbübergangs durch die ganze Composable samt neuer
+ * Modifier-Kette, und das ausgerechnet in dem Moment, in dem auch die Liste den neuen Stand
+ * übernimmt.
  */
 @Composable
-internal fun CompleteWorkoutButton(
+private fun CompleteWorkoutButton(
     onClick: () -> Unit,
     isCompleted: Boolean,
-    modifier: Modifier = Modifier,
-    /**
-     * Läuft im Moment des Drucks, noch vor [onClick] – für alles, was nicht auf die Antwort
-     * der Datenbank warten soll.
-     */
-    onPressed: () -> Unit = {},
-    iconScale: () -> Float = { 1f }
+    modifier: Modifier = Modifier
 ) {
     val haptics = LocalHapticFeedback.current
 
@@ -252,10 +225,9 @@ internal fun CompleteWorkoutButton(
      * Der Haken als Malwerkzeug statt als Composable.
      *
      * Ein Vektorbild rastert sich in der Größe, in der es gezeichnet wird, und legt das
-     * Ergebnis ab. Wuchs der Haken über seine gemessene Größe, entstand dieses Zwischenbild
-     * bei *jedem* Bild des Anflugs neu – der teuerste Posten der ganzen Bewegung. Gerastert
-     * wird deshalb einmal in der größten vorkommenden Größe; kleiner wird er über die
-     * Zeichenfläche, und das bleibt scharf.
+     * Ergebnis ab. Wüchse der Haken beim Federn über seine gemessene Größe, entstünde dieses
+     * Zwischenbild bei *jedem* Bild der Bewegung neu. Gerastert wird deshalb einmal in der
+     * größten vorkommenden Größe; kleiner wird er über die Zeichenfläche, und das bleibt scharf.
      */
     val check = rememberVectorPainter(Icons.Filled.Check)
 
@@ -333,7 +305,6 @@ internal fun CompleteWorkoutButton(
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     pressCount++
                     if (!isCompleted) burstCount++
-                    onPressed()
                     onClick()
                 }
                 // Der Haken ist gezeichnet und nicht mehr als eigenes Element vorhanden; die
@@ -345,7 +316,7 @@ internal fun CompleteWorkoutButton(
                         // Der Haken schlägt kräftiger aus als der Knopf, sonst ginge er im
                         // Federn des Rahmens unter. Gezeichnet wird innerhalb der schon
                         // gefederten Ebene, deshalb zählt hier nur der Aufschlag.
-                        iconScale = iconScale() * (1f + (scale.value - 1f) * ICON_SCALE_BOOST),
+                        iconScale = 1f + (scale.value - 1f) * ICON_SCALE_BOOST,
                         check = check
                     )
                 }
@@ -488,12 +459,13 @@ private fun AddExerciseButton(onClick: () -> Unit, modifier: Modifier = Modifier
 }
 
 /**
- * Die größte Größe, in der der Haken vorkommt – als Vielfaches von [Dimens.MenuIconSize].
+ * Die größte Größe, in der der Haken vorkommt – als Vielfaches von [Dimens.MenuIconSize]: der
+ * Ausschlag beim Federn, mit etwas Luft.
  *
- * In dieser Größe wird sein Vektorbild gerastert. Wer ihn größer zeichnen ließe, bekäme ein
- * hochgerechnetes und damit weiches Bild; der schwebende Haken hält sich deshalb genau daran.
+ * In dieser Größe wird sein Vektorbild gerastert. Größer gezeichnet, wäre er hochgerechnet und
+ * damit weich; darüber hinaus wird er deshalb nicht.
  */
-internal const val MAX_ICON_SCALE = 2.1f
+private const val MAX_ICON_SCALE = 1.25f
 
 // Farbverlauf des Knopfes: offen und abgehakt.
 private const val OPEN = 0f
@@ -502,19 +474,14 @@ private const val DONE = 1f
 // Maße des Effekts als Vielfache der Knopfhöhe, damit er auf jedem Gerät gleich wirkt.
 private const val BURST_DONE = 1f
 
-/**
- * Wie lange Ring und Funken brauchen.
- *
- * Nicht nur hier gebraucht: Der schwebende Haken wartet damit ab, bis der Effekt durch ist,
- * bevor er losfliegt – siehe [rememberFloatingCheck].
- */
-internal const val BURST_MILLIS = 620
+/** Wie lange Ring und Funken brauchen. */
+private const val BURST_MILLIS = 620
 
 /**
  * Wie lange der Pfeil zur nächsten Runde zum Aufziehen braucht.
  *
- * Kürzer als [BURST_MILLIS]: Er steht fertig da, bevor der Haken losfliegt. Ein Ziel, das sich
- * während des Anflugs noch verschiebt, macht die Bewegung unruhig.
+ * Kürzer als [BURST_MILLIS]: Er steht fertig da, solange Ring und Funken noch laufen, und die
+ * Zeile kommt mit ihnen zur Ruhe.
  */
 private const val REVEAL_MILLIS = 280
 private const val HIDDEN = 0f

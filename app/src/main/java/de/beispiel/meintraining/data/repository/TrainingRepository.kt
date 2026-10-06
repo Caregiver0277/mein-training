@@ -20,8 +20,12 @@ import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
+import de.beispiel.meintraining.util.AutoEnd
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
 import de.beispiel.meintraining.util.RotationEntry
+import de.beispiel.meintraining.util.WORKOUT_IDLE_MILLIS
+import de.beispiel.meintraining.util.WorkoutMarker
+import de.beispiel.meintraining.util.autoEndDecision
 import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.decreaseWeight
@@ -75,11 +79,15 @@ data class WorkoutToggle(
  * Die DAOs kommen aus der [database] statt einzeln von außen: Sie gehören ohnehin zu genau
  * dieser Datenbank, und eine Liste von acht Parametern lädt nur dazu ein, sie irgendwann
  * durcheinanderzubringen.
+ *
+ * [workoutEndScheduler] meldet das automatische Ende eines Trainings an (siehe
+ * [finishIdleWorkout]); ohne ihn – in den Tests – geschieht das nur auf Aufruf.
  */
 class TrainingRepository(
     private val appContext: Context,
     private val database: AppDatabase,
-    private val settingsStore: SettingsStore
+    private val settingsStore: SettingsStore,
+    private val workoutEndScheduler: WorkoutEndScheduler = WorkoutEndScheduler.None
 ) {
 
     private val dayDao: TrainingDayDao = database.trainingDayDao()
@@ -231,15 +239,70 @@ class TrainingRepository(
      * [dayId] ist der Trainingstag, an dem es geschah; [activeUntil] das Ende dessen, was die
      * Aktivität angestoßen hat – bei einer Pausenuhr ihr Ablauf, bis dahin läuft das Training
      * sicher noch.
+     *
+     * Jede Aktivität schiebt das automatische Ende hinaus (siehe [finishIdleWorkout]). Ist das
+     * laufende Training schon vorbei, ohne dass es jemand beendet hat, wird es vorher noch
+     * abgehakt – die neue Aktivität gehört zu einem neuen.
      */
     suspend fun reportActivity(
         dayId: Int,
         at: Long = System.currentTimeMillis(),
         activeUntil: Long = at
     ) = workoutLock.withLock {
-        settingsStore.setWorkoutMarker(
-            settingsStore.workoutMarker().withActivity(dayId, at, activeUntil)
-        )
+        finishIdleLocked(at)
+        val marker = settingsStore.workoutMarker().withActivity(dayId, at, activeUntil)
+        settingsStore.setWorkoutMarker(marker)
+        scheduleWorkoutEnd(marker)
+    }
+
+    /**
+     * Beendet das laufende Training, wenn sich darin seit einer halben Stunde nichts mehr getan
+     * hat – genau wie der Haken, nur zum Zeitpunkt der letzten Aktivität (siehe
+     * [autoEndDecision]). Ohne Konfetti: Es geschieht ja ohne Zutun, meist bei geschlossener App.
+     * Zurücknehmen lässt es sich wie jedes Abhaken mit dem Haken unter der Liste.
+     *
+     * Läuft aus [WorkoutEndWorker] und beim Öffnen der App, damit ein Ende, das Android
+     * hinausgeschoben hat, nicht erst mit dem nächsten Training kommt. Liefert `true`, wenn
+     * abgehakt wurde.
+     */
+    suspend fun finishIdleWorkout(now: Long = System.currentTimeMillis()): Boolean =
+        workoutLock.withLock {
+            val ended = finishIdleLocked(now)
+            scheduleWorkoutEnd(settingsStore.workoutMarker())
+            ended
+        }
+
+    /** [finishIdleWorkout] für den, der [workoutLock] schon hält; meldet nichts an. */
+    private suspend fun finishIdleLocked(now: Long): Boolean {
+        val marker = settingsStore.workoutMarker() ?: return false
+        val lastCheckOff = sessionDao.latestForDay(marker.dayId)?.completedAt
+        return when (val decision = autoEndDecision(marker, lastCheckOff, now)) {
+            AutoEnd.None, is AutoEnd.Wait -> false
+            AutoEnd.Discard -> {
+                settingsStore.setWorkoutMarker(null)
+                false
+            }
+            is AutoEnd.End -> {
+                // Den Tag gibt es womöglich nicht mehr – Runde verkürzt, Daten gelöscht.
+                if (dayDao.findById(decision.dayId) == null) {
+                    settingsStore.setWorkoutMarker(null)
+                    return false
+                }
+                toggleLocked(
+                    dayId = decision.dayId,
+                    today = decision.endAt.toLocalDate(),
+                    now = decision.endAt,
+                    marker = marker,
+                    startedAt = decision.startedAt,
+                    onlyCheckOff = true
+                ) != null
+            }
+        }
+    }
+
+    /** Meldet die Prüfung aufs Trainingsende für [marker] an – oder ab, wenn keiner läuft. */
+    private fun scheduleWorkoutEnd(marker: WorkoutMarker?) {
+        workoutEndScheduler.schedule(marker?.let { it.quietSince + WORKOUT_IDLE_MILLIS })
     }
 
     /**
@@ -272,49 +335,77 @@ class TrainingRepository(
         today: LocalDate = LocalDate.now(),
         now: Long = System.currentTimeMillis()
     ): WorkoutToggle = workoutLock.withLock {
-        // Rundenlänge, Rundenschnitte und der Merker des Trainings stehen in DataStore und werden
+        // Der Merker steht in DataStore und wird deshalb *vor* der Transaktion geholt – siehe
+        // [toggleLocked].
+        val marker = settingsStore.workoutMarker()
+        toggleLocked(
+            dayId = dayId,
+            today = today,
+            now = now,
+            marker = marker,
+            startedAt = plausibleStart(marker?.startedAt, now),
+            onlyCheckOff = false
+        )!!
+    }
+
+    /**
+     * Der gemeinsame Weg von Haken und automatischem Ende: abhaken oder zurücknehmen, und den
+     * Merker des Trainings entsprechend verbrauchen oder zurückholen.
+     *
+     * Mit [onlyCheckOff] wird nur abgehakt; steht der Tag heute schon im Verlauf, passiert nichts
+     * und es kommt `null` zurück. Das automatische Ende darf ein Abhaken nie zurücknehmen.
+     */
+    private suspend fun toggleLocked(
+        dayId: Int,
+        today: LocalDate,
+        now: Long,
+        marker: WorkoutMarker?,
+        startedAt: Long?,
+        onlyCheckOff: Boolean
+    ): WorkoutToggle? {
+        // Rundenlänge, Rundenschnitte und der verbrauchte Merker stehen in DataStore und werden
         // deshalb *vor* der Transaktion geholt: Room hat genau einen Transaktions-Thread, und ein
         // Warten auf einen anderen Zufluss mitten drin blockiert ihn – im schlechtesten Fall, bis
         // DataStore seinerseits auf die Platte wartet.
         val dayCount = settingsStore.dayCount.first()
         val cuts = settingsStore.rotationCuts.first()
-        val marker = settingsStore.workoutMarker()
         val consumed = settingsStore.consumedWorkoutMarker()
         var sessionId = 0L
         val toggle = database.withTransaction {
             val latest = sessionDao.latestForDay(dayId)
             if (latest != null && latest.completedAt.toLocalDate() == today) {
+                if (onlyCheckOff) return@withTransaction null
                 sessionDao.deleteById(latest.id)
                 sessionId = latest.id
                 WorkoutToggle(isCompleted = false, completesRotation = false)
             } else {
                 sessionId = sessionDao.insert(
-                    WorkoutSession(
-                        dayId = dayId,
-                        completedAt = now,
-                        startedAt = plausibleStart(marker?.startedAt, now)
-                    )
+                    WorkoutSession(dayId = dayId, completedAt = now, startedAt = startedAt)
                 )
                 WorkoutToggle(
                     isCompleted = true,
                     completesRotation = isRotationFull(dayCount, today, cuts)
                 )
             }
-        }
+        } ?: return null
         // Abgehakt: Der Merker ist verbraucht, damit eine zweite Einheit am selben Tag neu zählt –
         // aufgehoben wird er trotzdem, für den Fall, dass gleich ein zweites Tippen kommt.
-        // Zurückgenommen: Er kommt wieder, sonst wäre die Dauer nach einem Fehltipp weg.
+        // Zurückgenommen: Er kommt wieder, sonst wäre die Dauer nach einem Fehltipp weg. Die
+        // Ruhezeit beginnt dabei von vorn – sonst endete ein Training, dessen letzte Aktivität
+        // länger her ist, sofort wieder von selbst, gerade nachdem es jemand zurückgenommen hat.
         when {
             toggle.isCompleted -> settingsStore.setWorkoutMarkers(
                 current = null,
                 consumed = marker?.let { ConsumedMarker(sessionId, it) }
             )
             consumed?.sessionId == sessionId -> settingsStore.setWorkoutMarkers(
-                current = restoredMarker(consumed.marker, marker),
+                current = restoredMarker(consumed.marker, marker)
+                    .let { it.copy(activeUntil = maxOf(it.activeUntil, System.currentTimeMillis())) },
                 consumed = null
             )
         }
-        toggle
+        scheduleWorkoutEnd(settingsStore.workoutMarker())
+        return toggle
     }
 
     /**
@@ -999,6 +1090,8 @@ class TrainingRepository(
             dayDao.deleteAll()
         }
         settingsStore.clear()
+        // Mit den Einstellungen ist auch der Merker eines laufenden Trainings weg.
+        workoutEndScheduler.schedule(null)
         // Sonst überstimmte die Vormerkung aus dieser Sitzung die geleerten Einstellungen und
         // die App bliebe auf einem Tag stehen, den das Zurücksetzen gerade verworfen hat.
         selectedDayOverride.value = null

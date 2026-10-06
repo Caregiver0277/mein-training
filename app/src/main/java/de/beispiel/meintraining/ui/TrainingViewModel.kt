@@ -309,17 +309,24 @@ class TrainingViewModel(
     init {
         viewModelScope.launch {
             repository.ensureSeeded()
+            // Erst ein liegen gebliebenes Training beenden, dann weiterschalten: Wer gestern
+            // ohne Haken gegangen ist, findet heute den Tag danach vor.
+            repository.finishIdleWorkout()
             repository.advanceDayIfNewDate()
         }
     }
 
     /**
      * Beim Zurückkehren in den Vordergrund kann ein neuer Tag angebrochen sein – dann stimmen
-     * Datumsangaben, Deload-Woche und der vorausgewählte Trainingstag nicht mehr.
+     * Datumsangaben, Deload-Woche und der vorausgewählte Trainingstag nicht mehr. Und ein
+     * Training kann vorbei sein, dessen automatisches Ende Android noch nicht ausgeführt hat.
      */
     fun onResumed() {
         currentDate.refresh()
-        viewModelScope.launch { repository.advanceDayIfNewDate(currentDate.value) }
+        viewModelScope.launch {
+            repository.finishIdleWorkout()
+            repository.advanceDayIfNewDate(currentDate.value)
+        }
     }
 
     // --- Tag-Auswahl -------------------------------------------------------

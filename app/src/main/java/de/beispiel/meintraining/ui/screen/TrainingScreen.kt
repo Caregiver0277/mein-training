@@ -47,7 +47,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
@@ -75,15 +74,9 @@ import de.beispiel.meintraining.ui.components.Confetti
 import de.beispiel.meintraining.ui.components.DayTabRow
 import de.beispiel.meintraining.ui.components.DraggableItem
 import de.beispiel.meintraining.ui.components.ExerciseRow
-import de.beispiel.meintraining.ui.components.FloatingCheckOverlay
 import de.beispiel.meintraining.ui.components.dayLabel
 import de.beispiel.meintraining.ui.components.draggableItem
-import de.beispiel.meintraining.ui.components.floatingCheckArea
-import de.beispiel.meintraining.ui.components.floatingCheckSlot
 import de.beispiel.meintraining.ui.components.rememberDragDropState
-import de.beispiel.meintraining.ui.components.rememberFloatingCheck
-import de.beispiel.meintraining.ui.components.rememberUnconfirmedBlur
-import de.beispiel.meintraining.ui.components.unconfirmedBlur
 import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AccentGreen
 import de.beispiel.meintraining.ui.theme.AccentGreenSurface
@@ -229,9 +222,9 @@ fun TrainingScreen(
                     AboutScreen(onBack = { menuDestination = null })
             }
 
-            // Über allem, damit die Schnipsel auch vor dem schwebenden Haken landen. Ausgelöst
-            // wird nur auf dem Hauptbildschirm; steht es zufällig ein Menübereich offen, regnet
-            // es eben dort – das ist immer noch besser als ein verschluckter Anlass.
+            // Über allem, damit die Schnipsel vor Liste und Pausenuhren landen. Ausgelöst wird nur
+            // auf dem Hauptbildschirm; steht zufällig ein Menübereich offen, regnet es eben dort –
+            // das ist immer noch besser als ein verschluckter Anlass.
             Confetti(burstId = celebrationCount)
         }
     }
@@ -270,34 +263,6 @@ private fun TrainingContent(
     val listState = rememberSaveable(uiState.selectedDayId, saver = LazyListState.Saver) {
         LazyListState()
     }
-
-    // Ohne Trainingstage kommt der Zustand noch nicht aus der Datenbank – vor der ersten
-    // Antwort steht dort die Vorgabe, und die sagt „nicht abgehakt“.
-    val isReady = uiState.days.isNotEmpty()
-
-    // Solange das Training des Tages nicht eingetragen ist, liegt ein leichter Schleier über
-    // den Übungen; mit dem Haken zieht die Liste scharf.
-    val blur = rememberUnconfirmedBlur(
-        dayId = uiState.selectedDayId,
-        isConfirmed = uiState.isSelectedDayConfirmed,
-        isReady = isReady
-    )
-
-    // Und solange er aussteht, steht der Haken selbst groß über den unscharfen Übungen; mit dem
-    // Druck fliegt er an seinen Platz unter der Liste.
-    val floatingCheck = rememberFloatingCheck(
-        dayId = uiState.selectedDayId,
-        isConfirmed = uiState.isSelectedDayConfirmed,
-        isReady = isReady
-    )
-    // Einmal für alle Zeilen und einmal gemerkt: Der Verlauf steckt allein in [blur] und wird
-    // erst beim Zeichnen gelesen. Die Liste wird deshalb während der ganzen Blende kein
-    // einziges Mal neu zusammengesetzt.
-    val rowBlur = remember(blur) { Modifier.unconfirmedBlur(blur) }
-
-    // Aus demselben Grund gemerkt: Das letzte Listenelement bekäme sonst bei jeder
-    // Recomposition eine neue Modifier-Kette, nur um dieselbe Stelle zu melden.
-    val checkSlot = remember(floatingCheck) { Modifier.floatingCheckSlot(floatingCheck) }
 
     /**
      * Reihenfolge, die die Oberfläche selbst gesetzt hat: beim Ziehen und danach, bis die
@@ -359,157 +324,134 @@ private fun TrainingContent(
         actions.onReorder(moved)
     }
 
-    // Der schwebende Haken liegt über dem ganzen Bildschirminhalt und wird an dessen Rändern
-    // beschnitten: Fliegt er zu einem Platz, der weit unten in der Liste liegt, verschwindet er
-    // nach unten aus dem Bild, statt über die Systemleiste zu malen.
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .clipToBounds()
-            .floatingCheckArea(floatingCheck)
+            .padding(horizontal = Dimens.ScreenPaddingHorizontal)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = Dimens.ScreenPaddingHorizontal)
-        ) {
-            if (uiState.isSelectionMode) {
-                SelectionBar(
-                    count = uiState.selectedIds.size,
-                    canCreateSuperset = uiState.canCreateSuperset,
-                    canDissolveSuperset = uiState.canDissolveSuperset,
-                    targetDays = uiState.transferTargetDays,
-                    onClear = actions.onSelectionClear,
-                    onDelete = actions.onDeleteSelected,
-                    onCreateSuperset = actions.onCreateSuperset,
-                    onDissolveSuperset = actions.onDissolveSuperset,
-                    onCopyTo = actions.onCopySelected,
-                    onMoveTo = actions.onMoveSelected
-                )
-            } else {
-                ScreenHeader(
-                    title = uiState.appTitle.ifBlank { stringResource(R.string.screen_title) },
-                    isDeloadWeek = uiState.deload.isDeloadWeek,
-                    onDestinationClick = onDestinationClick
-                )
-            }
-
-            DayTabRow(
-                days = uiState.days,
-                selectedDayId = uiState.selectedDayId,
-                onDaySelected = actions.onDaySelected,
-                completedDayIds = uiState.completedDayIds
+        if (uiState.isSelectionMode) {
+            SelectionBar(
+                count = uiState.selectedIds.size,
+                canCreateSuperset = uiState.canCreateSuperset,
+                canDissolveSuperset = uiState.canDissolveSuperset,
+                targetDays = uiState.transferTargetDays,
+                onClear = actions.onSelectionClear,
+                onDelete = actions.onDeleteSelected,
+                onCreateSuperset = actions.onCreateSuperset,
+                onDissolveSuperset = actions.onDissolveSuperset,
+                onCopyTo = actions.onCopySelected,
+                onMoveTo = actions.onMoveSelected
             )
-
-            Spacer(modifier = Modifier.height(Dimens.SectionSpacingMedium))
-            restTimers()
-
-            Spacer(modifier = Modifier.height(Dimens.SectionSpacingLarge))
-            ColumnHeaderRow()
-            Spacer(modifier = Modifier.height(Dimens.SectionSpacingSmall))
-
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                itemsIndexed(
-                    items = exercises,
-                    key = { _, exercise -> exercise.id }
-                ) { index, exercise ->
-                    val isSelected = exercise.id in uiState.selectedIds
-                    DraggableItem(state = dragDropState, index = index) { itemIsDragging ->
-                        // Nur die drei Kennungen statt der ganzen Liste, damit eine Zeile an drei
-                        // Werten hängt und nicht an jeder Änderung irgendwo in der Liste.
-                        SupersetContainer(
-                            supersetId = exercise.supersetId,
-                            previousSupersetId = exercises.getOrNull(index - 1)?.supersetId,
-                            nextSupersetId = exercises.getOrNull(index + 1)?.supersetId
-                        ) {
-                            ExerciseRow(
-                                name = exerciseTitle(exercise.name, exercise.variation),
-                                note = noteLine(exercise.note),
-                                // Nur die eingetragene Last – beim Trainieren zählt, was auf die
-                                // Stange kommt. Ohne Gewicht bleibt die Spalte leer.
-                                weightLabel = exercise.weightKg?.toWeightLabel(unit),
-                                // In der Deload-Woche zeigt die Liste halbierte Sätze; der
-                                // gespeicherte Plan bleibt davon unberührt.
-                                setsLabel = exercise.sets
-                                    .let { if (uiState.deload.isDeloadWeek) deloadSets(it) else it }
-                                    .toSetsRepsLabel(
-                                        repsMin = exercise.repsMin,
-                                        repsMax = exercise.repsMax
-                                    ),
-                                onClick = {
-                                    if (uiState.isSelectionMode) {
-                                        actions.onSelectionToggle(exercise)
-                                    } else {
-                                        actions.onExerciseClick(exercise)
-                                    }
-                                },
-                                onLongClick = { actions.onExerciseLongClick(exercise) },
-                                onProgressClick = { actions.onProgressClick(exercise) },
-                                onProgressLongClick = { actions.onProgressLongClick(exercise) },
-                                progressionDown = exercise.progressionDown,
-                                modifier = Modifier.semantics {
-                                    customActions = buildList {
-                                        if (index > 0) {
-                                            add(
-                                                CustomAccessibilityAction(moveUpLabel) {
-                                                    moveAndSave(index, index - 1)
-                                                    true
-                                                }
-                                            )
-                                        }
-                                        if (index < exercises.lastIndex) {
-                                            add(
-                                                CustomAccessibilityAction(moveDownLabel) {
-                                                    moveAndSave(index, index + 1)
-                                                    true
-                                                }
-                                            )
-                                        }
-                                    }
-                                },
-                                isDragging = itemIsDragging,
-                                isSelectable = uiState.isSelectionMode,
-                                isSelected = isSelected,
-                                dragModifier = Modifier.draggableItem(
-                                    state = dragDropState,
-                                    key = exercise.id,
-                                    index = index
-                                ),
-                                contentModifier = rowBlur
-                            )
-                        }
-                    }
-                }
-                // Haken und „+“ scrollen als letztes Listenelement mit.
-                item {
-                    ListActionButtons(
-                        onToggleWorkoutCompleted = actions.onToggleWorkoutCompleted,
-                        onAddExercise = actions.onAddClick,
-                        isCompleted = uiState.isSelectedDayCompleted,
-                        modifier = Modifier.padding(bottom = Dimens.ListBottomPadding),
-                        isCheckFloating = floatingCheck.isFloating,
-                        checkSlotModifier = checkSlot,
-                        // Im Auswahlmodus geht es ums Markieren von Übungen; ein Sprung zwischen
-                        // den Runden hätte dort nichts zu suchen.
-                        showPreviousCycle = uiState.canReturnToPreviousCycleHere &&
-                            !uiState.isSelectionMode,
-                        onPreviousCycle = actions.onReturnToPreviousCycle,
-                        showNextCycle = uiState.canStartNextCycle && !uiState.isSelectionMode,
-                        isNextCycleDone = uiState.isSelectedDayConfirmed,
-                        onNextCycle = actions.onStartNextCycle
-                    )
-                }
-            }
+        } else {
+            ScreenHeader(
+                title = uiState.appTitle.ifBlank { stringResource(R.string.screen_title) },
+                isDeloadWeek = uiState.deload.isDeloadWeek,
+                onDestinationClick = onDestinationClick
+            )
         }
 
-        // Im Auswahlmodus hat der Haken nichts über der Liste zu suchen: Dort geht es ums
-        // Markieren, und er läge genau über den Zeilen, die angetippt werden sollen.
-        if (floatingCheck.isFloating && !uiState.isSelectionMode) {
-            FloatingCheckOverlay(
-                state = floatingCheck,
-                isCompleted = uiState.isSelectedDayCompleted,
-                onClick = actions.onToggleWorkoutCompleted
-            )
+        DayTabRow(
+            days = uiState.days,
+            selectedDayId = uiState.selectedDayId,
+            onDaySelected = actions.onDaySelected,
+            completedDayIds = uiState.completedDayIds
+        )
+
+        Spacer(modifier = Modifier.height(Dimens.SectionSpacingMedium))
+        restTimers()
+
+        Spacer(modifier = Modifier.height(Dimens.SectionSpacingLarge))
+        ColumnHeaderRow()
+        Spacer(modifier = Modifier.height(Dimens.SectionSpacingSmall))
+
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            itemsIndexed(
+                items = exercises,
+                key = { _, exercise -> exercise.id }
+            ) { index, exercise ->
+                val isSelected = exercise.id in uiState.selectedIds
+                DraggableItem(state = dragDropState, index = index) { itemIsDragging ->
+                    // Nur die drei Kennungen statt der ganzen Liste, damit eine Zeile an drei
+                    // Werten hängt und nicht an jeder Änderung irgendwo in der Liste.
+                    SupersetContainer(
+                        supersetId = exercise.supersetId,
+                        previousSupersetId = exercises.getOrNull(index - 1)?.supersetId,
+                        nextSupersetId = exercises.getOrNull(index + 1)?.supersetId
+                    ) {
+                        ExerciseRow(
+                            name = exerciseTitle(exercise.name, exercise.variation),
+                            note = noteLine(exercise.note),
+                            // Nur die eingetragene Last – beim Trainieren zählt, was auf die
+                            // Stange kommt. Ohne Gewicht bleibt die Spalte leer.
+                            weightLabel = exercise.weightKg?.toWeightLabel(unit),
+                            // In der Deload-Woche zeigt die Liste halbierte Sätze; der
+                            // gespeicherte Plan bleibt davon unberührt.
+                            setsLabel = exercise.sets
+                                .let { if (uiState.deload.isDeloadWeek) deloadSets(it) else it }
+                                .toSetsRepsLabel(
+                                    repsMin = exercise.repsMin,
+                                    repsMax = exercise.repsMax
+                                ),
+                            onClick = {
+                                if (uiState.isSelectionMode) {
+                                    actions.onSelectionToggle(exercise)
+                                } else {
+                                    actions.onExerciseClick(exercise)
+                                }
+                            },
+                            onLongClick = { actions.onExerciseLongClick(exercise) },
+                            onProgressClick = { actions.onProgressClick(exercise) },
+                            onProgressLongClick = { actions.onProgressLongClick(exercise) },
+                            progressionDown = exercise.progressionDown,
+                            modifier = Modifier.semantics {
+                                customActions = buildList {
+                                    if (index > 0) {
+                                        add(
+                                            CustomAccessibilityAction(moveUpLabel) {
+                                                moveAndSave(index, index - 1)
+                                                true
+                                            }
+                                        )
+                                    }
+                                    if (index < exercises.lastIndex) {
+                                        add(
+                                            CustomAccessibilityAction(moveDownLabel) {
+                                                moveAndSave(index, index + 1)
+                                                true
+                                            }
+                                        )
+                                    }
+                                }
+                            },
+                            isDragging = itemIsDragging,
+                            isSelectable = uiState.isSelectionMode,
+                            isSelected = isSelected,
+                            dragModifier = Modifier.draggableItem(
+                                state = dragDropState,
+                                key = exercise.id,
+                                index = index
+                            )
+                        )
+                    }
+                }
+            }
+            // Haken und „+“ scrollen als letztes Listenelement mit.
+            item {
+                ListActionButtons(
+                    onToggleWorkoutCompleted = actions.onToggleWorkoutCompleted,
+                    onAddExercise = actions.onAddClick,
+                    isCompleted = uiState.isSelectedDayCompleted,
+                    modifier = Modifier.padding(bottom = Dimens.ListBottomPadding),
+                    // Im Auswahlmodus geht es ums Markieren von Übungen; ein Sprung zwischen
+                    // den Runden hätte dort nichts zu suchen.
+                    showPreviousCycle = uiState.canReturnToPreviousCycleHere &&
+                        !uiState.isSelectionMode,
+                    onPreviousCycle = actions.onReturnToPreviousCycle,
+                    showNextCycle = uiState.canStartNextCycle && !uiState.isSelectionMode,
+                    isNextCycleDone = uiState.isSelectedDayConfirmed,
+                    onNextCycle = actions.onStartNextCycle
+                )
+            }
         }
     }
 }

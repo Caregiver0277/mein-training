@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import de.beispiel.meintraining.data.local.AppDatabase
 import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.model.WorkoutSession
+import de.beispiel.meintraining.util.toLocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -495,6 +496,46 @@ class TrainingRepositoryTest {
         assertTrue(repository.toggleWorkout(dayId = 1).isCompleted)
 
         assertNull(database.workoutSessionDao().latestForDay(1)!!.startedAt)
+        assertNull(settingsStore.workoutMarker())
+    }
+
+    /**
+     * Eine halbe Stunde ohne Aktivität beendet das Training von selbst: abgehakt wie mit dem
+     * Haken, aber zum Zeitpunkt der letzten Aktivität. Der Haken nimmt es zurück und bringt den
+     * Merker wieder – ohne dass es sofort noch einmal von selbst endet.
+     */
+    @Test
+    fun nachEinerHalbenStundeRuheEndetDasTrainingVonSelbst() = runBlocking {
+        repository.ensureSeeded()
+        val beginn = System.currentTimeMillis() - 2 * 60 * MINUTE
+        repository.reportActivity(dayId = 3, at = beginn, activeUntil = beginn + 2 * MINUTE)
+        repository.reportActivity(dayId = 3, at = beginn + 25 * MINUTE)
+
+        assertFalse(repository.finishIdleWorkout(now = beginn + 50 * MINUTE))
+        assertTrue(repository.finishIdleWorkout())
+
+        val eintrag = database.workoutSessionDao().latestForDay(3)!!
+        assertEquals(beginn + 25 * MINUTE, eintrag.completedAt)
+        assertEquals(beginn, eintrag.startedAt)
+        assertNull(settingsStore.workoutMarker())
+
+        // Zurückgenommen mit dem Haken: Der Merker ist wieder da und bleibt es vorerst.
+        val heute = eintrag.completedAt.toLocalDate()
+        assertFalse(repository.toggleWorkout(dayId = 3, today = heute).isCompleted)
+        assertFalse(repository.finishIdleWorkout())
+        assertEquals(beginn, settingsStore.workoutMarker()!!.startedAt)
+    }
+
+    /** Ein paar Minuten Pausenuhr sind kein Training: Der Merker fällt weg, abgehakt wird nichts. */
+    @Test
+    fun eineVersehentlichePausenuhrHaktNichtsAb() = runBlocking {
+        repository.ensureSeeded()
+        val beginn = System.currentTimeMillis() - 60 * MINUTE
+        repository.reportActivity(dayId = 1, at = beginn, activeUntil = beginn + 2 * MINUTE)
+
+        assertFalse(repository.finishIdleWorkout())
+
+        assertNull(database.workoutSessionDao().latestForDay(1))
         assertNull(settingsStore.workoutMarker())
     }
 
