@@ -112,6 +112,58 @@ class RotationTest {
         assertEquals(1, nextDayId(DAYS, DAYS))
     }
 
+    // --- Welcher Tag ist dran? ---------------------------------------------
+
+    @Test
+    fun ohneLueckeIstDerFolgendeTagDran() {
+        assertEquals(3, dueDayId(past(1, 2), DAYS, TODAY))
+    }
+
+    @Test
+    fun einUebersprungenerTagIstAlsNaechstesDran() {
+        // Tag 3 ausgelassen, Tag 4 gemacht: dran ist Tag 3, nicht der schon erledigte Tag 1.
+        assertEquals(3, dueDayId(past(1, 2, 4), DAYS, TODAY))
+    }
+
+    @Test
+    fun derNaechsteOffeneTagLaeuftImKreis() {
+        // Erst Tag 3 und 4, dann geht es vorn weiter.
+        assertEquals(1, dueDayId(past(3, 4), DAYS, TODAY))
+        assertEquals(2, dueDayId(past(3, 4, 1), DAYS, TODAY))
+        // Gesucht wird hinter dem jüngsten Training: Nach Tag 2 kommt Tag 3, nicht der davor
+        // offene Tag 1.
+        assertEquals(3, dueDayId(past(4, 2), DAYS, TODAY))
+    }
+
+    @Test
+    fun eineLeereRundeBeginntBeiTagEins() {
+        assertEquals(1, dueDayId(emptyList(), DAYS, TODAY))
+        // Gestern voll geworden: abgeräumt, die neue Runde ist leer.
+        assertEquals(1, dueDayId(past(1, 2, 3, 4), DAYS, TODAY))
+        // Ein Schnitt hinter dem jüngsten Training ebenso.
+        val entries = listOf(entry(2, YESTERDAY))
+        assertEquals(1, dueDayId(entries, DAYS, TODAY, listOf(at(TODAY))))
+    }
+
+    @Test
+    fun ohneOffenenTagBleibtEsBeimFolgendenTag() {
+        // Die heute volle Runde steht bis Mitternacht: Kein Tag ist offen.
+        assertEquals(1, dueDayId(today(1, 2, 3, 4), DAYS, TODAY))
+        assertEquals(3, nextOpenDayId(2, setOf(1, 2, 3, 4), DAYS))
+    }
+
+    @Test
+    fun einTagJenseitsDerRundeGehtVornWeiter() {
+        // Nach einer verkürzten Runde: Das jüngste Training lag auf Tag 6.
+        assertEquals(1, nextOpenDayId(6, setOf(2), DAYS))
+        assertEquals(3, nextOpenDayId(6, setOf(1, 2), DAYS))
+    }
+
+    @Test
+    fun ohneTageBleibtEsBeiTagEins() {
+        assertEquals(1, nextOpenDayId(1, emptySet(), 0))
+    }
+
     // --- Runden von Hand abschließen ---------------------------------------
 
     @Test

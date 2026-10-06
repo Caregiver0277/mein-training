@@ -22,9 +22,10 @@ import de.beispiel.meintraining.util.RotationEntry
 import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.decreaseWeight
+import de.beispiel.meintraining.util.dueDayId
 import de.beispiel.meintraining.util.increaseWeight
 import de.beispiel.meintraining.util.keepSupersetBlocksTogether
-import de.beispiel.meintraining.util.nextDayId
+import de.beispiel.meintraining.util.nextOpenDayId
 import de.beispiel.meintraining.util.rotations
 import de.beispiel.meintraining.util.survivingSupersetMembers
 import de.beispiel.meintraining.util.toLocalDate
@@ -238,15 +239,15 @@ class TrainingRepository(
     }
 
     /**
-     * Der Tag, der in der laufenden Runde als nächstes dran ist: der auf das jüngste Training
-     * folgende. In einer noch leeren Runde ist das der erste Tag.
+     * Der Tag, der in der laufenden Runde als nächstes dran ist: der nächste noch offene nach dem
+     * jüngsten Training (siehe [dueDayId]). In einer noch leeren Runde ist das der erste Tag.
      */
-    suspend fun nextDayInRotation(today: LocalDate = LocalDate.now()): Int {
-        val dayCount = settingsStore.dayCount.first()
-        val entries = rotationEntries()
-        val latest = latestEntryInRotation(entries, dayCount, today) ?: return FIRST_DAY_ID
-        return nextDayId(latest.dayId, dayCount)
-    }
+    suspend fun nextDayInRotation(today: LocalDate = LocalDate.now()): Int = dueDayId(
+        entriesOldestFirst = rotationEntries(),
+        dayCount = settingsStore.dayCount.first(),
+        today = today,
+        cuts = settingsStore.rotationCuts.first()
+    )
 
     /** Der ganze Verlauf als Rundeneinträge, ältester zuerst – so, wie [rotations] ihn braucht. */
     private suspend fun rotationEntries(): List<RotationEntry> = sessionDao.listAll().map { session ->
@@ -255,17 +256,6 @@ class TrainingRepository(
             date = session.completedAt.toLocalDate(),
             completedAt = session.completedAt
         )
-    }
-
-    /** Das jüngste Training der laufenden Runde; `null`, solange sie leer ist. */
-    private suspend fun latestEntryInRotation(
-        entries: List<RotationEntry>,
-        dayCount: Int,
-        today: LocalDate
-    ): RotationEntry? {
-        val cuts = settingsStore.rotationCuts.first()
-        val current = rotations(entries, dayCount, today, cuts).last()
-        return current.entryIndices.lastOrNull()?.let(entries::get)
     }
 
     /**
@@ -406,7 +396,9 @@ class TrainingRepository(
 
     /**
      * Schaltet beim ersten Start an einem neuen Kalendertag auf den Tag nach dem zuletzt
-     * abgehakten weiter – wer gestern Tag 1 gemacht hat, sieht heute Tag 2.
+     * abgehakten weiter – wer gestern Tag 1 gemacht hat, sieht heute Tag 2. Genauer: auf den
+     * nächsten in der Runde noch offenen (siehe [nextOpenDayId]) – wer Tag 3 ausgelassen und
+     * Tag 4 gemacht hat, sieht Tag 3 und nicht den schon erledigten Tag 1.
      *
      * Gezählt wird dabei nur innerhalb der *laufenden* Runde. Über deren Grenze hinweg wäre es
      * falsch: Wer die Runde am letzten Tag übersprungen hat, säße am nächsten Morgen wieder auf
@@ -423,12 +415,16 @@ class TrainingRepository(
         // sie ist, statt beim ersten Start auf Tag 1 zu springen.
         if (entries.isNotEmpty()) {
             val dayCount = settingsStore.dayCount.first()
-            val latest = latestEntryInRotation(entries, dayCount, today)
+            val cuts = settingsStore.rotationCuts.first()
+            val current = rotations(entries, dayCount, today, cuts).last()
+            val latest = current.entryIndices.lastOrNull()?.let(entries::get)
             when {
                 // Eine neue Runde beginnt bei Tag 1.
                 latest == null -> selectDay(FIRST_DAY_ID)
                 // Am Tag des Trainings selbst bleibt die Ansicht stehen.
-                latest.date.isBefore(today) -> selectDay(nextDayId(latest.dayId, dayCount))
+                latest.date.isBefore(today) -> selectDay(
+                    nextOpenDayId(latest.dayId, current.completedDayIds, dayCount)
+                )
             }
         }
         // Erst hinterher vermerken: Bricht der Vorgang vorher ab – Prozess beendet, Coroutine

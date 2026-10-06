@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.util
 
+import de.beispiel.meintraining.data.model.FIRST_DAY_ID
 import java.time.LocalDate
 
 /** Ein abgehaktes Training, auf das eingedampft, was die Runde davon braucht. */
@@ -138,6 +139,41 @@ fun canUndoRotationCut(entriesOldestFirst: List<RotationEntry>, cuts: List<Long>
 
 /** Der auf [dayId] folgende Trainingstag; nach dem letzten geht es wieder bei 1 los. */
 fun nextDayId(dayId: Int, dayCount: Int): Int = if (dayId >= dayCount) 1 else dayId + 1
+
+/**
+ * Der Tag, der nach [lastDayId] als nächstes dran ist: der nächste in der Runde noch offene, im
+ * Kreis weiter.
+ *
+ * Schlicht den folgenden Tag zu nehmen wäre falsch, sobald ein Tag übersprungen wurde: Wer Tag 3
+ * auslässt und Tag 4 macht, landete am nächsten Morgen auf Tag 1, der in dieser Runde längst
+ * abgehakt ist. Der übersprungene Tag 3 ist dagegen noch offen und damit dran.
+ *
+ * Ist kein Tag mehr offen, bleibt es beim folgenden Tag – das betrifft nur eine volle Runde, die
+ * bis Mitternacht stehen bleibt (siehe [rotations]).
+ */
+fun nextOpenDayId(lastDayId: Int, completedDayIds: Set<Int>, dayCount: Int): Int {
+    // Ein Tag jenseits der Runde – etwa nach einer verkürzten Runde – zählt wie der letzte:
+    // Weiter geht es vorn.
+    val after = (lastDayId + 1..dayCount) + (1..minOf(lastDayId, dayCount))
+    return after.firstOrNull { it !in completedDayIds } ?: nextDayId(lastDayId, dayCount)
+}
+
+/**
+ * Der Tag, der in der laufenden Runde als nächstes dran ist (siehe [nextOpenDayId]); in einer
+ * noch leeren Runde ist das der erste Tag.
+ *
+ * Die Parameter sind dieselben wie bei [rotations].
+ */
+fun dueDayId(
+    entriesOldestFirst: List<RotationEntry>,
+    dayCount: Int,
+    today: LocalDate,
+    cuts: List<Long> = emptyList()
+): Int {
+    val current = rotations(entriesOldestFirst, dayCount, today, cuts).last()
+    val latest = current.entryIndices.lastOrNull()?.let(entriesOldestFirst::get) ?: return FIRST_DAY_ID
+    return nextOpenDayId(latest.dayId, current.completedDayIds, dayCount)
+}
 
 /** Sammelt eine Runde ein, während [rotations] den Verlauf durchgeht. */
 private class RotationBuilder(private val dayCount: Int) {
