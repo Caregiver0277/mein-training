@@ -72,6 +72,9 @@
     <!-- Wie oben, aber von einem anderen Trainingstag: %1$s ist dessen Name. -->
     <string name="set_log_last_other_day">Letztes Mal (%1$s, %2$s): %3$s</string>
     <string name="set_log_last_none">Letztes Mal: noch nichts protokolliert.</string>
+    <string name="set_log_top_reached_raise">Oberes Ende erreicht – Gewicht erhöhen?</string>
+    <string name="set_log_top_reached_lower">Oberes Ende erreicht – Gewicht senken?</string>
+    <string name="cd_top_reached">Oberes Ende erreicht</string>
     <string name="set_log_column_set">Satz</string>
     <string name="set_log_column_weight">Gewicht (kg)</string>
     <string name="set_log_column_reps">Wiederh.</string>

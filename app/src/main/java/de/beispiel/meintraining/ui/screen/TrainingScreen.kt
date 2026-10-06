@@ -258,6 +258,8 @@ fun TrainingScreen(
             onLogSet = { number, reps, weight -> actions.onLogSet(state.exercise, number, reps, weight) },
             onUpdateSet = actions.onUpdateSet,
             onDeleteSet = actions.onDeleteSet,
+            // Derselbe Weg wie der Pfeil in der Liste – samt Meldung mit „Rückgängig“.
+            onStepWeight = { actions.onProgressClick(state.exercise) },
             onDismiss = actions.onSetLogDismiss
         )
     }
@@ -423,6 +425,7 @@ private fun TrainingContent(
                             onProgressLongClick = { actions.onProgressLongClick(exercise) },
                             progressionDown = exercise.progressionDown,
                             setsProgress = uiState.setLogRows[exercise.id]?.progress,
+                            isTopReached = uiState.setLogRows[exercise.id]?.isTopReached == true,
                             onSetsClick = { actions.onSetsClick(exercise) },
                             modifier = Modifier.semantics {
                                 customActions = buildList {

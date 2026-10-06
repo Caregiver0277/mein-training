@@ -3,6 +3,7 @@ package de.beispiel.meintraining.util
 import de.beispiel.meintraining.data.model.SetLog
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.abs
 
 /**
  * Wiederholungen, mit denen ein Satz vorbelegt wird, wenn es weder ein letztes Mal noch eine
@@ -90,6 +91,49 @@ fun lastUnit(units: List<SetUnit>, dayId: Int, today: LocalDate): SetUnit? {
     val earlier = units.filter { it.date < today }
     return earlier.lastOrNull { it.dayId == dayId } ?: earlier.lastOrNull()
 }
+
+/**
+ * Hat die letzte gewertete Einheit das obere Ende der Spanne erreicht? Dann steht im
+ * Satz-Protokoll „Oberes Ende erreicht – Gewicht erhöhen?“, und der Pfeil der Zeile leuchtet grün.
+ *
+ * Gewertet wird die jüngste *vollständige* Einheit dieser Übung an diesem Trainingstag [dayId] –
+ * eine, in der alle [plannedSets] regulär geplanten Sätze protokolliert sind; heute zählt mit,
+ * sobald sie voll ist. Erreicht ist das obere Ende, wenn in ihr jeder dieser Sätze beim
+ * aktuellen Gewicht [currentWeightKg] mindestens [repsMax] Wiederholungen hatte. Zusatzsätze
+ * zählen nicht.
+ *
+ * Damit verschwindet der Hinweis von selbst, sobald das Gewicht geändert wurde: Die Sätze
+ * stammen dann von einem anderen. Nimmt „Rückgängig“ die Änderung zurück, ist er wieder da.
+ *
+ * Keinen Hinweis gibt es in der Deload-Woche, ohne oberes Ende der Spanne, ohne geplante Sätze
+ * und ohne Gewicht – dann gibt es auch keinen Pfeil, der etwas tun könnte.
+ */
+fun isTopOfRangeReached(
+    units: List<SetUnit>,
+    dayId: Int,
+    plannedSets: Int?,
+    repsMax: Int?,
+    currentWeightKg: Double?,
+    isDeloadWeek: Boolean
+): Boolean {
+    if (isDeloadWeek) return false
+    val planned = plannedSets?.takeIf { it >= 1 } ?: return false
+    val top = repsMax ?: return false
+    val weight = currentWeightKg ?: return false
+    val unit = units.lastOrNull { it.dayId == dayId && it.isComplete(planned) } ?: return false
+    return (1..planned).all { number ->
+        val set = unit.set(number) ?: return false
+        val setWeight = set.weightKg ?: return false
+        set.reps >= top && abs(setWeight - weight) < WEIGHT_TOLERANCE_KG
+    }
+}
+
+/**
+ * Spielraum beim Vergleich zweier Gewichte. Beide stammen aus derselben Rechnung (siehe
+ * [increaseWeight]) und sind meist exakt gleich; der Spielraum fängt ab, was beim Einlesen
+ * getippter Ziffern an Ungenauigkeit hereinkommt, und liegt weit unter jedem Schritt.
+ */
+private const val WEIGHT_TOLERANCE_KG = 1e-6
 
 /**
  * Womit die Wiederholungen eines Satzes vorbelegt sind: mit demselben Satz vom letzten Mal,

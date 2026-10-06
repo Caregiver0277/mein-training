@@ -97,6 +97,8 @@ fun SetLogSheet(
     onLogSet: (setNumber: Int, reps: Int, weightKg: Double?) -> Unit,
     onUpdateSet: (id: Long, reps: Int, weightKg: Double?) -> Unit,
     onDeleteSet: (id: Long) -> Unit,
+    /** Der Knopf am Hinweis „Oberes Ende erreicht“ – tut genau, was der Pfeil tut. */
+    onStepWeight: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -114,6 +116,7 @@ fun SetLogSheet(
                 onLogSet = onLogSet,
                 onUpdateSet = onUpdateSet,
                 onDeleteSet = onDeleteSet,
+                onStepWeight = onStepWeight,
                 onDone = onDismiss
             )
             SnackbarHost(
@@ -153,6 +156,7 @@ private fun SetLogSheetContent(
     onLogSet: (setNumber: Int, reps: Int, weightKg: Double?) -> Unit,
     onUpdateSet: (id: Long, reps: Int, weightKg: Double?) -> Unit,
     onDeleteSet: (id: Long) -> Unit,
+    onStepWeight: () -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -191,6 +195,13 @@ private fun SetLogSheetContent(
             color = TextPrimary
         )
         SetLogHeader(state = state, days = days, weightLabel = weightLabel)
+        state.suggestedWeightKg?.let { suggested ->
+            TopReachedHint(
+                lower = exercise.progressionDown,
+                suggestedLabel = weightLabel(suggested),
+                onClick = onStepWeight
+            )
+        }
 
         Spacer(modifier = Modifier.height(Dimens.SectionSpacingSmall))
         SetColumnHeaders(showWeight = exercise.weightKg != null)
@@ -333,6 +344,50 @@ private fun lastTimeText(
     if (last.dayId == dayId) return stringResource(R.string.set_log_last, ago, series)
     val day = dayLabel(last.dayId, days.firstOrNull { it.id == last.dayId }?.name)
     return stringResource(R.string.set_log_last_other_day, day, ago, series)
+}
+
+/**
+ * „Oberes Ende erreicht – Gewicht erhöhen?“ mit einem Knopf, der genau das tut, was der Pfeil
+ * in der Liste tut; bei einem Pfeil nach unten heißt es „senken?“. Grün wie der Pfeil, der
+ * dabei in der Liste aufleuchtet.
+ */
+@Composable
+private fun TopReachedHint(lower: Boolean, suggestedLabel: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(Dimens.CornerChip)
+            .background(AccentGreenSurface)
+            .border(Dimens.BadgeBorderWidth, AccentGreen, Dimens.CornerChip)
+            .padding(start = Dimens.SectionSpacingMedium),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(
+                if (lower) R.string.set_log_top_reached_lower else R.string.set_log_top_reached_raise
+            ),
+            style = AppTextStyles.Body,
+            color = TextPrimary,
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = Dimens.SectionSpacingSmall)
+        )
+        TextButton(onClick = onClick) {
+            Icon(
+                painter = painterResource(
+                    if (lower) R.drawable.ic_arrow_downward else R.drawable.ic_arrow_upward
+                ),
+                contentDescription = null,
+                tint = AccentGreen,
+                modifier = Modifier.size(Dimens.StepperIconSize)
+            )
+            Text(
+                text = suggestedLabel,
+                color = AccentGreen,
+                modifier = Modifier.padding(start = Dimens.SectionSpacingSmall / 2)
+            )
+        }
+    }
 }
 
 /** Die Spaltenköpfe über den Satz-Zeilen – an denselben Breiten ausgerichtet wie die Zeilen. */
@@ -578,12 +633,14 @@ private fun SetLogSheetContentPreview() {
                 isDeloadWeek = false,
                 todaysSets = listOf(set(4, 1, 12, 0)),
                 lastUnit = SetUnit(date = today.minusDays(4), dayId = 1, sets = last),
-                today = today
+                today = today,
+                suggestedWeightKg = 62.5
             ),
             days = listOf(TrainingDay(id = 1, name = "Tag 1")),
             onLogSet = { _, _, _ -> },
             onUpdateSet = { _, _, _ -> },
             onDeleteSet = {},
+            onStepWeight = {},
             onDone = {}
         )
     }

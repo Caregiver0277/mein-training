@@ -113,6 +113,88 @@ class SetLoggingTest {
         assertNull(lastUnit(einheiten(satz(HEUTE, dayId = 1, number = 1, reps = 9)), 1, HEUTE))
     }
 
+    // --- Oberes Ende erreicht ------------------------------------------------
+
+    /** Drei Sätze bei 60 kg mit den Wiederholungen [reps], an [date] auf Tag [dayId]. */
+    private fun einheit(date: LocalDate, vararg reps: Int, dayId: Int = 1, weightKg: Double? = 60.0) =
+        reps.mapIndexed { index, r -> satz(date, dayId, number = index + 1, reps = r, weightKg = weightKg) }
+
+    private fun erreicht(
+        units: List<SetUnit>,
+        planned: Int? = 3,
+        repsMax: Int? = 12,
+        weight: Double? = 60.0,
+        deload: Boolean = false
+    ) = isTopOfRangeReached(units, dayId = 1, planned, repsMax, weight, deload)
+
+    @Test
+    fun alleSaetzeAmOberenEndeBeimAktuellenGewicht() {
+        val units = setUnits(einheit(HEUTE.minusDays(4), 12, 12, 13), ZONE)
+        assertTrue(erreicht(units))
+    }
+
+    @Test
+    fun einSatzDarunterReichtNicht() {
+        assertFalse(erreicht(setUnits(einheit(HEUTE.minusDays(4), 12, 12, 11), ZONE)))
+    }
+
+    /** Wurde das Gewicht seither geändert, stammen die Sätze von einem anderen – kein Hinweis. */
+    @Test
+    fun nachEinerGewichtsaenderungIstDerHinweisWeg() {
+        val units = setUnits(einheit(HEUTE.minusDays(4), 12, 12, 12), ZONE)
+        assertFalse(erreicht(units, weight = 62.5))
+    }
+
+    /** Gewertet werden nur vollständige Einheiten: Die unvollständige von heute zählt nicht. */
+    @Test
+    fun eineUnvollstaendigeEinheitZaehltNicht() {
+        val units = setUnits(
+            einheit(HEUTE.minusDays(4), 12, 12, 12) + einheit(HEUTE, 9),
+            ZONE
+        )
+        assertTrue(erreicht(units))
+        assertFalse(erreicht(setUnits(einheit(HEUTE, 12, 12), ZONE)))
+    }
+
+    /** Eine volle Einheit von heute zählt sofort – auch wenn sie das obere Ende verfehlt. */
+    @Test
+    fun dieJuengsteVollstaendigeEinheitEntscheidet() {
+        val units = setUnits(
+            einheit(HEUTE.minusDays(4), 12, 12, 12) + einheit(HEUTE, 12, 11, 10),
+            ZONE
+        )
+        assertFalse(erreicht(units))
+    }
+
+    /** Zusatzsätze ändern nichts: Satz 4 mit 6 Wiederholungen nimmt den Hinweis nicht weg. */
+    @Test
+    fun zusatzsaetzeZaehlenNicht() {
+        val units = setUnits(
+            einheit(HEUTE.minusDays(2), 12, 12, 12) +
+                satz(HEUTE.minusDays(2), dayId = 1, number = 4, reps = 6),
+            ZONE
+        )
+        assertTrue(erreicht(units))
+    }
+
+    /** Nur dieser Trainingstag: Dieselbe Übung an Tag 3 mit „3 x 4-6“ zählt hier nicht. */
+    @Test
+    fun einheitenAndererTageZaehlenNicht() {
+        val units = setUnits(einheit(HEUTE.minusDays(1), 12, 12, 12, dayId = 3), ZONE)
+        assertFalse(erreicht(units))
+    }
+
+    @Test
+    fun keinHinweisInDerDeloadWocheOhneObereGrenzeOhneSaetzeOderGewicht() {
+        val units = setUnits(einheit(HEUTE.minusDays(4), 12, 12, 12), ZONE)
+        assertFalse(erreicht(units, deload = true))
+        assertFalse(erreicht(units, repsMax = null))
+        assertFalse(erreicht(units, planned = null))
+        assertFalse(erreicht(units, weight = null))
+        val ohneGewicht = setUnits(einheit(HEUTE.minusDays(4), 12, 12, 12, weightKg = null), ZONE)
+        assertFalse(erreicht(ohneGewicht))
+    }
+
     // --- Vorbelegung ---------------------------------------------------------
 
     @Test

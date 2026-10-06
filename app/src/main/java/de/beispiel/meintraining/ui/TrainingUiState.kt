@@ -102,7 +102,11 @@ data class TrainingUiState(
  * Vorgabe –, nicht auf den Namen: Dieselbe Übung kann an einem anderen Tag andere Sätze haben.
  */
 @Immutable
-data class SetLogRowState(val progress: SetsProgress)
+data class SetLogRowState(
+    val progress: SetsProgress,
+    /** Oberes Ende erreicht: Der Pfeil der Zeile steht grün da (siehe `isTopOfRangeReached`). */
+    val isTopReached: Boolean = false
+)
 
 /**
  * Alles, was das Sheet „Satz-Protokoll“ zu einer Zeile zeigt.
@@ -118,7 +122,12 @@ data class SetLogSheetState(
     val isDeloadWeek: Boolean,
     val todaysSets: List<SetLog>,
     val lastUnit: SetUnit?,
-    val today: LocalDate
+    val today: LocalDate,
+    /**
+     * Steht „Oberes Ende erreicht – Gewicht erhöhen?“ (oder „senken?“ bei einem Pfeil nach
+     * unten) da, und wohin der Knopf das Gewicht verschiebt; `null`: kein Hinweis.
+     */
+    val suggestedWeightKg: Double? = null
 )
 
 /**

@@ -31,10 +31,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.ui.theme.AccentBlue
+import de.beispiel.meintraining.ui.theme.AccentGreen
 import de.beispiel.meintraining.ui.theme.AppTextStyles
 import de.beispiel.meintraining.ui.theme.CardBackground
 import de.beispiel.meintraining.ui.theme.CardDraggedBackground
@@ -60,6 +62,7 @@ import de.beispiel.meintraining.ui.theme.TextSecondary
  * Den blauen Pfeil gibt es nur mit Gewicht – ohne Gewicht gäbe es nichts zu verschieben. Sein
  * Platz bleibt trotzdem frei, solange die Zeile Werte zeigt, damit die Spalten stehen bleiben.
  * Mit [progressionDown] zeigt er nach unten und senkt das Gewicht, statt es zu erhöhen.
+ * [isTopReached] färbt ihn grün: Das Satz-Protokoll sagt, dass es Zeit dafür ist.
  * Lang gedrückt geht er einen Schritt in die Gegenrichtung ([onProgressLongClick]).
  *
  * [dragModifier] wird im Auswahlmodus auf die markierte Zeile gelegt: Wer ausgewählt hat,
@@ -80,11 +83,13 @@ fun ExerciseRow(
     progressionDown: Boolean = false,
     setsProgress: SetsProgress? = null,
     onSetsClick: () -> Unit = {},
+    isTopReached: Boolean = false,
     isDragging: Boolean = false,
     isSelectable: Boolean = false,
     isSelected: Boolean = false,
     dragModifier: Modifier = Modifier
 ) {
+    val topReachedLabel = stringResource(R.string.cd_top_reached)
     Box(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -174,6 +179,13 @@ fun ExerciseRow(
                 weightLabel != null -> Box(
                     modifier = Modifier
                         .size(Dimens.TouchTargetSize)
+                        .then(
+                            if (isTopReached) {
+                                Modifier.semantics { stateDescription = topReachedLabel }
+                            } else {
+                                Modifier
+                            }
+                        )
                         .combinedClickable(
                             interactionSource = null,
                             // Dieselbe runde 40dp-Welle wie beim IconButton.
@@ -202,7 +214,7 @@ fun ExerciseRow(
                                 R.string.cd_increase_weight
                             }
                         ),
-                        tint = AccentBlue,
+                        tint = if (isTopReached) AccentGreen else AccentBlue,
                         modifier = Modifier.size(Dimens.ArrowIconSize)
                     )
                 }
@@ -250,7 +262,8 @@ private fun ExerciseRowPreview() {
             onProgressClick = {},
             modifier = Modifier.padding(Dimens.ScreenPaddingHorizontal),
             note = "Kabel ganz oben · Ellbogen fest",
-            setsProgress = SetsProgress(logged = 1, planned = 3)
+            setsProgress = SetsProgress(logged = 3, planned = 3),
+            isTopReached = true
         )
     }
 }

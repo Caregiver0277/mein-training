@@ -20,12 +20,14 @@ import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.deloadStatus
+import de.beispiel.meintraining.util.isTopOfRangeReached
 import de.beispiel.meintraining.util.lastUnit
 import de.beispiel.meintraining.util.parseOptionalDecimal
 import de.beispiel.meintraining.util.parseOptionalInt
 import de.beispiel.meintraining.util.parseProgressionStep
 import de.beispiel.meintraining.util.setUnitsByExercise
 import de.beispiel.meintraining.util.setsThisWeek
+import de.beispiel.meintraining.util.stepWeight
 import de.beispiel.meintraining.util.toDecimalString
 import de.beispiel.meintraining.util.toLocalDate
 import de.beispiel.meintraining.util.todaysUnit
@@ -357,9 +359,34 @@ class TrainingViewModel(
         val units = around.setLogUnits[SetLogKey(exercise.name, exercise.variation)].orEmpty()
         val today = todaysUnit(units, exercise.dayId, around.today)
         exercise.id to SetLogRowState(
-            progress = SetsProgress(logged = today?.plannedLogged(planned) ?: 0, planned = planned)
+            progress = SetsProgress(logged = today?.plannedLogged(planned) ?: 0, planned = planned),
+            isTopReached = suggestedWeight(exercise, units, around.deload.isDeloadWeek) != null
         )
     }.toMap()
+
+    /**
+     * Wohin der Pfeil das Gewicht verschöbe, wenn die Zeile das obere Ende erreicht hat (siehe
+     * [isTopOfRangeReached]); sonst `null`. Ein Pfeil, der nichts mehr bewegt – nach unten bei
+     * 0 kg –, bekommt keinen Hinweis.
+     */
+    private fun suggestedWeight(
+        exercise: ExerciseItem,
+        units: List<SetUnit>,
+        isDeloadWeek: Boolean
+    ): Double? {
+        val weight = exercise.weightKg ?: return null
+        val reached = isTopOfRangeReached(
+            units = units,
+            dayId = exercise.dayId,
+            plannedSets = exercise.sets,
+            repsMax = exercise.repsMax,
+            currentWeightKg = weight,
+            isDeloadWeek = isDeloadWeek
+        )
+        if (!reached) return null
+        return stepWeight(weight, exercise.progressionStepKg, exercise.progressionDown)
+            .takeIf { it != weight }
+    }
 
     /**
      * Das offene Sheet „Satz-Protokoll“; `null`, solange keines offen ist.
@@ -386,7 +413,8 @@ class TrainingViewModel(
             isDeloadWeek = isDeloadWeek,
             todaysSets = todaysUnit(exerciseUnits, exercise.dayId, today)?.sets.orEmpty(),
             lastUnit = lastUnit(exerciseUnits, exercise.dayId, today),
-            today = today
+            today = today,
+            suggestedWeightKg = suggestedWeight(exercise, exerciseUnits, isDeloadWeek)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
 
