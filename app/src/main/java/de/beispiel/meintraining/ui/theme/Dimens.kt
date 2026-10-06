@@ -64,6 +64,11 @@ object Dimens {
     val ChipSpacing = 8.dp
     val ChipPaddingHorizontal = 6.dp
 
+    /** Grüner Haken an der Ecke des Sätze-Chips, sobald alle geplanten Sätze protokolliert sind. */
+    val SetsCheckSize = 14.dp
+    val SetsCheckIconSize = 10.dp
+    val SetsCheckOffset = 4.dp
+
     // Pfeil-Button
     val ArrowIconSize = 22.dp
     val TouchTargetSize = 48.dp

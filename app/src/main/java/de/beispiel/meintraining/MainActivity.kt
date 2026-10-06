@@ -119,6 +119,7 @@ class MainActivity : ComponentActivity() {
                         onMoveSelected = viewModel::onMoveSelected,
                         onProgressClick = viewModel::onProgressClick,
                         onProgressLongClick = viewModel::onProgressLongClick,
+                        onSetsClick = viewModel::onSetsClick,
                         onReorder = viewModel::onReorder,
                         onFormChange = viewModel::onFormChange,
                         onVariationToggle = viewModel::onVariationToggle,

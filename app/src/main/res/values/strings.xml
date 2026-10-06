@@ -19,6 +19,12 @@
     <string name="cd_increase_weight">Gewicht erhöhen</string>
     <string name="cd_decrease_weight">Gewicht senken</string>
     <string name="action_weight_step_back">Einen Schritt zurück</string>
+    <string name="action_log_sets">Sätze protokollieren</string>
+    <!-- Zustand des Sätze-Chips mit Protokoll: „2 von 3 Sätzen protokolliert“. -->
+    <plurals name="cd_sets_progress">
+        <item quantity="one">%1$d von %2$d Satz protokolliert</item>
+        <item quantity="other">%1$d von %2$d Sätzen protokolliert</item>
+    </plurals>
     <string name="cd_add_exercise">Übung hinzufügen</string>
     <!-- Zustand eines Tagesreiters, dessen Training in der laufenden Runde abgehakt ist. -->
     <string name="cd_day_done">erledigt</string>

@@ -96,7 +96,7 @@ import de.beispiel.meintraining.ui.timer.RestTimerRoute
 import de.beispiel.meintraining.ui.tracking.TrackingRoute
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.WeightHistory
-import de.beispiel.meintraining.util.deloadSets
+import de.beispiel.meintraining.util.setsThisWeek
 import de.beispiel.meintraining.util.exerciseTitle
 import de.beispiel.meintraining.util.noteLine
 import de.beispiel.meintraining.util.toSetsRepsLabel
@@ -386,8 +386,7 @@ private fun TrainingContent(
                             weightLabel = exercise.weightKg?.toWeightLabel(unit),
                             // In der Deload-Woche zeigt die Liste halbierte Sätze; der
                             // gespeicherte Plan bleibt davon unberührt.
-                            setsLabel = exercise.sets
-                                .let { if (uiState.deload.isDeloadWeek) deloadSets(it) else it }
+                            setsLabel = setsThisWeek(exercise.sets, uiState.deload.isDeloadWeek)
                                 .toSetsRepsLabel(
                                     repsMin = exercise.repsMin,
                                     repsMax = exercise.repsMax
@@ -403,6 +402,8 @@ private fun TrainingContent(
                             onProgressClick = { actions.onProgressClick(exercise) },
                             onProgressLongClick = { actions.onProgressLongClick(exercise) },
                             progressionDown = exercise.progressionDown,
+                            setsProgress = uiState.setLogRows[exercise.id]?.progress,
+                            onSetsClick = { actions.onSetsClick(exercise) },
                             modifier = Modifier.semantics {
                                 customActions = buildList {
                                     if (index > 0) {

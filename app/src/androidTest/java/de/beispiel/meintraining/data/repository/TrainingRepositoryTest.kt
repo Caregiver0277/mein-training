@@ -405,7 +405,7 @@ class TrainingRepositoryTest {
      */
     @Test
     fun saetzeLassenSichKorrigierenUndLoeschenUndVariationenBleibenGetrennt() = runBlocking {
-        val seil = repository.logSet("Trizeps", "Seil", dayId = 1, setNumber = 1, reps = 12, weightKg = 20.0)
+        val seil = repository.logSet("Trizeps", "Seil", dayId = 1, setNumber = 1, reps = 12, weightKg = 20.0)!!
         repository.logSet("Trizeps", "Stange", dayId = 1, setNumber = 1, reps = 8, weightKg = 30.0)
         repository.logSet("Trizeps", null, dayId = 1, setNumber = 1, reps = 10, weightKg = 25.0)
 
@@ -421,6 +421,38 @@ class TrainingRepositoryTest {
         assertTrue(repository.observeSetLogs("Trizeps", "Seil").first().isEmpty())
         assertFalse(repository.updateSetLog(seil, reps = 5, weightKg = null))
         assertEquals(2, repository.observeSetLogs().first().size)
+    }
+
+    /**
+     * Ein zweites ✓ auf denselben Satz – etwa zwei schnelle Tipps – legt ihn nicht noch einmal
+     * an. Am nächsten Tag ist es eine neue Einheit, an einem anderen Trainingstag ebenso.
+     */
+    @Test
+    fun derselbeSatzInDerselbenEinheitEntstehtNurEinmal() = runBlocking {
+        val mittag = LocalDate.of(2026, 9, 1).atTime(12, 0)
+            .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val erster = repository.logSet("Dips", null, dayId = 1, setNumber = 1, reps = 8, weightKg = 10.0, performedAt = mittag)
+        val zweiter = repository.logSet("Dips", null, dayId = 1, setNumber = 1, reps = 9, weightKg = 10.0, performedAt = mittag + MINUTE)
+
+        assertTrue(erster != null)
+        assertNull(zweiter)
+        assertTrue(repository.logSet("Dips", null, dayId = 1, setNumber = 2, reps = 8, weightKg = 10.0, performedAt = mittag + MINUTE) != null)
+        assertTrue(repository.logSet("Dips", null, dayId = 3, setNumber = 1, reps = 8, weightKg = 10.0, performedAt = mittag + MINUTE) != null)
+        assertTrue(repository.logSet("Dips", null, dayId = 1, setNumber = 1, reps = 8, weightKg = 10.0, performedAt = mittag + 24 * 60 * MINUTE) != null)
+        assertEquals(4, repository.observeSetLogs("Dips", null).first().size)
+    }
+
+    /** Ein protokollierter Satz beginnt das Training wie die erste Pausenuhr. */
+    @Test
+    fun einProtokollierterSatzBeginntDasTraining() = runBlocking {
+        val beginn = System.currentTimeMillis() - 40 * MINUTE
+        repository.logSet("Rudern", null, dayId = 2, setNumber = 1, reps = 10, weightKg = 40.0, performedAt = beginn)
+        repository.logSet("Rudern", null, dayId = 2, setNumber = 2, reps = 10, weightKg = 40.0, performedAt = beginn + 20 * MINUTE)
+        assertEquals(beginn, settingsStore.workoutMarker()!!.startedAt)
+
+        repository.toggleWorkout(dayId = 2)
+
+        assertEquals(beginn, database.workoutSessionDao().latestForDay(2)!!.startedAt)
     }
 
     /** Wie der Gewichtsverlauf zieht das Protokoll beim Umbenennen der letzten Zeile mit. */

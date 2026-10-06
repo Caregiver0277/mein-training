@@ -30,6 +30,24 @@ interface SetLogDao {
     @Query("SELECT * FROM SetLog ORDER BY performedAt ASC, id ASC")
     suspend fun listAll(): List<SetLog>
 
+    /**
+     * Wie oft Satz [setNumber] dieser Übung an diesem Trainingstag zwischen [from] und [until]
+     * schon protokolliert ist – also in der Einheit dieses Kalendertages.
+     */
+    @Query(
+        "SELECT COUNT(*) FROM SetLog WHERE exerciseName = :name AND variation IS :variation " +
+            "AND dayId = :dayId AND setNumber = :setNumber " +
+            "AND performedAt >= :from AND performedAt < :until"
+    )
+    suspend fun countInUnit(
+        name: String,
+        variation: String?,
+        dayId: Int,
+        setNumber: Int,
+        from: Long,
+        until: Long
+    ): Int
+
     @Query("SELECT * FROM SetLog WHERE id = :id")
     suspend fun findById(id: Long): SetLog?
 

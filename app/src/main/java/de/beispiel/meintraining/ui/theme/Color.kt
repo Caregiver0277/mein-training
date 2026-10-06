@@ -27,6 +27,9 @@ val AccentBlueSurface = Color(0xFF16283F)
 
 val OutlineColor = Color(0xFF3A4049)
 
+/** Feiner blauer Rand um einen Sätze-Chip, der sich antippen lässt (Satz-Protokoll). */
+val LoggableChipOutline = Color(0xFF2C4C77)
+
 /** Grün für „erledigt“: der Haken unter der Liste und die Deload-Woche im Zyklus. */
 val AccentGreen = Color(0xFF3FA96B)
 val AccentGreenSurface = Color(0xFF16301F)

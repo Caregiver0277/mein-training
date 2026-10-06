@@ -54,6 +54,9 @@ import de.beispiel.meintraining.ui.theme.TextSecondary
  * der Name in dessen Spalte vor; die Sätze-Spalte bleibt dabei an ihrem Platz, weil sie
  * rechts am Pfeilbutton hängt. Sind beide leer, entfällt der Wertebereich ganz.
  *
+ * Mit [setsProgress] führt die Übung ein Satz-Protokoll: Der Sätze-Chip wird antippbar
+ * ([onSetsClick]) und zeigt den heutigen Stand (siehe [SetsChip]).
+ *
  * Den blauen Pfeil gibt es nur mit Gewicht – ohne Gewicht gäbe es nichts zu verschieben. Sein
  * Platz bleibt trotzdem frei, solange die Zeile Werte zeigt, damit die Spalten stehen bleiben.
  * Mit [progressionDown] zeigt er nach unten und senkt das Gewicht, statt es zu erhöhen.
@@ -75,6 +78,8 @@ fun ExerciseRow(
     note: String? = null,
     onProgressLongClick: () -> Unit = {},
     progressionDown: Boolean = false,
+    setsProgress: SetsProgress? = null,
+    onSetsClick: () -> Unit = {},
     isDragging: Boolean = false,
     isSelectable: Boolean = false,
     isSelected: Boolean = false,
@@ -148,7 +153,18 @@ fun ExerciseRow(
                 // Die Sätze-Spalte bleibt reserviert: Sie hält das Gewicht in seiner Spalte,
                 // auch wenn hier nichts steht.
                 Spacer(modifier = Modifier.width(Dimens.ChipSpacing))
-                ValueSlot(label = setsLabel, width = Dimens.ChipSetsWidth)
+                if (setsLabel != null && setsProgress != null) {
+                    SetsChip(
+                        label = setsLabel,
+                        progress = setsProgress,
+                        width = Dimens.ChipSetsWidth,
+                        enabled = !isSelectable,
+                        onClick = onSetsClick,
+                        onLongClick = onLongClick
+                    )
+                } else {
+                    ValueSlot(label = setsLabel, width = Dimens.ChipSetsWidth)
+                }
             }
             when {
                 // Verschieben kann man nur, was ein Gewicht hat.
@@ -233,7 +249,8 @@ private fun ExerciseRowPreview() {
             onLongClick = {},
             onProgressClick = {},
             modifier = Modifier.padding(Dimens.ScreenPaddingHorizontal),
-            note = "Kabel ganz oben · Ellbogen fest"
+            note = "Kabel ganz oben · Ellbogen fest",
+            setsProgress = SetsProgress(logged = 1, planned = 3)
         )
     }
 }

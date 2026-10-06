@@ -9,10 +9,13 @@ import de.beispiel.meintraining.MeinTrainingApp
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.repository.TrainingRepository
+import de.beispiel.meintraining.ui.components.SetsProgress
 import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
 import de.beispiel.meintraining.util.RotationEntry
+import de.beispiel.meintraining.util.SetLogKey
+import de.beispiel.meintraining.util.SetUnit
 import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
@@ -20,8 +23,11 @@ import de.beispiel.meintraining.util.deloadStatus
 import de.beispiel.meintraining.util.parseOptionalDecimal
 import de.beispiel.meintraining.util.parseOptionalInt
 import de.beispiel.meintraining.util.parseProgressionStep
+import de.beispiel.meintraining.util.setUnitsByExercise
+import de.beispiel.meintraining.util.setsThisWeek
 import de.beispiel.meintraining.util.toDecimalString
 import de.beispiel.meintraining.util.toLocalDate
+import de.beispiel.meintraining.util.todaysUnit
 import de.beispiel.meintraining.util.weightHistory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -40,6 +46,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 class TrainingViewModel(
     private val repository: TrainingRepository,
@@ -149,6 +156,17 @@ class TrainingViewModel(
     private val sessions = repository.observeSessions()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
 
+    /**
+     * Das Satz-Protokoll, nach Übung zerlegt und in Einheiten gefasst – einmal je Änderung und
+     * nicht bei jedem Zusammensetzen der Liste, das schon eine umspringende Markierung auslöst.
+     *
+     * `shareIn` aus demselben Grund wie bei [sessions]: Mit einem leeren Anfangswert stünden die
+     * Sätze-Chips beim Öffnen einen Moment lang leer da.
+     */
+    private val setLogUnits = repository.observeSetLogs()
+        .map { setUnitsByExercise(it) }
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
+
     private val dayState = combine(
         repository.observeDays(),
         repository.selectedDayId
@@ -209,7 +227,8 @@ class TrainingViewModel(
                 sessionDates = entriesOldestFirst.map { it.date },
                 today = today,
                 cycleWeeks = cycleWeeks
-            )
+            ),
+            today = today
         )
     }
 
@@ -229,7 +248,9 @@ class TrainingViewModel(
         val completedDayIds: Set<Int>,
         val canReturnToPreviousCycle: Boolean,
         val todaysDayIds: Set<Int>,
-        val deload: DeloadStatus
+        val deload: DeloadStatus,
+        /** Das Datum, mit dem gerechnet wurde – das Satz-Protokoll braucht dasselbe „heute“. */
+        val today: LocalDate
     )
 
     /**
@@ -247,10 +268,16 @@ class TrainingViewModel(
         val completedDayIds: Set<Int>,
         val canReturnToPreviousCycle: Boolean,
         val todaysDayIds: Set<Int>,
-        val deload: DeloadStatus
+        val deload: DeloadStatus,
+        val today: LocalDate,
+        val setLogUnits: Map<SetLogKey, List<SetUnit>>
     )
 
-    private val surroundings = combine(preferences, sessionSummary) { prefs, summary ->
+    private val surroundings = combine(
+        preferences,
+        sessionSummary,
+        setLogUnits
+    ) { prefs, summary, units ->
         Surroundings(
             dayCount = prefs.dayCount,
             title = prefs.title,
@@ -258,7 +285,9 @@ class TrainingViewModel(
             completedDayIds = summary.completedDayIds,
             canReturnToPreviousCycle = summary.canReturnToPreviousCycle,
             todaysDayIds = summary.todaysDayIds,
-            deload = summary.deload
+            deload = summary.deload,
+            today = summary.today,
+            setLogUnits = units
         )
     }
 
@@ -298,13 +327,35 @@ class TrainingViewModel(
             canReturnToPreviousCycle = around.canReturnToPreviousCycle,
             todaysDayIds = around.todaysDayIds,
             deload = around.deload,
-            appTitle = around.title
+            appTitle = around.title,
+            setLogRows = setLogRows(exerciseList, around)
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
         initialValue = TrainingUiState()
     )
+
+    /**
+     * Der heutige Stand des Satz-Protokolls je Zeile – nur für Übungen mit eingeschaltetem
+     * Protokoll und einer Sätze-Zahl; alle anderen sehen aus wie immer.
+     *
+     * Gezählt wird diese Übung samt Variation an diesem Trainingstag, gegen die Sätze, die diese
+     * Woche gelten (siehe [setsThisWeek]).
+     */
+    private fun setLogRows(
+        exercises: List<ExerciseItem>,
+        around: Surroundings
+    ): Map<Long, SetLogRowState> = exercises.mapNotNull { exercise ->
+        if (!exercise.logSets) return@mapNotNull null
+        val planned = setsThisWeek(exercise.sets, around.deload.isDeloadWeek)
+            ?.takeIf { it >= 1 } ?: return@mapNotNull null
+        val units = around.setLogUnits[SetLogKey(exercise.name, exercise.variation)].orEmpty()
+        val today = todaysUnit(units, exercise.dayId, around.today)
+        exercise.id to SetLogRowState(
+            progress = SetsProgress(logged = today?.plannedLogged(planned) ?: 0, planned = planned)
+        )
+    }.toMap()
 
     init {
         viewModelScope.launch {
@@ -631,6 +682,16 @@ class TrainingViewModel(
                 )
             )
         }
+    }
+
+    // --- Satz-Protokoll -----------------------------------------------------
+
+    /** Die Zeile, deren Satz-Protokoll offen ist; `null`: keines. */
+    private val setLogTargetId = MutableStateFlow<Long?>(null)
+
+    /** Tippen auf den Sätze-Chip einer Übung mit Protokoll öffnet das Sheet „Satz-Protokoll“. */
+    fun onSetsClick(exercise: ExerciseItem) {
+        setLogTargetId.value = exercise.id
     }
 
     // --- Rückgängig --------------------------------------------------------

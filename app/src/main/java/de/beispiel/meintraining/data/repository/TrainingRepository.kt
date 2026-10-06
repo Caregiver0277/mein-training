@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Ergebnis einer Gewichtsänderung – je nach Richtung der Übung eine Erhöhung oder eine Senkung.
@@ -160,6 +161,15 @@ class TrainingRepository(
     /**
      * Speichert einen Satz sofort – protokolliert wird während des Trainings, nicht am Ende.
      * Liefert die Kennung, über die er sich korrigieren und löschen lässt.
+     *
+     * Steht Satz [setNumber] in dieser Einheit (siehe [SetLog]) schon da, wird nichts gespeichert
+     * und es kommt `null` zurück. Entschieden wird das hier in einer Transaktion und nicht im
+     * Sheet: Dessen Anzeige hinkt der Datenbank ein paar Bilder hinterher, und zwei schnelle
+     * Tipps auf ✓ legten sonst denselben Satz zweimal an.
+     *
+     * Ein gespeicherter Satz gehört zum Training: Er meldet sich bei [reportActivity] – damit
+     * beginnt ein Training, oder das laufende geht weiter. Korrigieren und Löschen tun das nicht;
+     * das geschieht auch noch nach dem Abhaken und begänne sonst ein neues Training.
      */
     suspend fun logSet(
         name: String,
@@ -169,17 +179,34 @@ class TrainingRepository(
         reps: Int,
         weightKg: Double?,
         performedAt: Long = System.currentTimeMillis()
-    ): Long = setLogDao.insert(
-        SetLog(
-            exerciseName = name,
-            variation = variation,
-            dayId = dayId,
-            performedAt = performedAt,
-            setNumber = setNumber,
-            reps = reps,
-            weightKg = weightKg
-        )
-    )
+    ): Long? {
+        val date = performedAt.toLocalDate()
+        val zone = ZoneId.systemDefault()
+        val id = database.withTransaction {
+            val existing = setLogDao.countInUnit(
+                name = name,
+                variation = variation,
+                dayId = dayId,
+                setNumber = setNumber,
+                from = date.atStartOfDay(zone).toInstant().toEpochMilli(),
+                until = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            )
+            if (existing > 0) return@withTransaction null
+            setLogDao.insert(
+                SetLog(
+                    exerciseName = name,
+                    variation = variation,
+                    dayId = dayId,
+                    performedAt = performedAt,
+                    setNumber = setNumber,
+                    reps = reps,
+                    weightKg = weightKg
+                )
+            )
+        } ?: return null
+        reportActivity(dayId = dayId, at = performedAt)
+        return id
+    }
 
     /**
      * Korrigiert Wiederholungen und Gewicht eines gespeicherten Satzes. Name, Tag, Zeitpunkt und

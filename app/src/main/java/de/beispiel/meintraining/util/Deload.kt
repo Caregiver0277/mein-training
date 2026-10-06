@@ -99,3 +99,6 @@ fun deloadStatus(
  * ohne das Training auf ein Alibi zusammenzustreichen.
  */
 fun deloadSets(sets: Int?): Int? = sets?.let { ceil(it / 2.0).toInt().coerceAtLeast(1) }
+
+/** Die Sätze, die diese Woche gelten: in der Deload-Woche halbiert, sonst wie geplant. */
+fun setsThisWeek(sets: Int?, isDeloadWeek: Boolean): Int? = if (isDeloadWeek) deloadSets(sets) else sets

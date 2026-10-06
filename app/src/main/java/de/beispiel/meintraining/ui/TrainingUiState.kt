@@ -6,6 +6,7 @@ import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.FIRST_DAY_ID
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.repository.ExerciseTransfer
+import de.beispiel.meintraining.ui.components.SetsProgress
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.DeloadStatus
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
@@ -29,7 +30,12 @@ data class TrainingUiState(
     val todaysDayIds: Set<Int> = emptySet(),
     val deload: DeloadStatus = DeloadStatus(),
     /** Selbst vergebene Überschrift; leer heißt: Vorgabe aus den Textressourcen. */
-    val appTitle: String = ""
+    val appTitle: String = "",
+    /**
+     * Stand des Satz-Protokolls je Zeile, nach Kennung – nur für Zeilen, deren Sätze sich
+     * protokollieren lassen (Schalter an und eine Sätze-Zahl).
+     */
+    val setLogRows: Map<Long, SetLogRowState> = emptyMap()
 ) {
     /** Ist der angezeigte Tag in dieser Runde schon erledigt? */
     val isSelectedDayCompleted: Boolean get() = selectedDayId in completedDayIds
@@ -87,6 +93,15 @@ data class TrainingUiState(
 }
 
 /**
+ * Das Satz-Protokoll einer Zeile, wie die Liste es zeigt: der heutige Stand im Sätze-Chip.
+ *
+ * Bezogen auf *diese* Zeile – diese Übung samt Variation an diesem Trainingstag mit ihrer
+ * Vorgabe –, nicht auf den Namen: Dieselbe Übung kann an einem anderen Tag andere Sätze haben.
+ */
+@Immutable
+data class SetLogRowState(val progress: SetsProgress)
+
+/**
  * Alle Aktionen des Hauptscreens in einem Bündel.
  *
  * Einzeln durchgereicht waren es zwanzig Rückrufe: Jede neue Aktion musste an vier Stellen
@@ -114,6 +129,7 @@ data class TrainingActions(
     val onMoveSelected: (Int) -> Unit = {},
     val onProgressClick: (ExerciseItem) -> Unit = {},
     val onProgressLongClick: (ExerciseItem) -> Unit = {},
+    val onSetsClick: (ExerciseItem) -> Unit = {},
     val onReorder: (List<Long>) -> Unit = {},
     val onFormChange: (ExerciseForm) -> Unit = {},
     val onVariationToggle: () -> Unit = {},
