@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
+import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.data.repository.TrainingRepository
@@ -14,6 +15,7 @@ import de.beispiel.meintraining.util.RotationEntry
 import de.beispiel.meintraining.util.rotations
 import de.beispiel.meintraining.util.toLocalDate
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -95,6 +97,14 @@ class HistoryViewModel(
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
         initialValue = HistoryUiState()
     )
+
+    /**
+     * Das Satz-Protokoll für die Ansicht eines angetippten Eintrags. Eigener Zufluss statt eines
+     * sechsten in [uiState]: Dort hängt die Rundenrechnung dran, und die muss nicht neu laufen,
+     * wenn ein Satz dazukommt.
+     */
+    val setLogs: StateFlow<List<SetLog>> = repository.observeSetLogs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
     /** Entfernt einen versehentlich abgehakten Eintrag aus dem Verlauf. */
     fun onDeleteSession(sessionId: Long) {

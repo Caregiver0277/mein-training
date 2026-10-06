@@ -142,6 +142,35 @@ private const val WEIGHT_TOLERANCE_KG = 1e-6
 fun suggestedReps(last: SetUnit?, setNumber: Int, repsMin: Int?, repsMax: Int?): Int =
     last?.set(setNumber)?.reps ?: repsMin ?: repsMax ?: DEFAULT_LOGGED_REPS
 
+/** Die Sätze einer Übung in einem Training – eine Zeile in der Ansicht eines Verlaufseintrags. */
+data class ExerciseSets(val name: String, val variation: String?, val sets: List<SetLog>)
+
+/**
+ * Was an [date] für Trainingstag [dayId] protokolliert wurde, je Übung samt Variation – für den
+ * angetippten Eintrag im Verlauf.
+ *
+ * Die Übungen stehen in der Reihenfolge, in der trainiert wurde (ihr erster Satz), ihre Sätze
+ * nach Nummer. Zwei Trainings desselben Tages am selben Datum teilen sich ihre Sätze: Gefasst
+ * wird wie überall nach Kalendertag (siehe [setUnits]).
+ */
+fun setsOfSession(
+    logsOldestFirst: List<SetLog>,
+    dayId: Int,
+    date: LocalDate,
+    zone: ZoneId = ZoneId.systemDefault()
+): List<ExerciseSets> = logsOldestFirst
+    .filter { it.dayId == dayId && it.performedAt.toLocalDate(zone) == date }
+    .groupBy { SetLogKey(it.exerciseName, it.variation) }
+    .entries
+    .sortedBy { (_, sets) -> sets.minOf { it.performedAt } }
+    .map { (key, sets) ->
+        ExerciseSets(
+            name = key.name,
+            variation = key.variation,
+            sets = sets.sortedWith(compareBy({ it.setNumber }, { it.performedAt }, { it.id }))
+        )
+    }
+
 /**
  * Eine Folge von Sätzen in einer Zeile: `"60 kg × 12 / 11 / 10"`.
  *

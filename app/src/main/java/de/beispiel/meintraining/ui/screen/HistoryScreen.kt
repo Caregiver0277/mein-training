@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
@@ -31,12 +33,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.beispiel.meintraining.R
+import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.ui.components.dayLabel
@@ -51,7 +55,12 @@ import de.beispiel.meintraining.ui.theme.MeinTrainingTheme
 import de.beispiel.meintraining.ui.theme.MenuButtonIcon
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
+import de.beispiel.meintraining.util.ExerciseSets
 import de.beispiel.meintraining.util.durationMinutes
+import de.beispiel.meintraining.util.exerciseTitle
+import de.beispiel.meintraining.util.formatSetSeries
+import de.beispiel.meintraining.util.setsOfSession
+import de.beispiel.meintraining.util.toDecimalString
 import de.beispiel.meintraining.util.formatFullDate
 import de.beispiel.meintraining.util.sessionsInLastDays
 import de.beispiel.meintraining.util.toClockTime
@@ -63,8 +72,10 @@ import java.time.temporal.ChronoUnit
 fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val setLogs by viewModel.setLogs.collectAsStateWithLifecycle()
     HistoryScreen(
         cycles = uiState.cycles,
+        setLogs = setLogs,
         days = uiState.days,
         selectableDays = uiState.selectableDays,
         today = uiState.today,
@@ -93,13 +104,16 @@ fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
  * dieselbe Zählweise wie unter „Statistiken“, wo „Trainings“ seit jeher die Einträge meint.
  *
  * Das „+“ in der Kopfzeile trägt ein vergessenes Training nach, der lange Druck auf eine Zeile
- * nimmt genau dieses eine wieder heraus.
+ * nimmt genau dieses eine wieder heraus. Ein Tippen zeigt das Training im Einzelnen: Dauer und
+ * die protokollierten Sätze, nur zum Lesen.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HistoryScreen(
     /** Die Runden mit ihren Trainings, jüngste zuerst – siehe [HistoryUiState.cycles]. */
     cycles: List<HistoryCycle>,
+    /** Das Satz-Protokoll, ältester Satz zuerst – für die Ansicht eines Eintrags. */
+    setLogs: List<SetLog>,
     days: List<TrainingDay>,
     /** Die Tage, die beim Nachtragen zur Wahl stehen – siehe [HistoryUiState.selectableDays]. */
     selectableDays: List<TrainingDay>,
@@ -112,6 +126,8 @@ fun HistoryScreen(
 ) {
     /** Der Eintrag, der gerade zum Löschen ansteht. */
     var pendingDeletion by remember { mutableStateOf<HistoryEntry?>(null) }
+    /** Der Eintrag, dessen Einzelheiten gerade offen sind. */
+    var opened by remember { mutableStateOf<HistoryEntry?>(null) }
     var isAdding by rememberSaveable { mutableStateOf(false) }
     val entries = remember(cycles) { cycles.flatMap { it.entries } }
     val dayNames = remember(days) { days.associate { it.id to it.name } }
@@ -193,6 +209,7 @@ fun HistoryScreen(
                         date = entry.date,
                         today = today,
                         label = entry.label(dayNames),
+                        onClick = { opened = entry },
                         // Langer Druck fragt nach, statt sofort zu löschen – die Snackbar mit
                         // „Rückgängig“ ist irgendwann weg, ein Fehlgriff soll bleiben können.
                         onLongClick = { pendingDeletion = entry }
@@ -212,6 +229,17 @@ fun HistoryScreen(
                 onAddSession(dayId, completedAt, startedAt)
             },
             onDismiss = { isAdding = false }
+        )
+    }
+
+    opened?.let { entry ->
+        SessionDetailDialog(
+            entry = entry,
+            dayName = dayLabel(entry.session.dayId, dayNames[entry.session.dayId]),
+            sets = remember(setLogs, entry) {
+                setsOfSession(setLogs, entry.session.dayId, entry.date)
+            },
+            onDismiss = { opened = null }
         )
     }
 
@@ -251,6 +279,76 @@ fun HistoryScreen(
             }
         )
     }
+}
+
+/**
+ * Ein Training im Einzelnen, nur zum Lesen: Tag und Uhrzeit, die Dauer und was an diesem Tag für
+ * diesen Trainingstag protokolliert wurde – je Übung eine Zeile wie im Satz-Protokoll.
+ */
+@Composable
+private fun SessionDetailDialog(
+    entry: HistoryEntry,
+    dayName: String,
+    sets: List<ExerciseSets>,
+    onDismiss: () -> Unit
+) {
+    val resources = LocalResources.current
+    val weightLabel: (Double) -> String = { weight ->
+        resources.getString(R.string.set_log_kg, weight.toDecimalString())
+    }
+    val minutes = durationMinutes(entry.session.startedAt, entry.session.completedAt)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CardBackground,
+        titleContentColor = TextPrimary,
+        textContentColor = TextSecondary,
+        title = { Text(text = formatFullDate(entry.date)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall / 2)
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.history_entry,
+                        dayName,
+                        entry.session.completedAt.toClockTime()
+                    ),
+                    style = AppTextStyles.Body,
+                    color = TextPrimary
+                )
+                Text(
+                    text = if (minutes == null) {
+                        stringResource(R.string.history_detail_duration_unknown)
+                    } else {
+                        stringResource(R.string.history_detail_duration, minutes)
+                    },
+                    style = AppTextStyles.Body
+                )
+                Spacer(modifier = Modifier.height(Dimens.SectionSpacingSmall))
+                if (sets.isEmpty()) {
+                    Text(text = stringResource(R.string.history_detail_no_sets), style = AppTextStyles.Body)
+                }
+                sets.forEach { exercise ->
+                    Text(
+                        text = exerciseTitle(exercise.name, exercise.variation),
+                        style = AppTextStyles.ExerciseName,
+                        color = TextPrimary,
+                        modifier = Modifier.padding(top = Dimens.SectionSpacingSmall / 2)
+                    )
+                    Text(
+                        text = formatSetSeries(exercise.sets, weightLabel),
+                        style = AppTextStyles.Body
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_close), color = AccentBlue)
+            }
+        }
+    )
 }
 
 /** Die Zahlen der Bilanz über der Liste. */
@@ -352,6 +450,7 @@ private fun HistoryRow(
     date: LocalDate,
     today: LocalDate,
     label: String,
+    onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
     Row(
@@ -361,7 +460,8 @@ private fun HistoryRow(
             .background(CardBackground)
             // Benannt, damit TalkBack den langen Druck als „Löschen“ ansagt statt als stumme Geste.
             .combinedClickable(
-                onClick = {},
+                onClick = onClick,
+                onClickLabel = stringResource(R.string.history_show_details),
                 onLongClick = onLongClick,
                 onLongClickLabel = stringResource(R.string.action_delete)
             )
@@ -449,6 +549,7 @@ private fun HistoryScreenPreview() {
                     dayCount = 4
                 )
             ),
+            setLogs = emptyList(),
             days = (1..4).map { TrainingDay(id = it, name = "Tag $it") },
             selectableDays = (1..4).map { TrainingDay(id = it, name = "Tag $it") },
             today = LocalDate.now(),

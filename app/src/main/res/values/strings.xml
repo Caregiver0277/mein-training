@@ -94,6 +94,7 @@
     <string name="action_move_up">Nach oben verschieben</string>
     <string name="action_move_down">Nach unten verschieben</string>
     <string name="action_back">Zurück</string>
+    <string name="action_close">Schließen</string>
 
     <string name="action_done">Fertig</string>
     <string name="action_superset">Superset</string>
@@ -310,6 +311,10 @@
     <string name="history_today">heute</string>
     <string name="history_yesterday">gestern</string>
     <string name="history_future">in der Zukunft</string>
+    <string name="history_show_details">Einzelheiten zeigen</string>
+    <string name="history_detail_duration">Dauer: %1$d min</string>
+    <string name="history_detail_duration_unknown">Dauer: nicht gemessen</string>
+    <string name="history_detail_no_sets">An diesem Tag sind für diesen Trainingstag keine Sätze protokolliert.</string>
     <string name="history_delete_title">Eintrag löschen?</string>
     <string name="history_delete_body">„%1$s“ vom %2$s wird aus dem Verlauf entfernt. Das beeinflusst auch die Deload-Berechnung.</string>
 

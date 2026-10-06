@@ -210,6 +210,32 @@ class SetLoggingTest {
         assertEquals(DEFAULT_LOGGED_REPS, suggestedReps(null, setNumber = 1, repsMin = null, repsMax = null))
     }
 
+    // --- Verlauf -------------------------------------------------------------
+
+    /** Nur dieser Tag an diesem Datum, je Übung samt Variation, in Trainingsreihenfolge. */
+    @Test
+    fun einVerlaufseintragZeigtDieSaetzeDiesesTagesJeUebung() {
+        val trizepsSeil = satz(HEUTE, dayId = 2, number = 1, reps = 15, hour = 19)
+            .copy(exerciseName = "Trizeps", variation = "Seil")
+        val trizepsStange = satz(HEUTE, dayId = 2, number = 1, reps = 9, hour = 19)
+            .copy(exerciseName = "Trizeps", variation = "Stange", performedAt = trizepsSeil.performedAt + 1)
+        val logs = listOf(
+            satz(HEUTE.minusDays(1), dayId = 2, number = 1, reps = 7),
+            satz(HEUTE, dayId = 2, number = 2, reps = 11, hour = 18),
+            satz(HEUTE, dayId = 2, number = 1, reps = 12, hour = 18),
+            satz(HEUTE, dayId = 1, number = 1, reps = 5, hour = 18),
+            trizepsSeil,
+            trizepsStange
+        ).sortedBy { it.performedAt }
+
+        val session = setsOfSession(logs, dayId = 2, date = HEUTE, zone = ZONE)
+
+        assertEquals(listOf("Bankdrücken", "Trizeps", "Trizeps"), session.map { it.name })
+        assertEquals(listOf(null, "Seil", "Stange"), session.map { it.variation })
+        assertEquals(listOf(12, 11), session.first().sets.map { it.reps })
+        assertTrue(setsOfSession(logs, dayId = 3, date = HEUTE, zone = ZONE).isEmpty())
+    }
+
     // --- Schreibweise --------------------------------------------------------
 
     @Test
