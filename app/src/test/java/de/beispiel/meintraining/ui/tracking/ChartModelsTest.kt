@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.ui.tracking
 
+import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.WeightLog
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -64,47 +65,177 @@ class ChartModelsTest {
 
     // --- Linien ------------------------------------------------------------
 
+    /** Die Linien für den Zeitraum, mit „A“ und „B“ als Übungen, die noch trainiert werden. */
+    private fun seriesFor(
+        logs: List<WeightLog>,
+        range: TimeRange = TimeRange.MONTH_1,
+        names: List<String> = listOf("A"),
+        activeNames: Set<String> = setOf("A", "B"),
+        year: Int = 2026
+    ): List<ChartSeries> =
+        buildSeries(logs, names, timeWindowFor(range, year, logs, NOW, ZONE), NOW, activeNames)
+
     @Test
-    fun dieLinieEndetBeimLetztenPunkt() {
-        // Keine Stützstelle am rechten Rand: Wo nichts eingetragen wurde, läuft keine Linie.
+    fun derLetzteStandLaeuftBisHeuteWeiter() {
         val logs = listOf(log("A", 20.0, 20), log("A", 22.5, 10))
-        val window = timeWindowFor(TimeRange.MONTH_1, 2026, logs, NOW, ZONE)
 
-        val series = buildSeries(logs, listOf("A"), window).single()
+        val points = seriesFor(logs).single().points
 
-        assertEquals(2, series.points.size)
-        assertEquals(logs.last().recordedAt, series.points.last().timeMillis)
-        assertEquals(22.5, series.points.last().weightKg, 0.0)
+        assertEquals(3, points.size)
+        assertEquals(logs.last().recordedAt, points[1].timeMillis)
+        assertFalse(points[1].isCarried)
+        // Kein Messpunkt, sondern der übernommene Stand – genau bis heute, nicht bis zum Rand.
+        assertEquals(ChartPoint(NOW, 22.5, isCarried = true), points.last())
     }
 
     @Test
-    fun aeltereAenderungenVorDemFensterZaehlenNichtMehr() {
-        // Früher trug dieser Eintrag den linken Rand; jetzt gibt es im Fenster nichts zu zeigen.
+    fun einStandVonVorDemZeitraumBeginntDieLinieAmLinkenRand() {
+        val logs = listOf(log("A", 40.0, 200), log("A", 42.5, 10))
+        val window = timeWindowFor(TimeRange.MONTH_1, 2026, logs, NOW, ZONE)
+
+        val points = buildSeries(logs, listOf("A"), window, NOW, setOf("A")).single().points
+
+        assertEquals(ChartPoint(window.startMillis, 40.0, isCarried = true), points.first())
+        assertEquals(42.5, points[1].weightKg, 0.0)
+        assertFalse(points[1].isCarried)
+    }
+
+    /** Der Fehler von früher: Ohne Änderung im Zeitraum verschwand die Übung ganz. */
+    @Test
+    fun eineUebungOhneAenderungImZeitraumBleibtAlsLinieStehen() {
         val logs = listOf(log("A", 40.0, 200))
         val window = timeWindowFor(TimeRange.MONTH_1, 2026, logs, NOW, ZONE)
 
-        assertTrue(buildSeries(logs, listOf("A"), window).isEmpty())
+        val points = seriesFor(logs).single().points
+
+        assertEquals(
+            listOf(
+                ChartPoint(window.startMillis, 40.0, isCarried = true),
+                ChartPoint(NOW, 40.0, isCarried = true)
+            ),
+            points
+        )
     }
 
     @Test
-    fun eineEinzelneAenderungBleibtAlsPunktSichtbar() {
-        val logs = listOf(log("A", 20.0, 5))
-        val window = timeWindowFor(TimeRange.MONTH_1, 2026, logs, NOW, ZONE)
+    fun einVergangenesJahrLaeuftBisZuSeinemEnde() {
+        val logs = listOf(log("A", 30.0, 600), log("A", 32.5, 400))
+        val window = timeWindowFor(TimeRange.MANUAL_YEAR, 2025, logs, NOW, ZONE)
 
-        val series = buildSeries(logs, listOf("A"), window).single()
+        val points = seriesFor(logs, TimeRange.MANUAL_YEAR, year = 2025).single().points
 
-        assertEquals(1, series.points.size)
-        assertEquals(20.0, series.points.single().weightKg, 0.0)
+        // 600 Tage zurück liegt 2024: Der Stand trägt den linken Rand, 2025 kommt 32,5 dazu.
+        assertEquals(30.0, points.first().weightKg, 0.0)
+        assertTrue(points.first().isCarried)
+        assertEquals(ChartPoint(window.endMillis, 32.5, isCarried = true), points.last())
     }
 
     @Test
-    fun uebungenOhneDatenImFensterEntfallen() {
-        val logs = listOf(log("A", 20.0, 5))
-        val window = timeWindowFor(TimeRange.MONTH_1, 2026, logs, NOW, ZONE)
+    fun eineNichtMehrTrainierteUebungEndetBeimLetztenPunkt() {
+        val logs = listOf(log("C", 20.0, 20), log("C", 22.5, 10))
 
-        val series = buildSeries(logs, listOf("A", "B"), window)
+        val points = seriesFor(logs, names = listOf("C")).single().points
+
+        assertEquals(2, points.size)
+        assertTrue(points.none { it.isCarried })
+        assertEquals(logs.last().recordedAt, points.last().timeMillis)
+    }
+
+    @Test
+    fun eineVorDemZeitraumAufgegebeneUebungFehltDarin() {
+        // Ihr Stand galt nur, solange sie trainiert wurde – und das war vor dem Zeitraum.
+        val logs = listOf(log("C", 40.0, 200))
+
+        assertTrue(seriesFor(logs, names = listOf("C")).isEmpty())
+    }
+
+    @Test
+    fun eineAufgegebeneUebungLaeuftBisZuIhremLetztenEintragWeiter() {
+        // Vor dem Zeitraum eingetragen, im Zeitraum noch einmal: Der alte Stand trägt den Rand.
+        val logs = listOf(log("C", 40.0, 200), log("C", 40.0, 10))
+
+        val points = seriesFor(logs, names = listOf("C")).single().points
+
+        assertTrue(points.first().isCarried)
+        assertFalse(points.last().isCarried)
+    }
+
+    @Test
+    fun eineEinzelneAenderungOhneVorgeschichteBleibtAlsPunktSichtbar() {
+        val logs = listOf(log("C", 20.0, 5))
+
+        val series = seriesFor(logs, names = listOf("C")).single()
+
+        assertEquals(listOf(ChartPoint(logs.single().recordedAt, 20.0)), series.points)
+    }
+
+    @Test
+    fun uebungenOhneDatenEntfallen() {
+        val logs = listOf(log("A", 20.0, 5))
+
+        val series = seriesFor(logs, names = listOf("A", "B"))
 
         assertEquals(listOf("A"), series.map { it.name })
+    }
+
+    @Test
+    fun spaetereEintraegeTragenEinVergangenesJahrNicht() {
+        // Erst im Juli 2026 eingetragen: 2025 gab es diesen Stand noch nicht.
+        val logs = listOf(log("A", 20.0, 0))
+
+        assertTrue(seriesFor(logs, TimeRange.MANUAL_YEAR, year = 2025).isEmpty())
+    }
+
+    @Test
+    fun stueckeTrennenEchteVonUebernommenenStrecken() {
+        val series = ChartSeries(
+            "A",
+            listOf(
+                ChartPoint(0, 40.0, isCarried = true),
+                ChartPoint(1, 42.5),
+                ChartPoint(2, 45.0),
+                ChartPoint(3, 45.0, isCarried = true)
+            )
+        )
+
+        val pieces = series.pieces
+
+        assertEquals(listOf(true, false, true), pieces.map { it.isCarried })
+        assertEquals(listOf(1L, 2L), pieces[1].points.map { it.timeMillis })
+        assertTrue(ChartSeries("A", listOf(ChartPoint(0, 40.0))).pieces.isEmpty())
+    }
+
+    @Test
+    fun ausgeblendeteUndStillgelegteUebungenLaufenNichtWeiter() {
+        fun item(name: String, dayId: Int) = ExerciseItem(
+            id = 0, dayId = dayId, name = name, variation = null, sets = null, repsMin = null,
+            repsMax = null, position = 0, supersetId = null, weightKg = 20.0,
+            progressionStepKg = 2.5
+        )
+        val exercises = listOf(item("A", 1), item("B", 2), item("C", 6))
+
+        assertEquals(setOf("A"), activeExerciseNames(exercises, dayCount = 4, hiddenNames = setOf("B")))
+    }
+
+    // --- Leerer Graph ----------------------------------------------------
+
+    @Test
+    fun einLeererGraphNenntSeinenGrund() {
+        assertEquals(ChartEmptyReason.NOTHING_RECORDED, TrackingUiState().emptyReason)
+        assertEquals(
+            ChartEmptyReason.NOTHING_SELECTED,
+            TrackingUiState(trackedNames = listOf("A")).emptyReason
+        )
+        assertEquals(
+            ChartEmptyReason.NOTHING_IN_RANGE,
+            TrackingUiState(trackedNames = listOf("A"), visibleNames = setOf("A")).emptyReason
+        )
+        val series = listOf(ChartSeries("A", listOf(ChartPoint(0, 20.0))))
+        assertEquals(
+            null,
+            TrackingUiState(trackedNames = listOf("A"), visibleNames = setOf("A"), series = series)
+                .emptyReason
+        )
     }
 
     // --- X-Achse -----------------------------------------------------------

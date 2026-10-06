@@ -13,13 +13,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
-import de.beispiel.meintraining.R
 import de.beispiel.meintraining.ui.theme.AppTextStyles
 import de.beispiel.meintraining.ui.theme.ChartGridLine
 import de.beispiel.meintraining.ui.theme.Dimens
@@ -34,14 +32,22 @@ import kotlin.math.roundToInt
 
 /**
  * Verlaufsgraph der Gewichte. Waagerechte Hilfslinien erleichtern das Ablesen, jede
- * Gewichtsänderung bekommt einen Punkt, dazwischen laufen gerade Strecken. Vor dem ersten
- * und nach dem letzten Punkt einer Übung wird nichts gezeichnet.
+ * Gewichtsänderung bekommt einen Punkt, dazwischen laufen gerade Strecken.
+ *
+ * Ein Gewicht ist ein Zustand, der bis zur nächsten Änderung gilt: Ein Stand von vor dem
+ * Zeitraum beginnt die Linie am linken Rand, der letzte Stand läuft bis heute weiter (siehe
+ * [buildSeries]). Diese übernommenen Stücke sind dünner und blasser und tragen keinen Punkt –
+ * so bleiben echte Änderungen als Punkte erkennbar. Gestrichelt werden sie bewusst nicht:
+ * Strichmuster unterscheiden schon die Übungen voneinander (siehe [SeriesStyle]).
+ *
+ * [emptyText] steht da, wenn es nichts zu zeichnen gibt – warum, weiß nur der Aufrufer.
  */
 @Composable
 fun WeightChart(
     series: List<ChartSeries>,
     window: TimeWindow,
     ticks: List<AxisTick>,
+    emptyText: String,
     modifier: Modifier = Modifier
 ) {
     val measurer = rememberTextMeasurer()
@@ -55,7 +61,7 @@ fun WeightChart(
     ) {
         if (series.isEmpty()) {
             Text(
-                text = stringResource(R.string.tracking_empty),
+                text = emptyText,
                 style = AppTextStyles.Body,
                 color = TextSecondary
             )
@@ -207,32 +213,34 @@ private fun DrawScope.drawSeries(
     plotWidth: Float,
     plotHeight: Float
 ) {
-    val positions = line.points.map { point ->
-        Offset(
-            x = leftInset + xShare(point.timeMillis, window) * plotWidth,
-            y = yFor(point.weightKg, scale, plotHeight)
-        )
-    }
-    if (positions.size >= 2) {
+    fun positionOf(point: ChartPoint) = Offset(
+        x = leftInset + xShare(point.timeMillis, window) * plotWidth,
+        y = yFor(point.weightKg, scale, plotHeight)
+    )
+
+    line.pieces.forEach { piece ->
+        val positions = piece.points.map(::positionOf)
         val path = Path().apply {
             moveTo(positions.first().x, positions.first().y)
             positions.drop(1).forEach { lineTo(it.x, it.y) }
         }
+        // Übernommene Stücke behalten das Strichmuster ihrer Übung – sonst wären sie keiner
+        // mehr zuzuordnen – und unterscheiden sich nur in Stärke und Deckkraft.
         drawPath(
             path = path,
-            color = appearance.color,
+            color = if (piece.isCarried) appearance.color.copy(alpha = CARRIED_ALPHA) else appearance.color,
             style = Stroke(
-                width = SERIES_STROKE.toPx(),
+                width = (if (piece.isCarried) CARRIED_STROKE else SERIES_STROKE).toPx(),
                 pathEffect = appearance.style.pathEffect
             )
         )
     }
-    // Jeder Punkt ist eine eingetragene Änderung und wird auch als solcher gezeigt.
-    positions.forEach { position ->
+    // Jeder echte Punkt ist eine eingetragene Änderung und wird auch als solcher gezeigt.
+    line.points.filterNot { it.isCarried }.forEach { point ->
         drawCircle(
             color = appearance.color,
             radius = POINT_RADIUS.toPx(),
-            center = position
+            center = positionOf(point)
         )
     }
 }
@@ -257,6 +265,8 @@ private val LARGE_STEP_FACTORS = listOf(1.0, 2.0, 2.5, 5.0)
 private const val MAX_GRID_LINES = 12
 private val GRID_STROKE = 1.dp
 private val SERIES_STROKE = 2.dp
+private val CARRIED_STROKE = 1.dp
+private const val CARRIED_ALPHA = 0.5f
 private val POINT_RADIUS = 3.dp
 private val AXIS_GAP = 6.dp
 private val AXIS_LABEL_HEIGHT = 22.dp

@@ -80,6 +80,8 @@
         <item quantity="other">%1$d Datenpunkte</item>
     </plurals>
     <string name="tracking_empty">Noch keine Gewichte aufgezeichnet.</string>
+    <string name="tracking_empty_range">In diesem Zeitraum gibt es keine Gewichte.</string>
+    <string name="tracking_empty_selection">Keine Übung ausgewählt.</string>
 
     <!-- Einstellungen -->
     <string name="settings_general">Allgemein</string>

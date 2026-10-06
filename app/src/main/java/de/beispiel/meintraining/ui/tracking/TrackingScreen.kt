@@ -160,7 +160,14 @@ fun TrackingScreen(
         WeightChart(
             series = uiState.series,
             window = uiState.window,
-            ticks = uiState.ticks
+            ticks = uiState.ticks,
+            emptyText = stringResource(
+                when (uiState.emptyReason) {
+                    ChartEmptyReason.NOTHING_SELECTED -> R.string.tracking_empty_selection
+                    ChartEmptyReason.NOTHING_IN_RANGE -> R.string.tracking_empty_range
+                    else -> R.string.tracking_empty
+                }
+            )
         )
 
         Spacer(modifier = Modifier.height(Dimens.SectionSpacingMedium))

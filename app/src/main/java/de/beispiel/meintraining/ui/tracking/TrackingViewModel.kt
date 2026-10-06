@@ -44,6 +44,15 @@ data class TrackingUiState(
 ) {
     /** Sind alle bekannten Übungen sichtbar? Steuert den Umschalter im Auswahlfenster. */
     val allVisible: Boolean get() = trackedNames.isNotEmpty() && visibleNames.size == trackedNames.size
+
+    /** Warum der Graph leer ist; `null`, solange er etwas zeigt. */
+    val emptyReason: ChartEmptyReason?
+        get() = when {
+            series.isNotEmpty() -> null
+            trackedNames.isEmpty() -> ChartEmptyReason.NOTHING_RECORDED
+            visibleNames.isEmpty() -> ChartEmptyReason.NOTHING_SELECTED
+            else -> ChartEmptyReason.NOTHING_IN_RANGE
+        }
 }
 
 class TrackingViewModel(
@@ -73,6 +82,13 @@ class TrackingViewModel(
     private val logs = repository.observeWeightLogs()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
 
+    /** Die Übungen, deren letzter Stand bis heute weiterläuft – siehe [activeExerciseNames]. */
+    private val activeNames = combine(
+        repository.observeAllExercises(),
+        repository.dayCount,
+        repository.hiddenExerciseNames
+    ) { exercises, dayCount, hidden -> activeExerciseNames(exercises, dayCount, hidden) }
+
     /**
      * Der Graph für sich, getrennt von den Fensterzuständen.
      *
@@ -84,15 +100,17 @@ class TrackingViewModel(
         logs,
         combine(range, manualYear) { range, year -> range to year },
         hiddenNames,
+        activeNames,
         currentDate.flow
-    ) { logList, (selectedRange, year), hidden, _ ->
+    ) { logList, (selectedRange, year), hidden, active, _ ->
         // Groß- und Kleinschreibung darf die Liste nicht auseinanderreißen.
         val trackedNames = logList.map { it.exerciseName }.distinct()
             .sortedWith(String.CASE_INSENSITIVE_ORDER)
         val visibleNames = trackedNames.filterNot { hidden.contains(it) }.toSet()
         // Das Datum steuert nur, *wann* neu gerechnet wird; die Fensterkante braucht die
         // volle Genauigkeit und kommt deshalb weiterhin von der Uhr.
-        val window = timeWindowFor(selectedRange, year, logList, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        val window = timeWindowFor(selectedRange, year, logList, now)
 
         ChartState(
             range = selectedRange,
@@ -100,7 +118,7 @@ class TrackingViewModel(
             trackedNames = trackedNames,
             visibleNames = visibleNames,
             availableYears = logList.map { it.recordedAt.year() }.distinct().sorted(),
-            series = buildSeries(logList, visibleNames, window),
+            series = buildSeries(logList, visibleNames, window, now, active),
             window = window,
             ticks = buildTimeAxis(window)
         )

@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.ui.tracking
 
+import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.WeightLog
 import java.time.Instant
 import java.time.LocalDate
@@ -19,17 +20,60 @@ enum class TimeRange {
     MANUAL_YEAR
 }
 
-/** Ein Messpunkt im Graphen – immer eine tatsächlich eingetragene Gewichtsänderung. */
+/**
+ * Ein Punkt im Graphen.
+ *
+ * Meist eine tatsächlich eingetragene Gewichtsänderung. [isCarried] markiert die übernommenen
+ * Stände: am linken Rand den Wert, der schon vor dem Zeitraum galt, und am rechten Ende den
+ * letzten Stand, der bis heute weiterläuft. Sie tragen die Linie, sind aber keine Änderung –
+ * gezeichnet werden sie deshalb ohne Punkt und ihre Strecken blasser (siehe [WeightChart]).
+ */
 data class ChartPoint(
     val timeMillis: Long,
-    val weightKg: Double
+    val weightKg: Double,
+    val isCarried: Boolean = false
 )
 
-/** Der Verlauf einer Übung. */
+/** Der Verlauf einer Übung, ältester Punkt zuerst. */
 data class ChartSeries(
     val name: String,
     val points: List<ChartPoint>
-)
+) {
+    /**
+     * Die Linie, zerlegt in Stücke gleicher Art: echte Strecken zwischen zwei Änderungen und
+     * übernommene, die an einem übernommenen Stand hängen. Aufeinanderfolgende Strecken derselben
+     * Art bilden ein Stück, damit ein Strichmuster über die Punkte hinweg durchläuft.
+     */
+    val pieces: List<ChartPiece>
+        get() {
+            val result = mutableListOf<ChartPiece>()
+            points.zipWithNext().forEach { (from, to) ->
+                val isCarried = from.isCarried || to.isCarried
+                val last = result.lastOrNull()
+                if (last != null && last.isCarried == isCarried) {
+                    result[result.lastIndex] = last.copy(points = last.points + to)
+                } else {
+                    result += ChartPiece(listOf(from, to), isCarried)
+                }
+            }
+            return result
+        }
+}
+
+/** Ein zusammenhängendes Stück einer Linie, siehe [ChartSeries.pieces]. */
+data class ChartPiece(val points: List<ChartPoint>, val isCarried: Boolean)
+
+/** Warum der Graph leer ist – jeder Grund hat seinen eigenen Hinweis. */
+enum class ChartEmptyReason {
+    /** Es gibt überhaupt keinen Verlauf. */
+    NOTHING_RECORDED,
+
+    /** Alle Übungen sind abgewählt. */
+    NOTHING_SELECTED,
+
+    /** Die gewählten Übungen haben im Zeitraum keinen Stand. */
+    NOTHING_IN_RANGE
+}
 
 /** Eine Beschriftung der X-Achse. */
 data class AxisTick(val timeMillis: Long, val label: String)
@@ -101,33 +145,75 @@ private fun forwardBuffer(span: Long): Long = (span * FORWARD_BUFFER_SHARE).toLo
 /**
  * Formt die Verlaufseinträge in Linien um.
  *
- * Gezeichnet wird ausschließlich zwischen tatsächlich eingetragenen Änderungen: Die Linie
- * beginnt beim ersten Punkt im Zeitraum und endet beim letzten. Bewusst keine Stützstellen
- * an den Rändern – eine Linie, die bis zum Rand weiterläuft, behauptet Messpunkte, die es
- * nicht gibt. Wo nichts eingetragen wurde, steht auch keine Linie.
+ * Ein Gewicht ist ein Zustand: Es gilt vom Eintrag an bis zur nächsten Änderung. Gab es vor dem
+ * Zeitraum schon einen Wert, beginnt die Linie deshalb am linken Rand mit diesem Stand, und der
+ * letzte Stand läuft bis heute weiter – bei einem vergangenen Kalenderjahr bis zu dessen Ende.
+ * Früher endete die Linie an den eingetragenen Punkten; bei einem Monat Rückblick verschwand so
+ * jede Übung, deren Gewicht sich darin nicht geändert hatte, und blieb keine übrig, stand da
+ * „Noch keine Gewichte aufgezeichnet“.
  *
- * Eine Übung mit nur einem Punkt im Zeitraum bleibt sichtbar: Sie zeigt genau diesen einen
- * Punkt, ohne Linie.
+ * Diese übernommenen Stände sind als solche markiert ([ChartPoint.isCarried]) – echte Änderungen
+ * bleiben so als Punkte erkennbar.
+ *
+ * Eine Übung, die an keinem Trainingstag mehr steht (nicht in [activeNames]), läuft nicht bis
+ * heute weiter: Ihr Stand galt nur, solange sie trainiert wurde, und endet beim letzten Punkt.
+ *
+ * Eine Übung mit nur einem Punkt und nichts davor oder danach bleibt sichtbar: Sie zeigt genau
+ * diesen einen Punkt, ohne Linie.
  */
 fun buildSeries(
     logs: List<WeightLog>,
     names: Collection<String>,
-    window: TimeWindow
+    window: TimeWindow,
+    now: Long,
+    activeNames: Set<String>
 ): List<ChartSeries> {
     val byName = logs.groupBy { it.exerciseName }
 
     return names.sortedWith(String.CASE_INSENSITIVE_ORDER).mapNotNull { name ->
-        val inside = byName[name].orEmpty()
-            .filter { it.recordedAt in window.startMillis..window.endMillis }
-            .sortedBy { it.recordedAt }
-        if (inside.isEmpty()) return@mapNotNull null
+        val all = byName[name].orEmpty().sortedBy { it.recordedAt }
+        if (all.isEmpty()) return@mapNotNull null
+        val before = all.lastOrNull { it.recordedAt < window.startMillis }
+        val inside = all.filter { it.recordedAt in window.startMillis..window.endMillis }
 
-        ChartSeries(
-            name = name,
-            points = inside.map { ChartPoint(it.recordedAt, it.weightKg) }
+        // Bis hierhin gilt der jüngste Stand: bis heute, solange die Übung noch trainiert wird,
+        // sonst bis zu ihrem letzten Eintrag – und nie über den Zeitraum hinaus.
+        val validUntil = minOf(
+            window.endMillis,
+            if (name in activeNames) now else all.last().recordedAt
         )
+        // Ein Stand von vorher, der im Zeitraum gar nicht mehr galt, gehört nicht hinein.
+        val carriedStart = before?.takeIf { inside.isNotEmpty() || validUntil > window.startMillis }
+        if (carriedStart == null && inside.isEmpty()) return@mapNotNull null
+
+        val points = buildList {
+            carriedStart?.let { add(ChartPoint(window.startMillis, it.weightKg, isCarried = true)) }
+            inside.forEach { add(ChartPoint(it.recordedAt, it.weightKg)) }
+            val latest = last()
+            if (validUntil > latest.timeMillis) {
+                add(ChartPoint(validUntil, latest.weightKg, isCarried = true))
+            }
+        }
+        ChartSeries(name = name, points = points)
     }
 }
+
+/**
+ * Die Übungen, die noch an einem Trainingstag stehen – ihr letzter Stand läuft im Graphen bis
+ * heute weiter (siehe [buildSeries]).
+ *
+ * Nicht dazu gehören ausgeblendete Übungen und solche, die nur an stillgelegten Tagen jenseits
+ * der eingestellten Runde stehen: Auf keinem Trainingstag zu sehen, wird ihr Gewicht auch nicht
+ * mehr trainiert.
+ */
+fun activeExerciseNames(
+    exercises: List<ExerciseItem>,
+    dayCount: Int,
+    hiddenNames: Set<String>
+): Set<String> = exercises.asSequence()
+    .filter { it.dayId <= dayCount && it.name !in hiddenNames }
+    .map { it.name }
+    .toSet()
 
 /**
  * Beschriftungen der X-Achse. Die Einteilung richtet sich nach der Spanne des Fensters:
