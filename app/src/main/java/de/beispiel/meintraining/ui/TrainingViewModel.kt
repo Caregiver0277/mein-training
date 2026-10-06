@@ -69,6 +69,12 @@ class TrainingViewModel(
     val celebrations: Flow<Unit> = celebrationChannel.receiveAsFlow()
 
     /**
+     * Soll der Bildschirm anbleiben? Nicht Teil von [uiState]: Das betrifft das Fenster der
+     * Activity, nicht den Inhalt – siehe MainActivity.
+     */
+    val keepScreenOn: Flow<Boolean> = repository.keepScreenOn
+
+    /**
      * Alle Übungen aller Tage, einmal abonniert und im Speicher nach Tag geschnitten.
      *
      * Eine eigene Abfrage je Tag baut bei jedem Umschalten eine neue Room-Abfrage auf und

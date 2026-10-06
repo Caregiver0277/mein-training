@@ -43,7 +43,8 @@ data class SettingsSnapshot(
 
 /**
  * Kleine Einstellungen, die nicht in die Datenbank gehören: gewählter Tag, Rundenlänge und
- * -schnitte, Überschrift, Blocklänge, Ausblendlisten und die Angaben zur Sicherung.
+ * -schnitte, Überschrift, Blocklänge, Ausblendlisten, „Bildschirm anlassen“ und die Angaben
+ * zur Sicherung.
  */
 class SettingsStore(context: Context) {
 
@@ -204,6 +205,19 @@ class SettingsStore(context: Context) {
         store.edit { prefs -> prefs[KEY_APP_TITLE] = title }
     }
 
+    /**
+     * Bleibt der Bildschirm an, solange die App im Vordergrund liegt? Vorgabe: nein.
+     *
+     * Nicht in [snapshot] und damit nicht in der Sicherung – wie der Ton der Pausenuhr eine
+     * Frage des Geräts und der Gewohnheit, nicht des Trainingsplans. Wer auf einem neuen Handy
+     * einliest, entscheidet dort neu, ob der Akku das mitmacht.
+     */
+    val keepScreenOn: Flow<Boolean> = preference { prefs -> prefs[KEY_KEEP_SCREEN_ON] ?: false }
+
+    suspend fun setKeepScreenOn(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_KEEP_SCREEN_ON] = enabled }
+    }
+
     // --- Sicherung ---------------------------------------------------------
 
     /**
@@ -271,6 +285,7 @@ class SettingsStore(context: Context) {
         val KEY_DELOAD_WEEKS = intPreferencesKey("deload_cycle_weeks")
         val KEY_DAY_COUNT = intPreferencesKey("day_count")
         val KEY_APP_TITLE = stringPreferencesKey("app_title")
+        val KEY_KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
         val KEY_HIDDEN_TRACKING = stringSetPreferencesKey("hidden_tracking_names")
         val KEY_HIDDEN_EXERCISES = stringSetPreferencesKey("hidden_exercise_names")
         val KEY_LAST_DAY_ADVANCE = longPreferencesKey("last_day_advance")

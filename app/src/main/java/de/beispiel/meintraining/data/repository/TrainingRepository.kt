@@ -310,6 +310,11 @@ class TrainingRepository(
 
     suspend fun setAppTitle(title: String) = settingsStore.setAppTitle(title)
 
+    /** Siehe [SettingsStore.keepScreenOn]. */
+    val keepScreenOn: Flow<Boolean> = settingsStore.keepScreenOn
+
+    suspend fun setKeepScreenOn(enabled: Boolean) = settingsStore.setKeepScreenOn(enabled)
+
     /**
      * Ändert die Anzahl der Trainingstage.
      *

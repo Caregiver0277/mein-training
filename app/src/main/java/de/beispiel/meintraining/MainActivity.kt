@@ -3,6 +3,7 @@ package de.beispiel.meintraining
 import android.graphics.Color
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -16,6 +17,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import de.beispiel.meintraining.ui.TrainingActions
 import de.beispiel.meintraining.ui.TrainingViewModel
 import de.beispiel.meintraining.ui.screen.TrainingScreen
@@ -66,6 +68,22 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             lifecycleScope.launch {
                 (application as MeinTrainingApp).backupRepository.ensureAutoBackup()
+            }
+        }
+
+        // „Bildschirm anlassen“ aus den Einstellungen. Das Flag am Fenster wirkt von sich aus nur,
+        // solange das Fenster zu sehen ist – im Hintergrund darf das Handy wie gewohnt ausgehen.
+        // Gesammelt wird trotzdem nur im Vordergrund; ein Umschalten dazwischen kommt beim
+        // nächsten Start der Sammlung ohnehin an.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.keepScreenOn.collect { keepOn ->
+                    if (keepOn) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                }
             }
         }
 

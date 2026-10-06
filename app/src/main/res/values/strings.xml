@@ -92,6 +92,8 @@
     <string name="settings_app_title_hint">Leer lassen für „MEIN TRAINING“.</string>
     <string name="settings_deload_weeks">Deload alle … Wochen</string>
     <string name="settings_deload_weeks_hint">Die letzte Woche des Blocks ist die Deload-Woche (%1$d–%2$d).</string>
+    <string name="settings_keep_screen_on">Bildschirm anlassen</string>
+    <string name="settings_keep_screen_on_hint">Solange die App offen ist, geht der Bildschirm nicht aus – Pausenuhr und Liste bleiben zwischen den Sätzen sichtbar. Kostet etwas Akku.</string>
     <string name="settings_timers">Pausenuhren</string>
     <string name="settings_timer_sound">Ton am Ende der Pause</string>
     <string name="settings_timer_sound_hint">Zwei kurze Töne, sobald die Pause um ist – über Kopfhörer, wenn welche angeschlossen sind. Vibriert wird unabhängig davon immer.</string>
@@ -345,6 +347,7 @@
     <string name="about_guide_more">Verlauf, Tracking und Einstellungen</string>
     <string name="about_guide_history">Im Verlauf trägt das „+“ ein vergessenes Training nach, lang drücken löscht einen Eintrag.</string>
     <string name="about_guide_tracking">Im Tracking wählt die Liste oben rechts die Übungen aus. Lang auf eine davon drücken zeigt ihre einzelnen Datenpunkte. Jeder Punkt ist eine Gewichtsänderung; blasse Linienstücke ohne Punkt zeigen den Stand, der von vorher weiter gilt.</string>
+    <string name="about_guide_keep_screen_on">Unter Einstellungen → Allgemein hält „Bildschirm anlassen“ das Display an, solange die App offen ist.</string>
     <string name="about_guide_manage">Unter „Übungen verwalten“ lässt sich eine Übung an allen Tagen ausblenden – oder überall endgültig löschen.</string>
     <string name="about_data_title">Deine Daten</string>
     <string name="about_data_body">Die App kommt ohne Konto und ohne Internet aus – sie hat nicht einmal die Berechtigung dafür. Deine Daten liegen auf diesem Gerät und, falls eingeschaltet, in der Android-Gerätesicherung. Eine eigene Sicherungsdatei, auf Wunsch automatisch und auch in Google Drive, legst du unter Einstellungen → Sicherung an.</string>

@@ -129,6 +129,7 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
             uiState = uiState,
             onAppTitleChange = viewModel::onAppTitleChange,
             onDeloadCycleChange = viewModel::onDeloadCycleChange,
+            onKeepScreenOnToggled = viewModel::onKeepScreenOnToggled,
             onTimerSoundToggled = viewModel::onTimerSoundToggled,
             onTimerVolumeChange = viewModel::onTimerVolumeChange,
             onManageDays = { section = SettingsSection.DAYS },
@@ -146,6 +147,7 @@ fun SettingsScreen(
     uiState: SettingsUiState,
     onAppTitleChange: (String) -> Unit,
     onDeloadCycleChange: (String) -> Unit,
+    onKeepScreenOnToggled: (Boolean) -> Unit,
     onTimerSoundToggled: (Boolean) -> Unit,
     onTimerVolumeChange: (Float) -> Unit,
     onManageDays: () -> Unit,
@@ -190,6 +192,12 @@ fun SettingsScreen(
                     // Eine Zahl außerhalb des erlaubten Bereichs wird nicht gespeichert und
                     // soll deshalb auch nicht im Feld stehen bleiben.
                     resetOnFocusLoss = true
+                )
+                SwitchRow(
+                    label = stringResource(R.string.settings_keep_screen_on),
+                    hint = stringResource(R.string.settings_keep_screen_on_hint),
+                    checked = uiState.keepScreenOn,
+                    onCheckedChange = onKeepScreenOnToggled
                 )
             }
 
@@ -1012,6 +1020,7 @@ private fun SettingsScreenPreview() {
             ),
             onAppTitleChange = {},
             onDeloadCycleChange = {},
+            onKeepScreenOnToggled = {},
             onTimerSoundToggled = {},
             onTimerVolumeChange = {},
             onManageDays = {},

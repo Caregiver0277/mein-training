@@ -62,6 +62,8 @@ data class SettingsUiState(
     val timerSoundEnabled: Boolean = true,
     /** Wie laut dieser Ton ist, 0 bis 1. */
     val timerSoundVolume: Float = DEFAULT_TIMER_SOUND_VOLUME,
+    /** Bleibt der Bildschirm an, solange die App vorn liegt? */
+    val keepScreenOn: Boolean = false,
     val exercises: List<ManagedExercise> = emptyList(),
     /** Ist die automatische Sicherung an, aber zuletzt gescheitert? */
     val backupFailing: Boolean = false
@@ -123,6 +125,8 @@ class SettingsViewModel(
         GeneralSettings(title, weeks, dayCount, hidden, sound)
     }.combine(backups.autoBackupFailing) { settings, failing ->
         settings.copy(backupFailing = failing)
+    }.combine(repository.keepScreenOn) { settings, keepOn ->
+        settings.copy(keepScreenOn = keepOn)
     }
 
     val uiState = combine(
@@ -147,6 +151,7 @@ class SettingsViewModel(
             deloadCycleWeeks = general.cycleWeeks,
             timerSoundEnabled = general.sound.enabled,
             timerSoundVolume = general.sound.volume,
+            keepScreenOn = general.keepScreenOn,
             backupFailing = general.backupFailing,
             exercises = names.map { name ->
                 ManagedExercise(
@@ -248,6 +253,11 @@ class SettingsViewModel(
         }
     }
 
+    /** Schaltet „Bildschirm anlassen“ um – ohne Zwischenspeicher, wie der Ton. */
+    fun onKeepScreenOnToggled(enabled: Boolean) {
+        viewModelScope.launch { repository.setKeepScreenOn(enabled) }
+    }
+
     /** Blendet eine Übung an allen Trainingstagen aus oder wieder ein. */
     fun onExerciseHiddenToggled(name: String, hidden: Boolean) {
         viewModelScope.launch { repository.setExerciseHidden(name, hidden) }
@@ -274,7 +284,8 @@ class SettingsViewModel(
         val hiddenExerciseNames: Set<String>,
         val sound: TimerSound,
         /** Siehe [BackupRepository.autoBackupFailing]. */
-        val backupFailing: Boolean = false
+        val backupFailing: Boolean = false,
+        val keepScreenOn: Boolean = false
     )
 
     /** Schalter und Regler des Tons am Pausenende. */
