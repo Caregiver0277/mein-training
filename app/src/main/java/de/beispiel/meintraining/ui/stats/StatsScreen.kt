@@ -56,6 +56,26 @@ fun StatsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     StatsScreen(uiState = uiState, onBack = onBack, modifier = modifier)
 }
 
+/**
+ * Die Statistikseite, von oben nach unten vom Überblick ins Einzelne:
+ *
+ * 1. Kennzahlen – drei Kacheln: Trainings, pro Woche, Ziel-Serie.
+ * 2. Wochenziel – die letzten zwölf Wochen gegen das Ziel.
+ * 3. Kalender – die Heatmap der letzten zwölf Monate.
+ * 4. Meilensteine – erreichte und nächste (noch nicht gebaut).
+ * 5. Fortschritt – Gesamtzuwachs und schwerste Übung; Fortschritt je Übung und die „Nächsten
+ *    Marken“ kommen darunter (noch nicht gebaut).
+ * 6. Festgefahren – die Kehrseite des Fortschritts, deshalb gleich dahinter.
+ * 7. Cardio – Minuten und Kilometer je Woche.
+ * 8. Runden – wie die Runden ausgehen.
+ * 9. Rhythmus – Wochentage, typische Uhrzeit und längste Serie, Trainingsdauer.
+ * 10. Rückblick – der Einstieg in die Monats- und Jahresübersicht (noch nicht gebaut).
+ *
+ * Jeder Abschnitt ist eine eigene Karte; was keine Daten hat, lässt seine Karte weg oder sagt in
+ * einem Satz, woher sie kommen. Neue Karten kommen an ihre Stelle in dieser Reihenfolge, statt
+ * hinten angehängt zu werden – sonst wächst die Seite in der Reihenfolge ihrer Entstehung statt
+ * in der ihres Inhalts.
+ */
 @Composable
 fun StatsScreen(uiState: StatsUiState, onBack: () -> Unit, modifier: Modifier = Modifier) {
     Column(
@@ -82,12 +102,13 @@ fun StatsScreen(uiState: StatsUiState, onBack: () -> Unit, modifier: Modifier = 
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
         ) {
+            // Reihenfolge siehe oben.
             HeadlineTiles(uiState)
+            ProgressCard(uiState)
+            if (uiState.stagnating.isNotEmpty()) StagnationCard(uiState.stagnating)
             WeekdayCard(uiState)
             RhythmCard(uiState)
             DurationCard(uiState.duration, uiState.dayNames)
-            ProgressCard(uiState)
-            if (uiState.stagnating.isNotEmpty()) StagnationCard(uiState.stagnating)
             Spacer(modifier = Modifier.height(Dimens.ListBottomPadding))
         }
     }
