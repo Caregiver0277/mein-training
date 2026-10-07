@@ -255,6 +255,9 @@ class BackupRepository(
         }
     }
 
+    /** Ist die automatische Sicherung eingeschaltet? */
+    val autoBackupEnabled: Flow<Boolean> = settingsStore.backupEnabled
+
     /**
      * Ist die automatische Sicherung eingeschaltet, aber zuletzt gescheitert? Dann zeigt die
      * Einstellungs-Übersicht einen Hinweis. Ist sie aus, zählt ein alter Fehler nicht mehr.

@@ -179,7 +179,7 @@ fun SettingsRoute(
             onManageExercises = { section = SettingsSection.EXERCISES },
             onManageBackup = { section = SettingsSection.BACKUP },
             onManageReminders = { section = SettingsSection.REMINDERS },
-            notificationsBlocked = uiState.reminders.anyEnabled && !notifications.allowed,
+            notificationsBlocked = uiState.remindersActive && !notifications.allowed,
             onDeleteAllData = viewModel::onDeleteAllData,
             onBack = onBack,
             modifier = modifier

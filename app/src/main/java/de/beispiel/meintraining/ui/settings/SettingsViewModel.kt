@@ -80,8 +80,19 @@ data class SettingsUiState(
     /** Ist die automatische Sicherung an, aber zuletzt gescheitert? */
     val backupFailing: Boolean = false,
     /** Der Bereich „Erinnerungen“. */
-    val reminders: ReminderSettings = ReminderSettings()
-)
+    val reminders: ReminderSettings = ReminderSettings(),
+    /** Läuft die automatische Sicherung? Nur dann kann „Sicherung fehlgeschlagen“ etwas melden. */
+    val autoBackupEnabled: Boolean = false
+) {
+    /**
+     * Kann eine der eingeschalteten Erinnerungen überhaupt kommen? Danach richtet sich der Hinweis
+     * in der Übersicht, wenn Benachrichtigungen fehlen: „Sicherung fehlgeschlagen“ ist ab Werk an,
+     * ohne automatische Sicherung aber gegenstandslos – dafür stünde sonst auf jedem frischen Gerät
+     * eine rote Warnung da.
+     */
+    val remindersActive: Boolean
+        get() = reminders.needsDailyRun || (reminders.backup && autoBackupEnabled)
+}
 
 @OptIn(FlowPreview::class)
 class SettingsViewModel(
@@ -147,6 +158,8 @@ class SettingsViewModel(
         settings.copy(weeklyGoal = goal)
     }.combine(reminders.settings) { settings, reminderSettings ->
         settings.copy(reminders = reminderSettings)
+    }.combine(backups.autoBackupEnabled) { settings, enabled ->
+        settings.copy(autoBackupEnabled = enabled)
     }
 
     val uiState = combine(
@@ -176,6 +189,7 @@ class SettingsViewModel(
             keepScreenOn = general.keepScreenOn,
             backupFailing = general.backupFailing,
             reminders = general.reminders,
+            autoBackupEnabled = general.autoBackupEnabled,
             exercises = names.map { name ->
                 ManagedExercise(
                     name = name,
@@ -349,7 +363,8 @@ class SettingsViewModel(
         val backupFailing: Boolean = false,
         val keepScreenOn: Boolean = false,
         val weeklyGoal: Int = DEFAULT_WEEKLY_GOAL,
-        val reminders: ReminderSettings = ReminderSettings()
+        val reminders: ReminderSettings = ReminderSettings(),
+        val autoBackupEnabled: Boolean = false
     )
 
     /** Schalter und Regler des Tons am Pausenende. */
