@@ -627,6 +627,21 @@ private fun VariationToggle(expanded: Boolean, onClick: () -> Unit) {
 }
 
 /**
+ * „Letztes Mal (vor 3 Tagen): 22 min · 3,4 km · 6 km/h · 8 %“ – für das Bearbeiten-Sheet wie für
+ * „Cardio eintragen“. Ohne Werte gibt es keine Einheit (siehe logCardio); dann `null`, und die
+ * Zeile bleibt weg, statt leer dazustehen.
+ */
+@Composable
+internal fun lastCardioText(entry: LastCardioEntry): String? {
+    val values = formatCardioValues(entry.values, cardioUnits()) ?: return null
+    return when (entry.daysAgo) {
+        0 -> stringResource(R.string.cardio_last_today, values)
+        1 -> stringResource(R.string.cardio_last_yesterday, values)
+        else -> pluralStringResource(R.plurals.cardio_last_days, entry.daysAgo, values, entry.daysAgo)
+    }
+}
+
+/**
  * Ein Eingabefeld des Sheets.
  *
  * [capitalization] ist für Namen gedacht: Übungen schreiben sich groß, ohne Vorgabe beginnt die
@@ -686,13 +701,7 @@ private fun WeightHistoryLine(history: WeightHistory) {
  */
 @Composable
 private fun LastCardioLine(entry: LastCardioEntry) {
-    // Ohne Werte gibt es keine Einheit (siehe logCardio); leer bliebe die Zeile trotzdem nie stehen.
-    val values = formatCardioValues(entry.values, cardioUnits()) ?: return
-    val text = when (entry.daysAgo) {
-        0 -> stringResource(R.string.cardio_last_today, values)
-        1 -> stringResource(R.string.cardio_last_yesterday, values)
-        else -> pluralStringResource(R.plurals.cardio_last_days, entry.daysAgo, values, entry.daysAgo)
-    }
+    val text = lastCardioText(entry) ?: return
     Text(
         text = text,
         style = AppTextStyles.ColumnLabel,

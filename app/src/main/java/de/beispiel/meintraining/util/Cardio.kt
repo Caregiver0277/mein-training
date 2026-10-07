@@ -258,3 +258,44 @@ fun lastCardioEntry(
         daysAgo = ChronoUnit.DAYS.between(date, today).toInt().coerceAtLeast(0)
     )
 }
+
+// --- Heute eingetragen ---------------------------------------------------------
+
+/**
+ * Die Einheiten nach Übung samt Variation zerlegt – einmal je Änderung und nicht bei jedem
+ * Zusammensetzen der Liste. Derselbe Schlüssel wie beim Satz-Protokoll ([SetLogKey]): Auch hier
+ * gehört der Trainingstag nicht dazu, „Letztes Mal“ darf von einem anderen stammen.
+ */
+fun cardioLogsByExercise(logsOldestFirst: List<CardioLog>): Map<SetLogKey, List<CardioLog>> =
+    logsOldestFirst.groupBy { SetLogKey(it.exerciseName, it.variation) }
+
+/**
+ * Die heute an Trainingstag [dayId] eingetragene Einheit aus [logsOldestFirst] – den Einheiten
+ * *einer* Übung; ohne eine `null`. Sie hakt den Chip in der Liste ab, und „Cardio eintragen“
+ * korrigiert sie, statt eine zweite anzulegen (siehe `TrainingRepository.logCardio`).
+ */
+fun todaysCardioLog(
+    logsOldestFirst: List<CardioLog>,
+    dayId: Int,
+    today: LocalDate,
+    zone: ZoneId = ZoneId.systemDefault()
+): CardioLog? = logsOldestFirst.lastOrNull {
+    it.dayId == dayId && it.performedAt.toLocalDate(zone) == today
+}
+
+/**
+ * „Letztes Mal“ über dem Dialog „Cardio eintragen“: die jüngste Einheit dieser Übung außer der,
+ * die der Dialog gerade bearbeitet ([current]) – sonst stünde beim Korrigieren die eigene
+ * Eingabe von eben als letztes Mal da. Eine Einheit an einem anderen Trainingstag von heute
+ * zählt mit; die Ziele hängen am Namen, nicht am Tag.
+ */
+fun lastCardioEntryBefore(
+    logsOldestFirst: List<CardioLog>,
+    current: CardioLog?,
+    today: LocalDate,
+    zone: ZoneId = ZoneId.systemDefault()
+): LastCardioEntry? = lastCardioEntry(
+    logsOldestFirst = if (current == null) logsOldestFirst else logsOldestFirst.filter { it.id != current.id },
+    today = today,
+    zone = zone
+)

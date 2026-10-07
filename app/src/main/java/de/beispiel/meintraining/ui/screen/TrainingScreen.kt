@@ -63,19 +63,24 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.local.RestTimer
+import de.beispiel.meintraining.data.model.CardioTargets
 import de.beispiel.meintraining.data.model.ExerciseItem
+import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.model.TrainingDay
+import de.beispiel.meintraining.ui.CardioLogDialogState
 import de.beispiel.meintraining.ui.ExerciseForm
 import de.beispiel.meintraining.ui.SetLogSheetState
 import de.beispiel.meintraining.ui.TrainingActions
 import de.beispiel.meintraining.ui.TrainingEvent
 import de.beispiel.meintraining.ui.TrainingUiState
+import de.beispiel.meintraining.ui.components.CardioChipState
 import de.beispiel.meintraining.ui.components.ListActionButtons
 import de.beispiel.meintraining.ui.components.ColumnHeaderRow
 import de.beispiel.meintraining.ui.components.Confetti
 import de.beispiel.meintraining.ui.components.DayTabRow
 import de.beispiel.meintraining.ui.components.DraggableItem
 import de.beispiel.meintraining.ui.components.ExerciseRow
+import de.beispiel.meintraining.ui.components.cardioUnits
 import de.beispiel.meintraining.ui.components.dayLabel
 import de.beispiel.meintraining.ui.components.draggableItem
 import de.beispiel.meintraining.ui.components.rememberDragDropState
@@ -101,6 +106,7 @@ import de.beispiel.meintraining.util.LastCardioEntry
 import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.setsThisWeek
 import de.beispiel.meintraining.util.exerciseTitle
+import de.beispiel.meintraining.util.formatCardioValues
 import de.beispiel.meintraining.util.noteLine
 import de.beispiel.meintraining.util.toSetsRepsLabel
 import de.beispiel.meintraining.util.toWeightLabel
@@ -122,6 +128,8 @@ fun TrainingScreen(
     lastCardioEntry: LastCardioEntry?,
     /** Offenes Satz-Protokoll, siehe [TrainingViewModel.setLogSheet]. */
     setLogSheet: SetLogSheetState?,
+    /** Offenes „Cardio eintragen“, siehe [TrainingViewModel.cardioLogDialog]. */
+    cardioLogDialog: CardioLogDialogState?,
     events: Flow<TrainingEvent>,
     /** Eine volle Runde – der einzige Anlass, zu dem es Konfetti regnet. */
     celebrations: Flow<Unit>,
@@ -267,6 +275,15 @@ fun TrainingScreen(
             onDismiss = actions.onSetLogDismiss
         )
     }
+
+    cardioLogDialog?.let { state ->
+        CardioLogDialog(
+            state = state,
+            onSave = actions.onCardioLogSave,
+            onDelete = actions.onCardioLogDelete,
+            onDismiss = actions.onCardioLogDismiss
+        )
+    }
 }
 
 @Composable
@@ -343,6 +360,7 @@ private fun TrainingContent(
     // Sortieren ohne Ziehen – für TalkBack und andere Bedienhilfen.
     val moveUpLabel = stringResource(R.string.action_move_up)
     val moveDownLabel = stringResource(R.string.action_move_down)
+    val cardioUnits = cardioUnits()
     val moveAndSave: (Int, Int) -> Unit = { from, to ->
         val moved = (pendingOrder ?: exercises.map { it.id }).toMutableList()
         moved.add(to, moved.removeAt(from))
@@ -404,19 +422,41 @@ private fun TrainingContent(
                         previousSupersetId = exercises.getOrNull(index - 1)?.supersetId,
                         nextSupersetId = exercises.getOrNull(index + 1)?.supersetId
                     ) {
+                        // Eine Cardio-Zeile zeigt ihre Ziele statt Gewicht und Sätzen; die Werte
+                        // der Kraft bleiben dabei gespeichert, nur nicht zu sehen.
+                        val isCardio = exercise.isCardio
                         ExerciseRow(
                             name = exerciseTitle(exercise.name, exercise.variation),
                             note = noteLine(exercise.note),
                             // Nur die eingetragene Last – beim Trainieren zählt, was auf die
                             // Stange kommt. Ohne Gewicht bleibt die Spalte leer.
-                            weightLabel = exercise.weightKg?.toWeightLabel(unit),
+                            weightLabel = if (isCardio) null else exercise.weightKg?.toWeightLabel(unit),
                             // In der Deload-Woche zeigt die Liste halbierte Sätze; der
                             // gespeicherte Plan bleibt davon unberührt.
-                            setsLabel = setsThisWeek(exercise.sets, uiState.deload.isDeloadWeek)
-                                .toSetsRepsLabel(
-                                    repsMin = exercise.repsMin,
-                                    repsMax = exercise.repsMax
-                                ),
+                            setsLabel = if (isCardio) {
+                                null
+                            } else {
+                                setsThisWeek(exercise.sets, uiState.deload.isDeloadWeek)
+                                    .toSetsRepsLabel(
+                                        repsMin = exercise.repsMin,
+                                        repsMax = exercise.repsMax
+                                    )
+                            },
+                            // Distanz vorn: Wer eine Strecke als Ziel hat, liest die Zeit als
+                            // „in wie vielen Minuten“. In der Deload-Woche bleibt Cardio, wie es ist.
+                            cardio = if (isCardio) {
+                                CardioChipState(
+                                    label = formatCardioValues(
+                                        exercise.cardio.values,
+                                        cardioUnits,
+                                        distanceFirst = true
+                                    ),
+                                    isLoggedToday = exercise.id in uiState.cardioLoggedIds
+                                )
+                            } else {
+                                null
+                            },
+                            onCardioClick = { actions.onCardioClick(exercise) },
                             onClick = {
                                 if (uiState.isSelectionMode) {
                                     actions.onSelectionToggle(exercise)
@@ -819,8 +859,13 @@ private fun TrainingContentPreview() {
                         id = 3, name = "Trizeps", variation = "Stange", position = 2,
                         weightKg = 20.0, sets = 3, repsMin = 8, repsMax = 12, supersetId = 1
                     ),
-                    previewExercise(id = 4, name = "Beispiel Übung 4", position = 3)
-                )
+                    previewExercise(id = 4, name = "Beispiel Übung 4", position = 3),
+                    previewExercise(id = 5, name = "Laufband", position = 4).copy(
+                        kind = ExerciseKind.CARDIO,
+                        cardio = CardioTargets(durationMin = 20.0, intensity = 6.0, inclinePercent = 8.0)
+                    )
+                ),
+                cardioLoggedIds = setOf(5)
             ),
             unit = "Kg",
             actions = TrainingActions(),

@@ -63,6 +63,12 @@ data class CardioTargets(
             inclinePercent = inclinePercent
         )
 
+    /**
+     * Steht in der Liste ein Pfeil? Nur mit gewähltem Wert, und nur, wenn dieser Wert auch gesetzt
+     * ist – sonst gäbe es nichts zu verschieben, wie bei einer Kraftübung ohne Gewicht.
+     */
+    val hasArrow: Boolean get() = arrowValue?.let(::valueOf) != null
+
     /** Der Wert, den der Pfeil verschiebt; `null`, wenn er keinen hat. */
     fun valueOf(value: CardioValue): Double? = when (value) {
         CardioValue.DURATION -> durationMin

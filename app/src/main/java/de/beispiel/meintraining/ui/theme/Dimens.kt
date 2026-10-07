@@ -70,6 +70,9 @@ object Dimens {
     val ChipSpacing = 8.dp
     val ChipPaddingHorizontal = 6.dp
 
+    /** Der breite Chip einer Cardio-Zeile: über beide Spalten samt dem Abstand dazwischen. */
+    val ChipCardioWidth = ChipWeightWidth + ChipSpacing + ChipSetsWidth
+
     /** Grüner Haken an der Ecke des Sätze-Chips, sobald alle geplanten Sätze protokolliert sind. */
     val SetsCheckSize = 14.dp
     val SetsCheckIconSize = 10.dp

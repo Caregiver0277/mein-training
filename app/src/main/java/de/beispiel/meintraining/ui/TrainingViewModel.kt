@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
+import de.beispiel.meintraining.data.model.CardioLog
+import de.beispiel.meintraining.data.model.CardioValues
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.repository.TrainingRepository
@@ -19,10 +21,12 @@ import de.beispiel.meintraining.util.SetLogKey
 import de.beispiel.meintraining.util.SetUnit
 import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.canUndoRotationCut
+import de.beispiel.meintraining.util.cardioLogsByExercise
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.deloadStatus
 import de.beispiel.meintraining.util.isTopOfRangeReached
 import de.beispiel.meintraining.util.lastCardioEntry
+import de.beispiel.meintraining.util.lastCardioEntryBefore
 import de.beispiel.meintraining.util.lastUnit
 import de.beispiel.meintraining.util.parseOptionalDecimal
 import de.beispiel.meintraining.util.parseOptionalInt
@@ -32,6 +36,7 @@ import de.beispiel.meintraining.util.setsThisWeek
 import de.beispiel.meintraining.util.stepWeight
 import de.beispiel.meintraining.util.toDecimalString
 import de.beispiel.meintraining.util.toLocalDate
+import de.beispiel.meintraining.util.todaysCardioLog
 import de.beispiel.meintraining.util.todaysUnit
 import de.beispiel.meintraining.util.weightHistory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -131,6 +136,9 @@ class TrainingViewModel(
     /** Die Zeile, deren Satz-Protokoll offen ist; `null`: keines. */
     private val setLogTargetId = MutableStateFlow<Long?>(null)
 
+    /** Die Cardio-Zeile, deren Dialog „Cardio eintragen“ offen ist; `null`: keiner. */
+    private val cardioLogTargetId = MutableStateFlow<Long?>(null)
+
     private val eventChannel = Channel<TrainingEvent>(Channel.BUFFERED)
     val events: Flow<TrainingEvent> = eventChannel.receiveAsFlow()
 
@@ -204,6 +212,14 @@ class TrainingViewModel(
      */
     private val setLogUnits = repository.observeSetLogs()
         .map { setUnitsByExercise(it) }
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
+
+    /**
+     * Die Cardio-Einheiten, nach Übung zerlegt – aus demselben Grund einmal je Änderung wie
+     * [setLogUnits], und mit `shareIn`, damit der Haken am Chip beim Öffnen nicht kurz fehlt.
+     */
+    private val cardioLogs = repository.observeCardioLogs()
+        .map { cardioLogsByExercise(it) }
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), replay = 1)
 
     private val dayState = combine(
@@ -309,14 +325,16 @@ class TrainingViewModel(
         val todaysDayIds: Set<Int>,
         val deload: DeloadStatus,
         val today: LocalDate,
-        val setLogUnits: Map<SetLogKey, List<SetUnit>>
+        val setLogUnits: Map<SetLogKey, List<SetUnit>>,
+        val cardioLogs: Map<SetLogKey, List<CardioLog>>
     )
 
     private val surroundings = combine(
         preferences,
         sessionSummary,
-        setLogUnits
-    ) { prefs, summary, units ->
+        setLogUnits,
+        cardioLogs
+    ) { prefs, summary, units, cardio ->
         Surroundings(
             dayCount = prefs.dayCount,
             title = prefs.title,
@@ -326,7 +344,8 @@ class TrainingViewModel(
             todaysDayIds = summary.todaysDayIds,
             deload = summary.deload,
             today = summary.today,
-            setLogUnits = units
+            setLogUnits = units,
+            cardioLogs = cardio
         )
     }
 
@@ -367,7 +386,14 @@ class TrainingViewModel(
             todaysDayIds = around.todaysDayIds,
             deload = around.deload,
             appTitle = around.title,
-            setLogRows = setLogRows(exerciseList, around)
+            setLogRows = setLogRows(exerciseList, around),
+            cardioLoggedIds = exerciseList.filter { exercise ->
+                exercise.isCardio && todaysCardioLog(
+                    logsOldestFirst = around.cardioLogs[SetLogKey(exercise.name, exercise.variation)].orEmpty(),
+                    dayId = exercise.dayId,
+                    today = around.today
+                ) != null
+            }.mapTo(HashSet()) { it.id }
         )
     }.stateIn(
         scope = viewModelScope,
@@ -448,6 +474,29 @@ class TrainingViewModel(
             lastUnit = lastUnit(exerciseUnits, exercise.dayId, today),
             today = today,
             suggestedWeightKg = suggestedWeight(exercise, exerciseUnits, isDeloadWeek)
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
+
+    /**
+     * Der offene Dialog „Cardio eintragen“; `null`, solange keiner offen ist.
+     *
+     * Neben [uiState] wie das Satz-Protokoll. Verschwindet die Zeile oder ist sie keine
+     * Cardio-Übung mehr, schließt er sich.
+     */
+    val cardioLogDialog: StateFlow<CardioLogDialogState?> = combine(
+        cardioLogTargetId,
+        allExercises,
+        cardioLogs,
+        currentDate.flow
+    ) { id, all, logs, today ->
+        val exercise = id?.let { target -> all.firstOrNull { it.id == target } }
+            ?.takeIf { it.isCardio } ?: return@combine null
+        val exerciseLogs = logs[SetLogKey(exercise.name, exercise.variation)].orEmpty()
+        val todays = todaysCardioLog(exerciseLogs, exercise.dayId, today)
+        CardioLogDialogState(
+            exercise = exercise,
+            todaysLog = todays,
+            lastEntry = lastCardioEntryBefore(exerciseLogs, todays, today)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
 
@@ -816,6 +865,50 @@ class TrainingViewModel(
 
     fun onDeleteSet(id: Long) {
         viewModelScope.launch { repository.deleteSetLog(id) }
+    }
+
+    // --- Cardio eintragen ----------------------------------------------------
+
+    /** Tippen auf den Chip einer Cardio-Zeile öffnet „Cardio eintragen“. */
+    fun onCardioClick(exercise: ExerciseItem) {
+        cardioLogTargetId.value = exercise.id
+    }
+
+    fun onCardioLogDismiss() {
+        cardioLogTargetId.value = null
+    }
+
+    /**
+     * „Speichern“: trägt die Einheit ein – oder korrigiert die von heute, wenn der Dialog mit ihr
+     * geöffnet wurde. Wie beim Bearbeiten-Sheet schließt er sofort und gespeichert wird danach;
+     * ein zweiter Druck findet so keinen Dialog mehr vor.
+     *
+     * Das Eintragen meldet sich als Aktivität im Training (siehe [TrainingRepository.logCardio]),
+     * das Korrigieren nicht – wie beim Satz-Protokoll.
+     */
+    fun onCardioLogSave(values: CardioValues) {
+        val state = cardioLogDialog.value ?: return
+        cardioLogTargetId.value = null
+        viewModelScope.launch {
+            val todays = state.todaysLog
+            if (todays != null) {
+                repository.updateCardioLog(todays.id, values)
+            } else {
+                repository.logCardio(
+                    name = state.exercise.name,
+                    variation = state.exercise.variation,
+                    dayId = state.exercise.dayId,
+                    values = values
+                )
+            }
+        }
+    }
+
+    /** „Löschen“: entfernt die Einheit von heute, die der Dialog zeigt. */
+    fun onCardioLogDelete() {
+        val log = cardioLogDialog.value?.todaysLog ?: return
+        cardioLogTargetId.value = null
+        viewModelScope.launch { repository.deleteCardioLog(log.id) }
     }
 
     // --- Rückgängig --------------------------------------------------------

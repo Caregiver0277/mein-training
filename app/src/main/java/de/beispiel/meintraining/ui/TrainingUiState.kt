@@ -1,8 +1,10 @@
 package de.beispiel.meintraining.ui
 
 import androidx.compose.runtime.Immutable
+import de.beispiel.meintraining.data.model.CardioLog
 import de.beispiel.meintraining.data.model.CardioTargets
 import de.beispiel.meintraining.data.model.CardioValue
+import de.beispiel.meintraining.data.model.CardioValues
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.ExerciseKind
@@ -14,6 +16,7 @@ import de.beispiel.meintraining.data.repository.ExerciseTransfer
 import de.beispiel.meintraining.ui.components.SetsProgress
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.DeloadStatus
+import de.beispiel.meintraining.util.LastCardioEntry
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
 import de.beispiel.meintraining.util.SetUnit
 import de.beispiel.meintraining.util.defaultCardioStep
@@ -49,7 +52,12 @@ data class TrainingUiState(
      * Stand des Satz-Protokolls je Zeile, nach Kennung – nur für Zeilen, deren Sätze sich
      * protokollieren lassen (Schalter an und eine Sätze-Zahl).
      */
-    val setLogRows: Map<Long, SetLogRowState> = emptyMap()
+    val setLogRows: Map<Long, SetLogRowState> = emptyMap(),
+    /**
+     * Cardio-Zeilen, für die heute an ihrem Trainingstag eine Einheit eingetragen ist – ihr Chip
+     * trägt den Haken.
+     */
+    val cardioLoggedIds: Set<Long> = emptySet()
 ) {
     /** Ist der angezeigte Tag in dieser Runde schon erledigt? */
     val isSelectedDayCompleted: Boolean get() = selectedDayId in completedDayIds
@@ -142,6 +150,70 @@ data class SetLogSheetState(
 )
 
 /**
+ * Alles, was der Dialog „Cardio eintragen“ zu einer Zeile zeigt.
+ *
+ * [todaysLog] ist die heute an diesem Trainingstag schon eingetragene Einheit: Dann füllt sie die
+ * Felder, „Speichern“ korrigiert sie, und „Löschen“ steht bereit. [lastEntry] ist „Letztes Mal“
+ * – die jüngste Einheit außer dieser (siehe [de.beispiel.meintraining.util.lastCardioEntryBefore]).
+ */
+@Immutable
+data class CardioLogDialogState(
+    val exercise: ExerciseItem,
+    val todaysLog: CardioLog? = null,
+    val lastEntry: LastCardioEntry? = null
+) {
+    /** Was beim Öffnen in den Feldern steht: die Einheit von heute, sonst die Zielwerte. */
+    fun initialForm(): CardioEntryForm = CardioEntryForm.of(
+        values = todaysLog?.values ?: exercise.cardio.values,
+        fallbackUnit = exercise.cardio.intensityUnit
+    )
+}
+
+/**
+ * Die Felder von „Cardio eintragen“ – Text wie im Bearbeiten-Sheet, damit Teileingaben wie „7:“
+ * stehen bleiben. Die Einheit des Tempos kommt mit der Übung oder der korrigierten Einheit und
+ * wird hier nicht umgestellt: Im Studio steht man an genau einem Gerät.
+ */
+data class CardioEntryForm(
+    val duration: String = "",
+    val distance: String = "",
+    val intensity: String = "",
+    val intensityUnit: IntensityUnit = IntensityUnit.KMH,
+    val incline: String = ""
+) {
+    val isDurationValid: Boolean get() = isValidCardioDurationInput(duration)
+
+    /** Die eingetragenen Werte; ein leeres Feld heißt: diesen Wert gab es nicht. */
+    fun toValues(): CardioValues {
+        val intensityValue = parseOptionalDecimal(intensity)
+        return CardioValues(
+            durationMin = parseCardioDuration(duration),
+            distanceKm = parseOptionalDecimal(distance),
+            intensity = intensityValue,
+            intensityUnit = intensityUnit.takeIf { intensityValue != null },
+            inclinePercent = parseOptionalDecimal(incline)
+        )
+    }
+
+    /**
+     * Speichern geht mit einer lesbaren Dauer und mindestens einem Wert – eine Einheit ganz ohne
+     * Werte gibt es nicht (siehe `TrainingRepository.logCardio`).
+     */
+    val canSave: Boolean get() = isDurationValid && !toValues().isEmpty
+
+    companion object {
+        /** Die Felder mit [values] gefüllt, in derselben Schreibweise, die das Einlesen versteht. */
+        fun of(values: CardioValues, fallbackUnit: IntensityUnit): CardioEntryForm = CardioEntryForm(
+            duration = values.durationMin?.let(::formatDurationValue).orEmpty(),
+            distance = values.distanceKm?.toDecimalString().orEmpty(),
+            intensity = values.intensity?.toDecimalString().orEmpty(),
+            intensityUnit = values.intensityUnit ?: fallbackUnit,
+            incline = values.inclinePercent?.toDecimalString().orEmpty()
+        )
+    }
+}
+
+/**
  * Alle Aktionen des Hauptscreens in einem Bündel.
  *
  * Einzeln durchgereicht waren es zwanzig Rückrufe: Jede neue Aktion musste an vier Stellen
@@ -174,6 +246,10 @@ data class TrainingActions(
     val onUpdateSet: (Long, Int, Double?) -> Unit = { _, _, _ -> },
     val onDeleteSet: (Long) -> Unit = {},
     val onSetLogDismiss: () -> Unit = {},
+    val onCardioClick: (ExerciseItem) -> Unit = {},
+    val onCardioLogSave: (CardioValues) -> Unit = {},
+    val onCardioLogDelete: () -> Unit = {},
+    val onCardioLogDismiss: () -> Unit = {},
     val onReorder: (List<Long>) -> Unit = {},
     val onFormChange: (ExerciseForm) -> Unit = {},
     val onVariationToggle: () -> Unit = {},

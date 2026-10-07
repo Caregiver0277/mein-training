@@ -65,6 +65,11 @@ import de.beispiel.meintraining.ui.theme.TextSecondary
  * [isTopReached] färbt ihn grün: Das Satz-Protokoll sagt, dass es Zeit dafür ist.
  * Lang gedrückt geht er einen Schritt in die Gegenrichtung ([onProgressLongClick]).
  *
+ * Eine Cardio-Zeile ([cardio] gesetzt) zeigt statt Gewicht und Sätzen einen breiten Chip über
+ * beide Spalten ([CardioChip]); Tippen darauf trägt die Einheit ein ([onCardioClick]). Ihr Pfeil
+ * verschiebt den gewählten Cardio-Wert, sonst gilt für ihn alles oben Gesagte – ohne Wert bleibt
+ * sein Platz frei.
+ *
  * [dragModifier] wird im Auswahlmodus auf die markierte Zeile gelegt: Wer ausgewählt hat,
  * kann direkt schieben. [isDragging] hebt die Karte dabei optisch ab.
  */
@@ -84,12 +89,17 @@ fun ExerciseRow(
     setsProgress: SetsProgress? = null,
     onSetsClick: () -> Unit = {},
     isTopReached: Boolean = false,
+    cardio: CardioChipState? = null,
+    onCardioClick: () -> Unit = {},
     isDragging: Boolean = false,
     isSelectable: Boolean = false,
     isSelected: Boolean = false,
     dragModifier: Modifier = Modifier
 ) {
     val topReachedLabel = stringResource(R.string.cd_top_reached)
+    // Verschieben kann man nur, was einen Wert hat: bei Kraft das Gewicht, bei Cardio den
+    // gewählten Wert.
+    val hasArrow = if (cardio != null) cardio.arrowDescription != null else weightLabel != null
     Box(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -149,7 +159,15 @@ fun ExerciseRow(
                     )
                 }
             }
-            if (weightLabel != null || setsLabel != null) {
+            if (cardio != null) {
+                Spacer(modifier = Modifier.width(Dimens.ChipSpacing))
+                CardioChip(
+                    state = cardio,
+                    enabled = !isSelectable,
+                    onClick = onCardioClick,
+                    onLongClick = onLongClick
+                )
+            } else if (weightLabel != null || setsLabel != null) {
                 // Ohne Gewicht entfällt die Spalte ganz und der Name bekommt ihre Breite.
                 if (weightLabel != null) {
                     Spacer(modifier = Modifier.width(Dimens.ChipSpacing))
@@ -172,11 +190,10 @@ fun ExerciseRow(
                 }
             }
             when {
-                // Verschieben kann man nur, was ein Gewicht hat.
                 // Ein IconButton kennt keinen langen Druck; die Box bildet ihn nach – gleiche
                 // Größe, runde Welle, im Auswahlmodus gesperrt. Der lange Druck nutzt die
                 // übliche Android-Wartezeit und vibriert kurz, wenn er greift.
-                weightLabel != null -> Box(
+                hasArrow -> Box(
                     modifier = Modifier
                         .size(Dimens.TouchTargetSize)
                         .then(
@@ -207,7 +224,7 @@ fun ExerciseRow(
                                 R.drawable.ic_arrow_upward
                             }
                         ),
-                        contentDescription = stringResource(
+                        contentDescription = cardio?.arrowDescription ?: stringResource(
                             if (progressionDown) {
                                 R.string.cd_decrease_weight
                             } else {
@@ -219,7 +236,7 @@ fun ExerciseRow(
                     )
                 }
                 // Zeile mit Werten, aber ohne Gewicht: Platz halten, sonst wandern die Spalten.
-                setsLabel != null -> Spacer(modifier = Modifier.width(Dimens.TouchTargetSize))
+                cardio != null || setsLabel != null -> Spacer(modifier = Modifier.width(Dimens.TouchTargetSize))
                 // Ganz ohne Werte reicht ein schmaler Rand.
                 else -> Spacer(modifier = Modifier.width(Dimens.CardPaddingStart))
             }
@@ -264,6 +281,28 @@ private fun ExerciseRowPreview() {
             note = "Kabel ganz oben · Ellbogen fest",
             setsProgress = SetsProgress(logged = 3, planned = 3),
             isTopReached = true
+        )
+    }
+}
+
+/** Cardio: ein breiter Chip mit den Zielwerten, heute schon eingetragen, der Pfeil steigert das Tempo. */
+@Preview(showBackground = true, backgroundColor = 0xFF10141A, widthDp = 360)
+@Composable
+private fun ExerciseRowCardioPreview() {
+    MeinTrainingTheme {
+        ExerciseRow(
+            name = "Laufband",
+            weightLabel = null,
+            setsLabel = null,
+            onClick = {},
+            onLongClick = {},
+            onProgressClick = {},
+            modifier = Modifier.padding(Dimens.ScreenPaddingHorizontal),
+            cardio = CardioChipState(
+                label = "20 min · 6 km/h · 8 %",
+                isLoggedToday = true,
+                arrowDescription = "Tempo erhöhen"
+            )
         )
     }
 }

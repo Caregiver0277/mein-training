@@ -96,6 +96,7 @@ class MainActivity : ComponentActivity() {
                 val weightHistory by viewModel.weightHistory.collectAsStateWithLifecycle()
                 val lastCardioEntry by viewModel.lastCardioEntry.collectAsStateWithLifecycle()
                 val setLogSheet by viewModel.setLogSheet.collectAsStateWithLifecycle()
+                val cardioLogDialog by viewModel.cardioLogDialog.collectAsStateWithLifecycle()
 
                 // Über Nacht offen gebliebene App: Beim Zurückkehren kann ein neuer Tag
                 // angebrochen sein.
@@ -126,6 +127,10 @@ class MainActivity : ComponentActivity() {
                         onUpdateSet = viewModel::onUpdateSet,
                         onDeleteSet = viewModel::onDeleteSet,
                         onSetLogDismiss = viewModel::onSetLogDismiss,
+                        onCardioClick = viewModel::onCardioClick,
+                        onCardioLogSave = viewModel::onCardioLogSave,
+                        onCardioLogDelete = viewModel::onCardioLogDelete,
+                        onCardioLogDismiss = viewModel::onCardioLogDismiss,
                         onReorder = viewModel::onReorder,
                         onFormChange = viewModel::onFormChange,
                         onVariationToggle = viewModel::onVariationToggle,
@@ -142,6 +147,7 @@ class MainActivity : ComponentActivity() {
                     weightHistory = weightHistory,
                     lastCardioEntry = lastCardioEntry,
                     setLogSheet = setLogSheet,
+                    cardioLogDialog = cardioLogDialog,
                     events = viewModel.events,
                     celebrations = viewModel.celebrations,
                     actions = actions

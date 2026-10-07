@@ -210,6 +210,64 @@ class CardioTest {
         assertNull(lastCardioEntry(emptyList(), today = LocalDate.of(2026, 10, 7), zone = zone))
     }
 
+    // --- Heute eingetragen --------------------------------------------------------
+
+    @Test
+    fun dieEinheitVonHeuteGehoertZuDiesemTrainingstag() {
+        val zone = ZoneOffset.UTC
+        fun am(tag: Int, stunde: Int) =
+            LocalDate.of(2026, 10, tag).atTime(stunde, 0).toInstant(zone).toEpochMilli()
+        val logs = listOf(
+            CardioLog(id = 1, exerciseName = "Rad", dayId = 1, performedAt = am(6, 18), durationMin = 20.0),
+            CardioLog(id = 2, exerciseName = "Rad", dayId = 3, performedAt = am(7, 7), durationMin = 15.0),
+            CardioLog(id = 3, exerciseName = "Rad", dayId = 1, performedAt = am(7, 18), durationMin = 25.0)
+        )
+        val heute = LocalDate.of(2026, 10, 7)
+        assertEquals(3L, todaysCardioLog(logs, dayId = 1, today = heute, zone = zone)!!.id)
+        assertEquals(2L, todaysCardioLog(logs, dayId = 3, today = heute, zone = zone)!!.id)
+        assertNull(todaysCardioLog(logs, dayId = 2, today = heute, zone = zone))
+        // Gestern an Tag 1 ist nicht heute.
+        assertNull(todaysCardioLog(logs.take(1), dayId = 1, today = heute, zone = zone))
+    }
+
+    @Test
+    fun letztesMalUeberspringtDieGeradeBearbeiteteEinheit() {
+        val zone = ZoneOffset.UTC
+        fun am(tag: Int, stunde: Int) =
+            LocalDate.of(2026, 10, tag).atTime(stunde, 0).toInstant(zone).toEpochMilli()
+        val gestern = CardioLog(id = 1, exerciseName = "Rad", dayId = 1, performedAt = am(6, 18), durationMin = 20.0)
+        val andererTag = CardioLog(id = 2, exerciseName = "Rad", dayId = 3, performedAt = am(7, 7), durationMin = 15.0)
+        val heute = CardioLog(id = 3, exerciseName = "Rad", dayId = 1, performedAt = am(7, 18), durationMin = 25.0)
+        val datum = LocalDate.of(2026, 10, 7)
+
+        // Beim Korrigieren von heute: die Einheit vom Morgen an einem anderen Trainingstag.
+        val letztes = lastCardioEntryBefore(listOf(gestern, andererTag, heute), heute, datum, zone)!!
+        assertEquals(15.0, letztes.values.durationMin!!, 0.0)
+        assertEquals(0, letztes.daysAgo)
+        // Ohne Einheit von heute: einfach die jüngste.
+        assertEquals(1, lastCardioEntryBefore(listOf(gestern), null, datum, zone)!!.daysAgo)
+        assertNull(lastCardioEntryBefore(listOf(heute), heute, datum, zone))
+    }
+
+    @Test
+    fun nachUebungUndVariationZerlegt() {
+        val logs = listOf(
+            CardioLog(exerciseName = "Rad", variation = "locker", dayId = 1, performedAt = 1, durationMin = 30.0),
+            CardioLog(exerciseName = "Rad", dayId = 1, performedAt = 2, durationMin = 20.0),
+            CardioLog(exerciseName = "Rad", variation = "locker", dayId = 2, performedAt = 3, durationMin = 31.0)
+        )
+        val zerlegt = cardioLogsByExercise(logs)
+        assertEquals(2, zerlegt.getValue(SetLogKey("Rad", "locker")).size)
+        assertEquals(1, zerlegt.getValue(SetLogKey("Rad", null)).size)
+    }
+
+    @Test
+    fun pfeilNurMitGewaehltemUndGesetztemWert() {
+        assertFalse(CardioTargets(durationMin = 20.0).hasArrow)
+        assertFalse(CardioTargets(durationMin = 20.0, arrowValue = CardioValue.INCLINE).hasArrow)
+        assertTrue(CardioTargets(durationMin = 20.0, arrowValue = CardioValue.DURATION).hasArrow)
+    }
+
     @Test
     fun zieleKennenIhrenWert() {
         val ziele = CardioTargets(durationMin = 20.0, inclinePercent = 8.0)
