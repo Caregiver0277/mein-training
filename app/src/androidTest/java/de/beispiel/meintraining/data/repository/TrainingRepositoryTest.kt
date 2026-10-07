@@ -6,6 +6,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import de.beispiel.meintraining.data.local.AppDatabase
 import de.beispiel.meintraining.data.local.SettingsStore
+import de.beispiel.meintraining.data.model.CardioTargets
+import de.beispiel.meintraining.data.model.CardioValue
+import de.beispiel.meintraining.data.model.CardioValues
+import de.beispiel.meintraining.data.model.ExerciseKind
+import de.beispiel.meintraining.data.model.IntensityUnit
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.util.toLocalDate
 import kotlinx.coroutines.flow.first
@@ -493,6 +498,158 @@ class TrainingRepositoryTest {
         assertTrue(repository.observeSetLogs().first().isEmpty())
     }
 
+    // --- Cardio ------------------------------------------------------------
+
+    /**
+     * Art und Zielwerte hängen am Namen und gelten an allen Tagen. Wechselt die Übung die Art,
+     * bleiben die Werte der anderen stehen: das Gewicht beim Wechsel zu Cardio, die Cardio-Ziele
+     * beim Wechsel zurück – auch wenn der Aufrufer sie dabei gar nicht mitgibt.
+     */
+    @Test
+    fun cardioZieleGeltenAnAllenTagenUndEinWechselDerArtVerliertNichts() = runBlocking {
+        val id = anlegen(name = "Laufband", weightKg = 60.0, stepKg = 2.5)
+        anlegen(name = "Laufband", weightKg = 60.0, stepKg = 2.5, dayId = 2)
+        val ziele = CardioTargets(
+            durationMin = 20.0,
+            intensity = 6.0,
+            inclinePercent = 8.0,
+            arrowValue = CardioValue.INTENSITY,
+            arrowStep = 0.5
+        )
+        speichern(id, kind = ExerciseKind.CARDIO, cardio = ziele, weightKg = 60.0)
+
+        val tag2 = repository.observeAllExercises().first().single { it.dayId == 2 }
+        assertTrue(tag2.isCardio)
+        assertEquals(ziele, tag2.cardio)
+        assertEquals(60.0, tag2.weightKg!!, 0.0)
+        // Der Wechsel selbst ist keine Gewichtsänderung.
+        assertEquals(listOf(60.0), verlaufVon("Laufband"))
+
+        speichern(id, kind = ExerciseKind.STRENGTH, cardio = null, weightKg = 60.0)
+        val zurueck = repository.findExercise(id)!!
+        assertFalse(zurueck.isCardio)
+        assertEquals(ziele, zurueck.cardio)
+    }
+
+    /** Eine gelöschte und wiederhergestellte Cardio-Zeile kommt samt Art und Zielen zurück. */
+    @Test
+    fun wiederherstellenBringtDieCardioZieleMit() = runBlocking {
+        val id = anlegen(name = "Rudergerät", weightKg = 0.0, stepKg = 2.5)
+        val ziele = CardioTargets(durationMin = 15.0, intensity = 5.0, intensityUnit = IntensityUnit.LEVEL)
+        speichern(id, kind = ExerciseKind.CARDIO, cardio = ziele, weightKg = 0.0)
+        val zeile = repository.findExercise(id)!!
+
+        repository.deleteExercises(listOf(zeile))
+        assertNull(database.exerciseDefinitionDao().find("Rudergerät"))
+        repository.restoreExercises(listOf(zeile))
+
+        val wieder = repository.findExercise(id)!!
+        assertTrue(wieder.isCardio)
+        assertEquals(ziele, wieder.cardio)
+    }
+
+    /**
+     * Der Pfeil verschiebt den gewählten Wert um den Schritt in die gewählte Richtung, ein langer
+     * Druck geht dagegen. „Rückgängig“ trifft nur, solange die Änderung der aktuelle Stand ist.
+     */
+    @Test
+    fun cardioPfeilVerschiebtDenGewaehltenWertUndLaesstSichZuruecknehmen() = runBlocking {
+        val id = anlegen(name = "Laufband", weightKg = 0.0, stepKg = 2.5)
+        speichern(
+            id,
+            kind = ExerciseKind.CARDIO,
+            cardio = CardioTargets(durationMin = 30.0, distanceKm = 5.0, arrowValue = CardioValue.DURATION, arrowStep = 1.0, arrowDown = true),
+            weightKg = 0.0
+        )
+
+        val erste = repository.progressCardio("Laufband")!!
+        assertEquals(CardioValue.DURATION, erste.value)
+        assertEquals(29.0, erste.new, 0.0)
+        val zweite = repository.progressCardio("Laufband")!!
+        assertEquals(28.0, zielVon("Laufband").durationMin!!, 0.0)
+        // Die erste ist überholt; die zweite lässt sich zurücknehmen.
+        assertFalse(repository.revertCardio("Laufband", erste))
+        assertTrue(repository.revertCardio("Laufband", zweite))
+        assertEquals(29.0, zielVon("Laufband").durationMin!!, 0.0)
+
+        val zurueck = repository.progressCardio("Laufband", reverse = true)!!
+        assertEquals(30.0, zurueck.new, 0.0)
+        // Die Distanz und das Gewicht der Kraft-Seite bleiben, wie sie sind.
+        assertEquals(5.0, zielVon("Laufband").distanceKm!!, 0.0)
+        assertEquals(0.0, gewichtVon("Laufband")!!, 0.0)
+    }
+
+    /** Ohne gewählten Wert, ohne gesetzten Wert oder bei einer Kraftübung tut der Pfeil nichts. */
+    @Test
+    fun cardioPfeilOhneWertTutNichts() = runBlocking {
+        val kraft = anlegen(name = "Bankdrücken", weightKg = 60.0, stepKg = 2.5)
+        speichern(kraft, kind = null, cardio = CardioTargets(durationMin = 10.0, arrowValue = CardioValue.DURATION), weightKg = 60.0)
+        assertNull(repository.progressCardio("Bankdrücken"))
+
+        val rad = anlegen(name = "Rad", weightKg = 0.0, stepKg = 2.5)
+        speichern(rad, kind = ExerciseKind.CARDIO, cardio = CardioTargets(durationMin = 30.0), weightKg = 0.0)
+        assertNull(repository.progressCardio("Rad"))
+        speichern(rad, kind = ExerciseKind.CARDIO, cardio = CardioTargets(durationMin = 30.0, arrowValue = CardioValue.INCLINE), weightKg = 0.0)
+        assertNull(repository.progressCardio("Rad"))
+
+        // Ohne eigenen Schritt gilt die Vorgabe des Werts: eine Stufe.
+        speichern(rad, kind = ExerciseKind.CARDIO, cardio = CardioTargets(intensity = 8.0, intensityUnit = IntensityUnit.LEVEL, arrowValue = CardioValue.INTENSITY), weightKg = 0.0)
+        assertEquals(9.0, repository.progressCardio("Rad")!!.new, 0.0)
+    }
+
+    /**
+     * Eine Einheit pro Übung, Variation, Trainingstag und Kalendertag; ein zweites Speichern legt
+     * keine zweite an. Ganz ohne Werte gibt es keine. Eine Einheit beginnt das Training.
+     */
+    @Test
+    fun eineCardioEinheitProTagUndSieBeginntDasTraining() = runBlocking {
+        val beginn = System.currentTimeMillis() - 40 * MINUTE
+        val einheit = CardioValues(durationMin = 22.0, distanceKm = 3.4, intensity = 6.0, intensityUnit = IntensityUnit.KMH)
+        val erste = repository.logCardio("Laufband", null, dayId = 2, values = einheit, performedAt = beginn)
+
+        assertTrue(erste != null)
+        assertNull(repository.logCardio("Laufband", null, dayId = 2, values = einheit, performedAt = beginn + MINUTE))
+        assertNull(repository.logCardio("Laufband", "Steigung", dayId = 2, values = CardioValues(), performedAt = beginn))
+        assertTrue(repository.logCardio("Laufband", "Steigung", dayId = 2, values = einheit, performedAt = beginn) != null)
+        assertEquals(beginn, settingsStore.workoutMarker()!!.startedAt)
+
+        assertTrue(repository.updateCardioLog(erste!!, einheit.copy(durationMin = 25.0, intensity = null)))
+        val korrigiert = repository.observeCardioLogs("Laufband", null).first().single()
+        assertEquals(25.0, korrigiert.durationMin!!, 0.0)
+        // Ohne Tempo auch keine Einheit dafür.
+        assertNull(korrigiert.intensityUnit)
+        assertFalse(repository.updateCardioLog(erste, CardioValues()))
+
+        repository.deleteCardioLog(erste)
+        assertTrue(repository.observeCardioLogs("Laufband", null).first().isEmpty())
+        assertEquals(1, repository.observeCardioLogs().first().size)
+    }
+
+    /**
+     * Die Einheiten ziehen beim Umbenennen der letzten Zeile mit; „Überall löschen“ und „Alle
+     * Daten löschen“ entfernen sie, das Löschen einer Zeile nicht.
+     */
+    @Test
+    fun cardioEinheitenZiehenMitUndVerschwindenMitDerUebung() = runBlocking {
+        val id = anlegen(name = "Rad", weightKg = 0.0, stepKg = 2.5)
+        anlegen(name = "Stepper", weightKg = 0.0, stepKg = 2.5)
+        repository.logCardio("Rad", null, dayId = 1, values = CardioValues(durationMin = 30.0))
+        repository.logCardio("Stepper", null, dayId = 1, values = CardioValues(durationMin = 10.0))
+
+        umbenennen(id = id, von = "Rad", nach = "Ergometer", weightKg = 0.0)
+        assertTrue(repository.observeCardioLogs("Rad", null).first().isEmpty())
+        assertEquals(1, repository.observeCardioLogs("Ergometer", null).first().size)
+
+        repository.deleteExercises(listOf(repository.findExercise(id)!!))
+        assertEquals(1, repository.observeCardioLogs("Ergometer", null).first().size)
+        repository.deleteExercisesEverywhere(listOf("Ergometer"))
+        assertTrue(repository.observeCardioLogs("Ergometer", null).first().isEmpty())
+        assertEquals(1, repository.observeCardioLogs("Stepper", null).first().size)
+
+        repository.deleteAllData()
+        assertTrue(repository.observeCardioLogs().first().isEmpty())
+    }
+
     // --- Trainingsdauer ----------------------------------------------------
 
     /**
@@ -628,6 +785,28 @@ class TrainingRepositoryTest {
         )
         return database.exerciseDao().listByDay(dayId).first { it.name == name }.id
     }
+
+    /** Speichert die Zeile mit Art und Cardio-Zielen; alles andere bleibt, wie es ist. */
+    private suspend fun speichern(id: Long, kind: ExerciseKind?, cardio: CardioTargets?, weightKg: Double) {
+        val vorher = repository.findExercise(id)!!
+        repository.saveExercise(
+            id = id,
+            dayId = vorher.dayId,
+            name = vorher.name,
+            variation = vorher.variation,
+            weightKg = weightKg,
+            sets = vorher.sets,
+            repsMin = vorher.repsMin,
+            repsMax = vorher.repsMax,
+            progressionStepKg = vorher.progressionStepKg,
+            progressionDown = vorher.progressionDown,
+            kind = kind,
+            cardio = cardio
+        )
+    }
+
+    private suspend fun zielVon(name: String): CardioTargets =
+        database.exerciseDefinitionDao().find(name)!!.cardio
 
     /** Speichert dieselbe Zeile unter neuem Namen – so, wie es das Bearbeiten-Sheet tut. */
     private suspend fun umbenennen(id: Long, von: String, nach: String, weightKg: Double) {

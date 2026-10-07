@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.withTransaction
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.local.AppDatabase
+import de.beispiel.meintraining.data.local.CardioLogDao
 import de.beispiel.meintraining.data.local.ExerciseDao
 import de.beispiel.meintraining.data.local.ConsumedMarker
 import de.beispiel.meintraining.data.local.ExerciseDefinitionDao
@@ -12,10 +13,16 @@ import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.local.TrainingDayDao
 import de.beispiel.meintraining.data.local.WeightLogDao
 import de.beispiel.meintraining.data.local.WorkoutSessionDao
+import de.beispiel.meintraining.data.model.CardioLog
+import de.beispiel.meintraining.data.model.CardioTargets
+import de.beispiel.meintraining.data.model.CardioValue
+import de.beispiel.meintraining.data.model.CardioValues
 import de.beispiel.meintraining.data.model.Exercise
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.ExerciseItem
+import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.model.FIRST_DAY_ID
+import de.beispiel.meintraining.data.model.IntensityUnit
 import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WeightLog
@@ -29,12 +36,14 @@ import de.beispiel.meintraining.util.autoEndDecision
 import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.decreaseWeight
+import de.beispiel.meintraining.util.defaultCardioStep
 import de.beispiel.meintraining.util.dueDayId
 import de.beispiel.meintraining.util.keepSupersetBlocksTogether
 import de.beispiel.meintraining.util.nextOpenDayId
 import de.beispiel.meintraining.util.plausibleStart
 import de.beispiel.meintraining.util.restoredMarker
 import de.beispiel.meintraining.util.rotations
+import de.beispiel.meintraining.util.stepCardioTarget
 import de.beispiel.meintraining.util.stepWeight
 import de.beispiel.meintraining.util.supersetsAfterTransfer
 import de.beispiel.meintraining.util.survivingSupersetMembers
@@ -57,6 +66,21 @@ import java.time.ZoneId
  * zusammen macht die Änderung rücknehmbar, ohne dabei zu raten (siehe [TrainingRepository.revertWeight]).
  */
 data class WeightChange(val previousKg: Double, val newKg: Double, val logId: Long)
+
+/**
+ * Ergebnis eines Pfeils auf einer Cardio-Übung: welcher Wert ([value]) von wo nach wo ging.
+ * [unit] ist die Einheit des Tempos in diesem Moment – für die Meldung „Tempo auf 6,5 km/h
+ * erhöht“, auch wenn danach jemand die Einheit umstellt.
+ *
+ * Ohne Verlaufseintrag: Zielwerte werden nicht mitgeschrieben, die Kurven entstehen aus den
+ * eingetragenen Einheiten. Zurückgenommen wird über [TrainingRepository.revertCardio].
+ */
+data class CardioChange(
+    val value: CardioValue,
+    val previous: Double,
+    val new: Double,
+    val unit: IntensityUnit
+)
 
 /** Ergebnis eines Tippens auf den Haken. */
 data class WorkoutToggle(
@@ -97,6 +121,7 @@ class TrainingRepository(
     private val weightLogDao: WeightLogDao = database.weightLogDao()
     private val sessionDao: WorkoutSessionDao = database.workoutSessionDao()
     private val setLogDao: SetLogDao = database.setLogDao()
+    private val cardioLogDao: CardioLogDao = database.cardioLogDao()
 
     /**
      * Der zuletzt von Hand oder automatisch gesetzte Tag, noch bevor DataStore ihn kennt.
@@ -222,6 +247,82 @@ class TrainingRepository(
         }
 
     suspend fun deleteSetLog(id: Long) = setLogDao.deleteById(id)
+
+    /** Alle eingetragenen Cardio-Einheiten, älteste zuerst. */
+    fun observeCardioLogs(): Flow<List<CardioLog>> = cardioLogDao.observeAll()
+
+    /** Die Einheiten einer Cardio-Übung mit dieser Variation, über alle Tage; siehe [CardioLog]. */
+    fun observeCardioLogs(name: String, variation: String?): Flow<List<CardioLog>> =
+        cardioLogDao.observeByExercise(name, variation)
+
+    /**
+     * Trägt eine Cardio-Einheit ein und liefert ihre Kennung.
+     *
+     * Eine Einheit pro Übung, Trainingstag und Kalendertag (siehe [CardioLog]): Steht heute schon
+     * eine, wird nichts gespeichert und es kommt `null` zurück – die vorhandene lässt sich über
+     * [updateCardioLog] korrigieren. Entschieden wird das wie bei [logSet] in einer Transaktion,
+     * damit zwei schnelle Tipps auf „Speichern“ nicht zwei Einheiten anlegen. Ganz ohne Werte
+     * gibt es keine Einheit, auch dann kommt `null`.
+     *
+     * Wie ein gespeicherter Satz meldet sich der Eintrag bei [reportActivity]: Er beginnt ein
+     * Training oder hält das laufende am Leben.
+     */
+    suspend fun logCardio(
+        name: String,
+        variation: String?,
+        dayId: Int,
+        values: CardioValues,
+        performedAt: Long = System.currentTimeMillis()
+    ): Long? {
+        if (values.isEmpty) return null
+        val date = performedAt.toLocalDate()
+        val zone = ZoneId.systemDefault()
+        val id = database.withTransaction {
+            val existing = cardioLogDao.countInUnit(
+                name = name,
+                variation = variation,
+                dayId = dayId,
+                from = date.atStartOfDay(zone).toInstant().toEpochMilli(),
+                until = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            )
+            if (existing > 0) return@withTransaction null
+            cardioLogDao.insert(
+                CardioLog(
+                    exerciseName = name,
+                    variation = variation,
+                    dayId = dayId,
+                    performedAt = performedAt
+                ).withValues(values)
+            )
+        } ?: return null
+        reportActivity(dayId = dayId, at = performedAt)
+        return id
+    }
+
+    /**
+     * Korrigiert die Werte einer eingetragenen Einheit; Name, Tag und Zeitpunkt bleiben. Liefert
+     * `false`, wenn es sie nicht mehr gibt oder kein Wert übrig wäre – dafür gibt es
+     * [deleteCardioLog].
+     */
+    suspend fun updateCardioLog(id: Long, values: CardioValues): Boolean {
+        if (values.isEmpty) return false
+        return database.withTransaction {
+            val existing = cardioLogDao.findById(id) ?: return@withTransaction false
+            cardioLogDao.update(existing.withValues(values))
+            true
+        }
+    }
+
+    suspend fun deleteCardioLog(id: Long) = cardioLogDao.deleteById(id)
+
+    /** Die Einheit eines Tempos nur, wenn es eines gibt – siehe [CardioLog.intensityUnit]. */
+    private fun CardioLog.withValues(values: CardioValues) = copy(
+        durationMin = values.durationMin,
+        distanceKm = values.distanceKm,
+        intensity = values.intensity,
+        intensityUnit = values.intensityUnit.takeIf { values.intensity != null },
+        inclinePercent = values.inclinePercent
+    )
 
     /** Alle abgehakten Trainings, das jüngste zuerst. */
     fun observeSessions(): Flow<List<WorkoutSession>> = sessionDao.observeAll()
@@ -599,7 +700,7 @@ class TrainingRepository(
 
     /**
      * Löscht Übungen restlos: aus allen Trainingstagen, aus der Übungsdatenbank und samt
-     * Gewichtsverlauf und Satz-Protokoll. Das lässt sich nicht rückgängig machen.
+     * Gewichtsverlauf, Satz-Protokoll und Cardio-Einheiten. Das lässt sich nicht rückgängig machen.
      *
      * Alles in einer Transaktion, damit nicht die halbe Auswahl verschwindet, wenn etwas
      * dazwischenkommt.
@@ -614,6 +715,7 @@ class TrainingRepository(
             definitionDao.deleteByNames(names)
             weightLogDao.deleteByNames(names)
             setLogDao.deleteByNames(names)
+            cardioLogDao.deleteByNames(names)
             affectedDays.distinct().forEach { normalizeSupersets(it) }
         }
         // Sonst blieben die Namen ausgeblendet und später neu angelegte Übungen gleichen
@@ -703,13 +805,15 @@ class TrainingRepository(
     /**
      * Legt eine Übung an oder aktualisiert sie.
      *
-     * [weightKg], [progressionStepKg], [progressionDown], [note] und [logSets] landen in der
-     * gemeinsamen Definition und gelten damit an *allen* Tagen, an denen [name] vorkommt. Sätze,
+     * [weightKg], [progressionStepKg], [progressionDown], [note], [logSets], [kind] und [cardio]
+     * landen in der gemeinsamen Definition und gelten damit an *allen* Tagen, an denen [name] vorkommt. Sätze,
      * Wiederholungen und [variation] bleiben bei dieser einen Zeile. Ein geändertes Gewicht wandert
      * zusätzlich in den Verlauf.
      *
-     * Eine leere [note] heißt: keine Notiz. [logSets] `null` lässt den gespeicherten Schalter
-     * stehen – für Aufrufer, die ihn nicht kennen.
+     * Eine leere [note] heißt: keine Notiz. [logSets], [kind] und [cardio] `null` lassen den
+     * gespeicherten Stand stehen – für Aufrufer, die sie nicht kennen. Die Werte der Art, die die
+     * Übung gerade nicht hat, werden mitgespeichert, wie sie sind: Ein Wechsel der Art verliert
+     * nichts.
      *
      * Ein leeres Gewichtsfeld – [weightKg] ist dann `null` – lässt den geteilten Wert stehen,
      * statt ihn zu löschen: Er gilt an allen Tagen, an denen die Übung vorkommt, und wäre sonst
@@ -718,7 +822,7 @@ class TrainingRepository(
      * zeigten anschließend Verschiedenes. Wer die Übung samt Gewicht loswerden will, löscht sie.
      *
      * Wird die letzte Zeile eines Namens auf einen noch unbekannten umbenannt, ziehen
-     * Gewichtsverlauf und Satz-Protokoll mit um – siehe [renameHistory].
+     * Gewichtsverlauf, Satz-Protokoll und Cardio-Einheiten mit um – siehe [renameHistory].
      */
     suspend fun saveExercise(
         id: Long?,
@@ -732,7 +836,9 @@ class TrainingRepository(
         progressionStepKg: Double,
         progressionDown: Boolean,
         note: String? = null,
-        logSets: Boolean? = null
+        logSets: Boolean? = null,
+        kind: ExerciseKind? = null,
+        cardio: CardioTargets? = null
     ) {
         val renamedFrom = database.withTransaction {
             // Zuerst prüfen, ob es die zu ändernde Zeile überhaupt noch gibt – sonst bliebe
@@ -754,7 +860,9 @@ class TrainingRepository(
                     progressionStepKg = progressionStepKg,
                     progressionDown = progressionDown,
                     note = note?.takeIf { it.isNotBlank() },
-                    logSets = logSets ?: previous?.logSets ?: false
+                    logSets = logSets ?: previous?.logSets ?: false,
+                    kind = kind ?: previous?.kind ?: ExerciseKind.STRENGTH,
+                    cardio = cardio ?: previous?.cardio ?: CardioTargets()
                 )
             )
             if (effectiveWeight != null && effectiveWeight != previous?.weightKg) {
@@ -817,7 +925,7 @@ class TrainingRepository(
     }
 
     /**
-     * Schreibt Gewichtsverlauf und Satz-Protokoll auf den neuen Namen um, wenn aus einer Übung
+     * Schreibt Gewichtsverlauf, Satz-Protokoll und Cardio-Einheiten auf den neuen Namen um, wenn aus einer Übung
      * schlicht eine anders heißende geworden ist. Liefert den alten Namen, falls das passiert ist.
      *
      * Bedingung ist, dass unter dem alten Namen nichts mehr steht *und* der neue vorher
@@ -835,6 +943,7 @@ class TrainingRepository(
         orphaned?.let {
             weightLogDao.renameExercise(oldName = it, newName = newName)
             setLogDao.renameExercise(oldName = it, newName = newName)
+            cardioLogDao.renameExercise(oldName = it, newName = newName)
         }
         // Ein umbenannter letzter Eintrag lässt die alte Definition verwaist zurück.
         definitionDao.deleteOrphans()
@@ -912,9 +1021,53 @@ class TrainingRepository(
     }
 
     /**
+     * Der Pfeil einer Cardio-Übung: verschiebt den Wert, den die Übung dafür gewählt hat, um ihren
+     * Schritt – an jedem Tag, an dem sie vorkommt. Gegenstück zu [progressWeight], mit derselben
+     * Rechnung auf dem gespeicherten Stand und demselben [reverse] für den langen Druck.
+     *
+     * Nach oben oder unten sagt die eigene Richtung der Cardio-Ziele, nicht
+     * [ExerciseDefinition.progressionDown] – siehe [CardioTargets.arrowDown].
+     *
+     * Liefert `null`, wenn sich nichts ändert: keine Cardio-Übung, kein gewählter Wert, der Wert
+     * noch nicht gesetzt, oder er steht schon bei null und der Schritt ginge darunter.
+     */
+    suspend fun progressCardio(name: String, reverse: Boolean = false): CardioChange? =
+        database.withTransaction {
+            val definition = definitionDao.find(name) ?: return@withTransaction null
+            if (definition.kind != ExerciseKind.CARDIO) return@withTransaction null
+            val targets = definition.cardio
+            val value = targets.arrowValue ?: return@withTransaction null
+            val current = targets.valueOf(value) ?: return@withTransaction null
+            val next = stepCardioTarget(
+                current = current,
+                step = targets.arrowStep ?: defaultCardioStep(value, targets.intensityUnit),
+                down = targets.arrowDown,
+                reverse = reverse
+            )
+            if (next == current) return@withTransaction null
+            definitionDao.upsert(definition.copy(cardio = targets.with(value, next)))
+            CardioChange(value = value, previous = current, new = next, unit = targets.intensityUnit)
+        }
+
+    /**
+     * Nimmt einen Pfeil auf einer Cardio-Übung zurück – wie [revertWeight] nur, solange die
+     * Änderung noch der aktuelle Stand ist; sonst `false`. Einen Verlaufseintrag gibt es hier
+     * nicht, die Prüfung auf den Stand genügt.
+     */
+    suspend fun revertCardio(name: String, change: CardioChange): Boolean =
+        database.withTransaction {
+            val definition = definitionDao.find(name) ?: return@withTransaction false
+            if (definition.cardio.valueOf(change.value) != change.new) return@withTransaction false
+            definitionDao.upsert(
+                definition.copy(cardio = definition.cardio.with(change.value, change.previous))
+            )
+            true
+        }
+
+    /**
      * Löscht die Zeilen. War es die letzte Zeile mit einem Namen, verschwindet die Übung
-     * auch aus der Datenbank und damit aus den Vorschlägen. Gewichtsverlauf und Satz-Protokoll
-     * bleiben erhalten – sie sind die wertvollste Information und wären sonst unwiederbringlich
+     * auch aus der Datenbank und damit aus den Vorschlägen. Gewichtsverlauf, Satz-Protokoll und
+     * Cardio-Einheiten bleiben erhalten – sie sind die wertvollste Information und wären sonst unwiederbringlich
      * weg.
      */
     suspend fun deleteExercises(items: List<ExerciseItem>) = database.withTransaction {
@@ -1101,7 +1254,7 @@ class TrainingRepository(
      * Setzt die App auf den Zustand direkt nach der Installation zurück.
      *
      * Weg sind: der Verlauf abgehakter Trainings, der komplette Gewichtsverlauf, das
-     * Satz-Protokoll, alle Übungen samt ihrer geteilten Werte, die Namen der Trainingstage und
+     * Satz-Protokoll, die Cardio-Einheiten, alle Übungen samt ihrer geteilten Werte, die Namen der Trainingstage und
      * sämtliche Einstellungen – also alles, was die App je über das Training gesammelt hat.
      *
      * Übrig bleiben die leeren Trainingstage, genau wie nach der Installation. Das lässt sich
@@ -1111,6 +1264,7 @@ class TrainingRepository(
         database.withTransaction {
             weightLogDao.deleteAll()
             setLogDao.deleteAll()
+            cardioLogDao.deleteAll()
             sessionDao.deleteAll()
             exerciseDao.deleteAll()
             definitionDao.deleteAll()
