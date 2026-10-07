@@ -127,6 +127,8 @@ object Dimens {
 
     // Statistiken: Rückblick – der Kalender füllt die Breite der Karte, im Monat bis zu dieser Größe.
     val ReviewHeatmapMaxCell = 28.dp
+    /** Im Monat steht der Tag im Feld; größer wird es nicht, sonst wirkt der Kalender wie Kacheln. */
+    val ReviewMonthMaxCell = 40.dp
     val ReviewHeatmapGap = 2.dp
 
     // Deload

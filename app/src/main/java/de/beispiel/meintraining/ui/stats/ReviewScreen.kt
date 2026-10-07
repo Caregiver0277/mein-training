@@ -83,6 +83,9 @@ import kotlin.math.roundToInt
 private const val CARD_MILESTONES = 3
 private const val MINUTES_PER_HOUR = 60
 
+/** Ab hier zeigen die Kacheln ganze Zahlen – siehe [compact]. */
+private const val COMPACT_LIMIT = 10.0
+
 /**
  * Was die Seite zeigt: der [review] des gewählten Zeitraums, dazu [firstDate], der erste Tag mit
  * Daten – davor gibt es nichts zurückzublättern –, und [today].
@@ -161,7 +164,7 @@ fun ReviewScreen(
             ) {
                 ReviewCard(page.review)
             }
-            Button(
+            if (!page.review.isEmpty) Button(
                 onClick = {
                     scope.launch {
                         runCatching {
@@ -283,11 +286,12 @@ internal fun ReviewCard(review: Review) {
         }
 
         if (review.weeks.isNotEmpty()) {
-            MiniHeatmap(
-                weeks = review.weeks,
-                showMonths = review.period is ReviewPeriod.Year,
-                modifier = Modifier.padding(top = Dimens.SectionSpacingLarge)
-            )
+            val calendarModifier = Modifier.padding(top = Dimens.SectionSpacingLarge)
+            if (review.period is ReviewPeriod.Year) {
+                YearCalendar(review.weeks, calendarModifier)
+            } else {
+                MonthCalendar(review.weeks, calendarModifier)
+            }
         }
         Text(
             text = stringResource(R.string.app_name),
@@ -319,7 +323,7 @@ private fun ReviewFacts(review: Review) {
         )
         ReviewTile(
             value = if (review.gainKg > 0.0) {
-                stringResource(R.string.review_gain_value, review.gainKg.roundTo(2).toDecimalString())
+                stringResource(R.string.review_gain_value, compact(review.gainKg))
             } else {
                 stringResource(R.string.review_none)
             },
@@ -384,14 +388,21 @@ private fun ReviewFacts(review: Review) {
     }
 }
 
-/** „45 min“, ab einer Stunde „12,5 h“. */
+/** „45 min“, ab einer Stunde „12,5 h“, ab zehn „144 h“. */
 @Composable
 private fun formatTrainingTime(minutes: Int): String =
     if (minutes < MINUTES_PER_HOUR) {
         stringResource(R.string.stats_minutes_value, minutes)
     } else {
-        stringResource(R.string.review_hours, (minutes.toDouble() / MINUTES_PER_HOUR).roundTo(1).toDecimalString())
+        stringResource(R.string.review_hours, compact(minutes.toDouble() / MINUTES_PER_HOUR))
     }
+
+/**
+ * Eine Zahl für die schmalen Kacheln: unter zehn mit einer Nachkommastelle, darüber ganz – „7,5“,
+ * aber „313“. Die genaue Zahl steht, wo nötig, darunter in den Zeilen.
+ */
+private fun compact(value: Double): String =
+    if (value < COMPACT_LIMIT) value.roundTo(1).toDecimalString() else value.roundToInt().toString()
 
 @Composable
 private fun ReviewTile(value: String, label: String, modifier: Modifier = Modifier, accent: Boolean = false) {
@@ -404,7 +415,7 @@ private fun ReviewTile(value: String, label: String, modifier: Modifier = Modifi
     ) {
         Text(
             text = value,
-            style = AppTextStyles.Title,
+            style = AppTextStyles.ExerciseName,
             color = if (accent) AccentGreen else TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -420,12 +431,15 @@ private fun ReviewTile(value: String, label: String, modifier: Modifier = Modifi
 }
 
 /**
- * Der Kalender des Zeitraums, so breit wie die Karte: eine Spalte je Woche, Montag oben, in den
- * Farben des Kalenders der Statistik. Ein Monat hat wenige, große Felder, ein Jahr viele kleine
- * und darüber die Monatsnamen.
+ * Der Kalender eines Jahres, so breit wie die Karte: eine Spalte je Woche, Montag oben, in den
+ * Farben des Kalenders der Statistik, darüber die Monatsnamen.
+ *
+ * Bei gut fünfzig Spalten ist eine Spalte schmaler als ein Monatsname. Ein Name steht deshalb nur,
+ * wo er weder in den vorigen hineinläuft noch über den Rand hinaus – lieber einer weniger als zwei
+ * unlesbare.
  */
 @Composable
-private fun MiniHeatmap(weeks: List<HeatmapWeek>, showMonths: Boolean, modifier: Modifier = Modifier) {
+private fun YearCalendar(weeks: List<HeatmapWeek>, modifier: Modifier = Modifier) {
     val measurer = rememberTextMeasurer()
     val labelStyle = AppTextStyles.ColumnLabel.copy(color = TextSecondary)
     val monthNames = remember(weeks) {
@@ -435,7 +449,7 @@ private fun MiniHeatmap(weeks: List<HeatmapWeek>, showMonths: Boolean, modifier:
         val gap = Dimens.ReviewHeatmapGap
         val cell: Dp = min(Dimens.ReviewHeatmapMaxCell, (maxWidth + gap) / weeks.size - gap)
         val pitch = cell + gap
-        val top = if (showMonths) Dimens.HeatmapMonthRowHeight else 0.dp
+        val top = Dimens.HeatmapMonthRowHeight
         val rows = DayOfWeek.entries.size
         Canvas(
             modifier = Modifier.size(width = pitch * weeks.size - gap, height = top + pitch * rows - gap)
@@ -443,12 +457,16 @@ private fun MiniHeatmap(weeks: List<HeatmapWeek>, showMonths: Boolean, modifier:
             val cellPx = cell.toPx()
             val pitchPx = pitch.toPx()
             val topPx = top.toPx()
+            val labelGap = gap.toPx() * 2
             val corner = CornerRadius(cellPx / 5)
+            var labelEnd = Float.NEGATIVE_INFINITY
             weeks.forEachIndexed { column, week ->
                 val x = column * pitchPx
-                if (showMonths) {
-                    monthNames[column]?.let { name ->
-                        drawText(measurer, name, topLeft = Offset(x, 0f), style = labelStyle, softWrap = false)
+                monthNames[column]?.let { name ->
+                    val layout = measurer.measure(name, labelStyle, softWrap = false)
+                    if (x >= labelEnd + labelGap && x + layout.size.width <= size.width) {
+                        drawText(layout, topLeft = Offset(x, 0f))
+                        labelEnd = x + layout.size.width
                     }
                 }
                 week.days.forEachIndexed { row, day ->
@@ -458,6 +476,59 @@ private fun MiniHeatmap(weeks: List<HeatmapWeek>, showMonths: Boolean, modifier:
                         topLeft = Offset(x, topPx + row * pitchPx),
                         size = Size(cellPx, cellPx),
                         cornerRadius = corner
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Der Kalender eines Monats, wie man ihn kennt: eine Zeile je Woche, Montag bis Sonntag von links
+ * nach rechts, in jedem Feld der Tag – in den Farben des Kalenders der Statistik. Dieselben Daten
+ * wie beim Jahr, nur gedreht: Bei fünf Wochen wäre eine Spalte je Woche ein schmaler Streifen.
+ */
+@Composable
+private fun MonthCalendar(weeks: List<HeatmapWeek>, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    val headerStyle = AppTextStyles.ColumnLabel.copy(color = TextSecondary)
+    val dayStyle = AppTextStyles.ColumnLabel
+    val weekdayNames = remember {
+        DayOfWeek.entries.map { it.getDisplayName(TextStyle.SHORT, Locale.GERMANY).take(2) }
+    }
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val gap = Dimens.ReviewHeatmapGap
+        val columns = DayOfWeek.entries.size
+        val cell: Dp = min(Dimens.ReviewMonthMaxCell, (maxWidth + gap) / columns - gap)
+        val pitch = cell + gap
+        val top = Dimens.HeatmapMonthRowHeight
+        Canvas(
+            modifier = Modifier.size(width = pitch * columns - gap, height = top + pitch * weeks.size - gap)
+        ) {
+            val cellPx = cell.toPx()
+            val pitchPx = pitch.toPx()
+            val topPx = top.toPx()
+            val inset = cellPx / 8
+            val corner = CornerRadius(cellPx / 6)
+            weekdayNames.forEachIndexed { column, name ->
+                drawText(measurer, name, topLeft = Offset(column * pitchPx, 0f), style = headerStyle, softWrap = false)
+            }
+            weeks.forEachIndexed { row, week ->
+                week.days.forEachIndexed { column, day ->
+                    if (day == null) return@forEachIndexed
+                    val topLeft = Offset(column * pitchPx, topPx + row * pitchPx)
+                    drawRoundRect(
+                        color = heatmapColor(day.count),
+                        topLeft = topLeft,
+                        size = Size(cellPx, cellPx),
+                        cornerRadius = corner
+                    )
+                    drawText(
+                        measurer,
+                        day.date.dayOfMonth.toString(),
+                        topLeft = topLeft + Offset(inset, inset / 2),
+                        style = dayStyle.copy(color = if (day.count > 0) TextPrimary else TextSecondary),
+                        softWrap = false
                     )
                 }
             }
