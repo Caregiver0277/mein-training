@@ -104,6 +104,7 @@ fun StatsScreen(uiState: StatsUiState, onBack: () -> Unit, modifier: Modifier = 
         ) {
             // Reihenfolge siehe oben.
             HeadlineTiles(uiState)
+            uiState.heatmap?.let { HeatmapCard(it) }
             ProgressCard(uiState)
             if (uiState.stagnating.isNotEmpty()) StagnationCard(uiState.stagnating)
             WeekdayCard(uiState)
@@ -354,8 +355,13 @@ private fun StagnationCard(entries: List<StagnatingExercise>) {
     }
 }
 
+/** Eine Karte der Statistikseite; [trailing] steht rechts neben dem Titel, etwa eine Legende. */
 @Composable
-private fun StatsCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun StatsCard(
+    title: String,
+    trailing: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -363,18 +369,26 @@ private fun StatsCard(title: String, content: @Composable ColumnScope.() -> Unit
             .background(CardBackground)
             .padding(Dimens.SheetPadding)
     ) {
-        Text(
-            text = title,
-            style = AppTextStyles.ExerciseName,
-            color = TextPrimary,
-            modifier = Modifier.padding(bottom = Dimens.SectionSpacingSmall)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = Dimens.SectionSpacingSmall),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = AppTextStyles.ExerciseName,
+                color = TextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            trailing?.invoke()
+        }
         content()
     }
 }
 
 @Composable
-private fun Fact(label: String, value: String, highlight: Boolean = false) {
+internal fun Fact(label: String, value: String, highlight: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

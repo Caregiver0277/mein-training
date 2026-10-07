@@ -10,12 +10,14 @@ import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DurationSummary
+import de.beispiel.meintraining.util.Heatmap
 import de.beispiel.meintraining.util.SessionTimes
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.currentWeeklyStreak
 import de.beispiel.meintraining.util.durationSummary
 import de.beispiel.meintraining.util.currentStrengthWeights
 import de.beispiel.meintraining.util.exerciseGains
+import de.beispiel.meintraining.util.heatmap
 import de.beispiel.meintraining.util.longestWeeklyStreak
 import de.beispiel.meintraining.util.sessionsPerWeek
 import de.beispiel.meintraining.util.stagnatingExercises
@@ -37,6 +39,8 @@ data class StatsUiState(
     val currentStreak: Int = 0,
     val longestStreak: Int = 0,
     val firstSession: LocalDate? = null,
+    /** Der Kalender der letzten zwölf Monate; `null` nur vor dem ersten Ausrechnen. */
+    val heatmap: Heatmap? = null,
     /** Trainings je Wochentag, beginnend mit Montag. */
     val weekdayCounts: List<Int> = emptyList(),
     val typicalTime: LocalTime? = null,
@@ -114,6 +118,7 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             currentStreak = currentWeeklyStreak(dates, today),
             longestStreak = longestWeeklyStreak(dates),
             firstSession = dates.minOrNull(),
+            heatmap = heatmap(dates, today),
             weekdayCounts = weekdayDistribution(dates),
             typicalTime = typicalTimeOfDay(times),
             totalGainKg = gains.sumOf { it.gainKg },

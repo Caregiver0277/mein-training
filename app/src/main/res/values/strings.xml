@@ -452,6 +452,19 @@
         <item quantity="one">%1$d Tag</item>
         <item quantity="other">%1$d Tage</item>
     </plurals>
+    <plurals name="stats_sessions">
+        <item quantity="one">%1$d Training</item>
+        <item quantity="other">%1$d Trainings</item>
+    </plurals>
+    <string name="stats_heatmap">Kalender</string>
+    <string name="stats_heatmap_hint">Tippe auf einen Tag, um seine Trainings zu sehen.</string>
+    <!-- Etwa „Mi., 7. Oktober 2026: 2 Trainings“. -->
+    <string name="stats_heatmap_day">%1$s: %2$s</string>
+    <string name="stats_heatmap_no_session">kein Training</string>
+    <string name="stats_heatmap_description">Trainingskalender der letzten %1$d Monate</string>
+    <string name="stats_heatmap_legend_none">0</string>
+    <string name="stats_heatmap_legend_one">1</string>
+    <string name="stats_heatmap_legend_many">2+</string>
 
     <!-- Deload -->
     <string name="deload_badge">Deload-Woche</string>

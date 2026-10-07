@@ -99,6 +99,18 @@ object Dimens {
     val StatsLabelWidth = 64.dp
     val StatsValueWidth = 64.dp
 
+    // Statistiken: Kalender
+    val HeatmapCellSize = 12.dp
+    val HeatmapCellGap = 3.dp
+    val HeatmapCellCorner = 2.dp
+    /** Zeile der Monatsnamen über dem Kalender. */
+    val HeatmapMonthRowHeight = 16.dp
+    /** Spalte der Wochentage links vom Kalender; sie scrollt nicht mit. */
+    val HeatmapWeekdayWidth = 28.dp
+    /** Rahmen um heute und um den angetippten Tag. */
+    val HeatmapMarkStroke = 1.5.dp
+    val HeatmapLegendSize = 10.dp
+
     // Deload
     val WeekDotHeight = 32.dp
     val BulletSize = 6.dp

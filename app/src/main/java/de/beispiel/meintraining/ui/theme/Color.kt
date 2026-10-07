@@ -34,6 +34,12 @@ val LoggableChipOutline = Color(0xFF2C4C77)
 val AccentGreen = Color(0xFF3FA96B)
 val AccentGreenSurface = Color(0xFF16301F)
 
+/**
+ * Der Kalender der Statistik: ein Training an einem Tag. Zwei und mehr sind [AccentGreen], kein
+ * Training ist [ChipBackground] – dazwischen ein gedämpftes Grün, das sich von beiden abhebt.
+ */
+val HeatmapOneSession = Color(0xFF24613F)
+
 /** Dunkleres Grün für den „erledigt“-Punkt auf dem hellen, gewählten Tagesreiter. */
 val TabActiveDoneMark = Color(0xFF1B6E3D)
 
