@@ -12,6 +12,7 @@ import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.ui.components.SetsProgress
 import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DeloadStatus
+import de.beispiel.meintraining.util.LastCardioEntry
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
 import de.beispiel.meintraining.util.RotationEntry
 import de.beispiel.meintraining.util.SetLogKey
@@ -21,6 +22,7 @@ import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.deloadStatus
 import de.beispiel.meintraining.util.isTopOfRangeReached
+import de.beispiel.meintraining.util.lastCardioEntry
 import de.beispiel.meintraining.util.lastUnit
 import de.beispiel.meintraining.util.parseOptionalDecimal
 import de.beispiel.meintraining.util.parseOptionalInt
@@ -89,6 +91,37 @@ class TrainingViewModel(
                 combine(repository.observeWeightLogs(name), currentDate.flow) { logs, today ->
                     weightHistory(logs, today)
                 }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)
+
+    /**
+     * Die letzte eingetragene Einheit zur Cardio-Übung im offenen Sheet – die Zeile, die bei
+     * Cardio an der Stelle des Gewichtsverlaufs steht.
+     *
+     * Gemeint ist dieselbe Übung wie bei [weightHistory], dazu ihre Variation: Die Einheiten
+     * halten Variationen auseinander (siehe
+     * [CardioLog][de.beispiel.meintraining.data.model.CardioLog]). Nur solange „Cardio“ gewählt ist;
+     * abgefragt wird wie dort nur bei einem Wechsel der Übung.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val lastCardioEntry: StateFlow<LastCardioEntry?> = formState
+        .map { form ->
+            form?.takeIf { it.isCardio }?.let { cardioForm ->
+                (cardioForm.matchedName ?: cardioForm.originalName)?.let { name ->
+                    name to cardioForm.variation.trim().takeIf { cardioForm.showVariation && it.isNotEmpty() }
+                }
+            }
+        }
+        .distinctUntilChanged()
+        .flatMapLatest { key ->
+            if (key == null) {
+                flowOf(null)
+            } else {
+                combine(
+                    repository.observeCardioLogs(key.first, key.second),
+                    currentDate.flow
+                ) { logs, today -> lastCardioEntry(logs, today) }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), null)

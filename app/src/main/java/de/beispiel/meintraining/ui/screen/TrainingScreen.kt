@@ -97,6 +97,7 @@ import de.beispiel.meintraining.ui.timer.RestTimerBar
 import de.beispiel.meintraining.ui.timer.RestTimerRoute
 import de.beispiel.meintraining.ui.tracking.TrackingRoute
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
+import de.beispiel.meintraining.util.LastCardioEntry
 import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.setsThisWeek
 import de.beispiel.meintraining.util.exerciseTitle
@@ -117,6 +118,8 @@ fun TrainingScreen(
     editorForm: ExerciseForm?,
     /** Verlauf der Übung im Sheet, siehe [TrainingViewModel.weightHistory]. */
     weightHistory: WeightHistory?,
+    /** Letzte Einheit der Cardio-Übung im Sheet, siehe [TrainingViewModel.lastCardioEntry]. */
+    lastCardioEntry: LastCardioEntry?,
     /** Offenes Satz-Protokoll, siehe [TrainingViewModel.setLogSheet]. */
     setLogSheet: SetLogSheetState?,
     events: Flow<TrainingEvent>,
@@ -241,6 +244,7 @@ fun TrainingScreen(
         ExerciseEditSheet(
             form = form,
             weightHistory = weightHistory,
+            lastCardioEntry = lastCardioEntry,
             knownExerciseNames = uiState.knownExerciseNames,
             onFormChange = actions.onFormChange,
             onVariationToggle = actions.onVariationToggle,

@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.util
 
+import de.beispiel.meintraining.data.model.CardioLog
 import de.beispiel.meintraining.data.model.CardioTargets
 import de.beispiel.meintraining.data.model.CardioValue
 import de.beispiel.meintraining.data.model.CardioValues
@@ -9,6 +10,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 private val UNITS = CardioUnits(
     minutes = "min",
@@ -185,6 +188,26 @@ class CardioTest {
         assertEquals(29.0, stepCardioTarget(30.0, 1.0, down = true), 0.0)
         assertEquals(31.0, stepCardioTarget(30.0, 1.0, down = true, reverse = true), 0.0)
         assertEquals(0.0, stepCardioTarget(0.5, 1.0, down = true), 0.0)
+    }
+
+    // --- Letztes Mal --------------------------------------------------------
+
+    @Test
+    fun dieJuengsteEinheitMitAbstandInTagen() {
+        val zone = ZoneOffset.UTC
+        fun am(tag: Int, stunde: Int) =
+            LocalDate.of(2026, 10, tag).atTime(stunde, 0).toInstant(zone).toEpochMilli()
+        val logs = listOf(
+            CardioLog(exerciseName = "Laufband", dayId = 1, performedAt = am(1, 18), durationMin = 20.0),
+            CardioLog(exerciseName = "Laufband", dayId = 1, performedAt = am(4, 7), durationMin = 22.0, distanceKm = 3.4)
+        )
+        val letztes = lastCardioEntry(logs, today = LocalDate.of(2026, 10, 7), zone = zone)!!
+        assertEquals(3, letztes.daysAgo)
+        assertEquals(LocalDate.of(2026, 10, 4), letztes.date)
+        assertEquals("22 min · 3,4 km", formatCardioValues(letztes.values, UNITS))
+        // Eine zurückgestellte Uhr: nie „vor -1 Tagen“.
+        assertEquals(0, lastCardioEntry(logs, today = LocalDate.of(2026, 10, 3), zone = zone)!!.daysAgo)
+        assertNull(lastCardioEntry(emptyList(), today = LocalDate.of(2026, 10, 7), zone = zone))
     }
 
     @Test

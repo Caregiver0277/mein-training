@@ -1,9 +1,13 @@
 package de.beispiel.meintraining.util
 
 import de.beispiel.meintraining.data.local.SECONDS_PER_MINUTE
+import de.beispiel.meintraining.data.model.CardioLog
 import de.beispiel.meintraining.data.model.CardioValue
 import de.beispiel.meintraining.data.model.CardioValues
 import de.beispiel.meintraining.data.model.IntensityUnit
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import kotlin.math.roundToLong
 
 /**
@@ -218,3 +222,33 @@ fun formatCardioStepInput(step: Double, value: CardioValue): String =
  */
 fun stepCardioTarget(current: Double, step: Double, down: Boolean, reverse: Boolean = false): Double =
     stepWeight(currentKg = current, stepKg = step, progressionDown = down, reverse = reverse)
+
+// --- Letztes Mal ---------------------------------------------------------------
+
+/** Die zuletzt eingetragene Einheit einer Übung: ihre Werte und wie lange sie her ist. */
+data class LastCardioEntry(
+    val values: CardioValues,
+    val date: LocalDate,
+    /** Kalendertage seit [date]; nie negativ. */
+    val daysAgo: Int
+)
+
+/**
+ * Die jüngste Einheit aus [logsOldestFirst] – den Einheiten *einer* Übung in der Reihenfolge der
+ * DAO; ohne Einträge `null`. Für die Zeile im Bearbeiten-Sheet, die bei Cardio an der Stelle des
+ * Gewichtsverlaufs steht: „Letztes Mal (vor 3 Tagen): 22 min · 3,4 km · 6 km/h · 8 %“.
+ */
+fun lastCardioEntry(
+    logsOldestFirst: List<CardioLog>,
+    today: LocalDate,
+    zone: ZoneId = ZoneId.systemDefault()
+): LastCardioEntry? {
+    val latest = logsOldestFirst.lastOrNull() ?: return null
+    val date = latest.performedAt.toLocalDate(zone)
+    return LastCardioEntry(
+        values = latest.values,
+        date = date,
+        // Eine zurückgestellte Uhr ergäbe sonst „vor -3 Tagen“.
+        daysAgo = ChronoUnit.DAYS.between(date, today).toInt().coerceAtLeast(0)
+    )
+}

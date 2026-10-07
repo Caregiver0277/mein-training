@@ -95,6 +95,13 @@
     <string name="cardio_unit_level">Stufe</string>
     <string name="cardio_step_unit_levels">Stufen</string>
     <string name="cardio_unit_percent">%</string>
+    <!-- Die letzte eingetragene Einheit unter der Dauer; %1$s sind ihre Werte. -->
+    <string name="cardio_last_today">Letztes Mal (heute): %1$s</string>
+    <string name="cardio_last_yesterday">Letztes Mal (gestern): %1$s</string>
+    <plurals name="cardio_last_days">
+        <item quantity="one">Letztes Mal (vor %2$d Tag): %1$s</item>
+        <item quantity="other">Letztes Mal (vor %2$d Tagen): %1$s</item>
+    </plurals>
     <string name="error_name_required">Bitte einen Namen eingeben.</string>
 
     <!-- Satz-Protokoll -->

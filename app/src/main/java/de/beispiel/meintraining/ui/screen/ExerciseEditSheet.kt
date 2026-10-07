@@ -61,10 +61,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.model.CardioValue
+import de.beispiel.meintraining.data.model.CardioValues
 import de.beispiel.meintraining.data.model.ExerciseKind
+import de.beispiel.meintraining.data.model.IntensityUnit
 import de.beispiel.meintraining.ui.CardioForm
 import de.beispiel.meintraining.ui.ExerciseForm
 import de.beispiel.meintraining.ui.components.SegmentToggle
+import de.beispiel.meintraining.ui.components.cardioUnits
 import de.beispiel.meintraining.ui.components.Sparkline
 import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AccentBlueSurface
@@ -77,9 +80,11 @@ import de.beispiel.meintraining.ui.theme.OutlineColor
 import de.beispiel.meintraining.ui.theme.TextDisabled
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
+import de.beispiel.meintraining.util.LastCardioEntry
 import de.beispiel.meintraining.util.PROGRESSION_STEP_SUGGESTIONS
 import de.beispiel.meintraining.util.WeightChange
 import de.beispiel.meintraining.util.WeightHistory
+import de.beispiel.meintraining.util.formatCardioValues
 import de.beispiel.meintraining.util.formatShortDate
 import de.beispiel.meintraining.util.parseOptionalInt
 import de.beispiel.meintraining.util.parseProgressionStep
@@ -95,6 +100,8 @@ fun ExerciseEditSheet(
     form: ExerciseForm,
     /** Verlauf der Übung, deren Gewicht in den Feldern steht; `null` blendet die Zeile aus. */
     weightHistory: WeightHistory?,
+    /** Bei Cardio die letzte eingetragene Einheit statt des Verlaufs; `null` blendet sie aus. */
+    lastCardioEntry: LastCardioEntry?,
     knownExerciseNames: List<String>,
     onFormChange: (ExerciseForm) -> Unit,
     onVariationToggle: () -> Unit,
@@ -113,6 +120,7 @@ fun ExerciseEditSheet(
         ExerciseEditSheetContent(
             form = form,
             weightHistory = weightHistory,
+            lastCardioEntry = lastCardioEntry,
             knownExerciseNames = knownExerciseNames,
             onFormChange = onFormChange,
             onVariationToggle = onVariationToggle,
@@ -127,6 +135,7 @@ fun ExerciseEditSheet(
 private fun ExerciseEditSheetContent(
     form: ExerciseForm,
     weightHistory: WeightHistory?,
+    lastCardioEntry: LastCardioEntry?,
     knownExerciseNames: List<String>,
     onFormChange: (ExerciseForm) -> Unit,
     onVariationToggle: () -> Unit,
@@ -213,7 +222,8 @@ private fun ExerciseEditSheetContent(
         if (form.isCardio) {
             CardioSheetFields(
                 cardio = form.cardio,
-                onChange = { onFormChange(form.copy(cardio = it)) }
+                onChange = { onFormChange(form.copy(cardio = it)) },
+                lastEntry = { lastCardioEntry?.let { LastCardioLine(entry = it) } }
             )
         } else {
             StrengthFields(form = form, weightHistory = weightHistory, onFormChange = onFormChange)
@@ -672,6 +682,29 @@ private fun WeightHistoryLine(history: WeightHistory) {
     }
 }
 
+/**
+ * „Letztes Mal (vor 3 Tagen): 22 min · 3,4 km · 6 km/h · 8 %“ – bei Cardio an der Stelle des
+ * Gewichtsverlaufs. Wie dort erzählt die Zeile, was war, und springt nicht beim Tippen mit.
+ */
+@Composable
+private fun LastCardioLine(entry: LastCardioEntry) {
+    // Ohne Werte gibt es keine Einheit (siehe logCardio); leer bliebe die Zeile trotzdem nie stehen.
+    val values = formatCardioValues(entry.values, cardioUnits()) ?: return
+    val text = when (entry.daysAgo) {
+        0 -> stringResource(R.string.cardio_last_today, values)
+        1 -> stringResource(R.string.cardio_last_yesterday, values)
+        else -> pluralStringResource(R.plurals.cardio_last_days, entry.daysAgo, values, entry.daysAgo)
+    }
+    Text(
+        text = text,
+        style = AppTextStyles.ColumnLabel,
+        color = TextSecondary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimens.SectionSpacingLarge)
+    )
+}
+
 @Composable
 internal fun SheetTextField(
     value: String,
@@ -759,6 +792,7 @@ private fun ExerciseEditSheetContentPreview() {
                 lastChange = WeightChange(deltaKg = 0.625, date = LocalDate.of(2026, 9, 18)),
                 recentWeights = listOf(17.5, 18.125, 18.75, 18.75, 19.375, 20.0)
             ),
+            lastCardioEntry = null,
             knownExerciseNames = listOf("Trizeps", "Bankdrücken"),
             onFormChange = {},
             onVariationToggle = {},
@@ -789,6 +823,17 @@ private fun ExerciseEditSheetCardioPreview() {
                 note = "Hände nicht aufs Geländer"
             ),
             weightHistory = null,
+            lastCardioEntry = LastCardioEntry(
+                values = CardioValues(
+                    durationMin = 22.0,
+                    distanceKm = 3.4,
+                    intensity = 6.0,
+                    intensityUnit = IntensityUnit.KMH,
+                    inclinePercent = 8.0
+                ),
+                date = LocalDate.of(2026, 10, 4),
+                daysAgo = 3
+            ),
             knownExerciseNames = listOf("Laufband", "Rad"),
             onFormChange = {},
             onVariationToggle = {},
