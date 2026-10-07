@@ -106,7 +106,7 @@ private class DetailState(val detail: ExerciseDetail?)
  * 1. Kennzahlen – drei Kacheln: Trainings, pro Woche, Ziel-Serie.
  * 2. Wochenziel – die letzten zwölf Wochen gegen das Ziel.
  * 3. Kalender – die Heatmap der letzten zwölf Monate.
- * 4. Meilensteine – erreichte und nächste (noch nicht gebaut).
+ * 4. Meilensteine – die nächsten mit Balken, die erreichten mit Datum.
  * 5. Fortschritt – Gesamtzuwachs und schwerste Übung, darunter „Fortschritt je Übung“ (ein Tipp
  *    öffnet die Detailseite) und die „Nächsten Marken“ der Prognose.
  * 6. Festgefahren – die Kehrseite des Fortschritts, deshalb gleich dahinter.
@@ -156,6 +156,7 @@ fun StatsScreen(
             HeadlineTiles(uiState)
             WeeklyGoalCard(uiState.goalWeeks, uiState.weeklyGoal)
             uiState.heatmap?.let { HeatmapCard(it) }
+            uiState.milestones?.let { MilestonesCard(it, uiState.today) }
             ProgressCard(uiState)
             if (uiState.progress.isNotEmpty()) ExerciseProgressCard(uiState.progress, onExerciseClick)
             if (uiState.forecasts.isNotEmpty()) ForecastCard(uiState.forecasts)

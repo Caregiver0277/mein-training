@@ -29,6 +29,7 @@ import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 import de.beispiel.meintraining.util.AutoEnd
 import de.beispiel.meintraining.util.MIN_SUPERSET_SIZE
+import de.beispiel.meintraining.util.MilestoneData
 import de.beispiel.meintraining.util.RotationEntry
 import de.beispiel.meintraining.util.WORKOUT_IDLE_MILLIS
 import de.beispiel.meintraining.util.WorkoutMarker
@@ -37,10 +38,13 @@ import de.beispiel.meintraining.util.canUndoRotationCut
 import de.beispiel.meintraining.util.completedDaysInRotation
 import de.beispiel.meintraining.util.decreaseWeight
 import de.beispiel.meintraining.util.defaultCardioStep
+import de.beispiel.meintraining.util.dropMilestoneIds
 import de.beispiel.meintraining.util.dueDayId
 import de.beispiel.meintraining.util.keepSupersetBlocksTogether
+import de.beispiel.meintraining.util.milestones
 import de.beispiel.meintraining.util.nextOpenDayId
 import de.beispiel.meintraining.util.plausibleStart
+import de.beispiel.meintraining.util.renameMilestoneIds
 import de.beispiel.meintraining.util.restoredMarker
 import de.beispiel.meintraining.util.rotations
 import de.beispiel.meintraining.util.stepCardioTarget
@@ -639,6 +643,38 @@ class TrainingRepository(
     /** Die von Hand gezogenen Rundenschnitte – siehe [startNextRotation]. */
     val rotationCuts: Flow<List<Long>> = settingsStore.rotationCuts
 
+    // --- Meilensteine ------------------------------------------------------
+
+    /**
+     * Alles, woraus die Meilensteine entstehen (siehe [milestones]) – ein Wert je Änderung an
+     * Trainings, Gewichtsverlauf, Cardio-Einheiten, Übungen, Tageszahl, Schnitten oder Wochenziel.
+     */
+    fun observeMilestoneData(): Flow<MilestoneData> = combine(
+        sessionDao.observeAll(),
+        weightLogDao.observeAll(),
+        cardioLogDao.observeAll(),
+        definitionDao.observeAll(),
+        combine(settingsStore.dayCount, settingsStore.rotationCuts, settingsStore.weeklyGoal, ::Triple)
+    ) { sessions, weightLogs, cardioLogs, definitions, (dayCount, cuts, goal) ->
+        MilestoneData(sessions, weightLogs, cardioLogs, definitions, dayCount, cuts, goal)
+    }
+
+    /**
+     * Merkt [ids] als gefeiert und liefert die, die es bis eben nicht waren – siehe
+     * [SettingsStore.markMilestonesCelebrated].
+     */
+    suspend fun markMilestonesCelebrated(ids: Set<String>): Set<String> =
+        settingsStore.markMilestonesCelebrated(ids)
+
+    /**
+     * Setzt die gefeierten Meilensteine auf genau die, die der jetzige Bestand erreicht hat – still,
+     * ohne Konfetti. Für das Einlesen einer Sicherung: Was sie mitbringt, ist dort schon gefeiert
+     * worden, und was dieses Gerät vorher gefeiert hatte, gehört zum ersetzten Bestand.
+     */
+    suspend fun resetCelebratedMilestones(today: LocalDate = LocalDate.now()) {
+        settingsStore.setCelebratedMilestones(milestones(observeMilestoneData().first(), today).reachedIds)
+    }
+
     // --- Einstellungen -----------------------------------------------------
 
     val deloadCycleWeeks: Flow<Int> = settingsStore.deloadCycleWeeks
@@ -728,6 +764,7 @@ class TrainingRepository(
         val gone = names.toSet()
         dropNames(settingsStore.hiddenTrackingNames.first(), gone, settingsStore::setHiddenTrackingNames)
         dropNames(settingsStore.hiddenExerciseNames.first(), gone, settingsStore::setHiddenExerciseNames)
+        settingsStore.updateCelebratedMilestones { dropMilestoneIds(it, gone) }
     }
 
     /** Nimmt die gelöschten Namen aus einer Ausblendliste; schreibt nur, wenn welche darin standen. */
@@ -916,6 +953,9 @@ class TrainingRepository(
                 name,
                 settingsStore::setHiddenExerciseNames
             )
+            // Die Gewichts-Meilensteine wandern mit, sonst kämen sie unter dem neuen Namen noch
+            // einmal – der Verlauf, aus dem sie entstehen, ist ja mitgewandert.
+            settingsStore.updateCelebratedMilestones { renameMilestoneIds(it, renamedFrom, name) }
         }
     }
 

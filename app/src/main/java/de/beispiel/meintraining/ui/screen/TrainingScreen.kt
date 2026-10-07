@@ -62,6 +62,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.flowWithLifecycle
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.local.RestTimer
 import de.beispiel.meintraining.data.model.CardioTargets
@@ -83,6 +85,8 @@ import de.beispiel.meintraining.ui.components.Confetti
 import de.beispiel.meintraining.ui.components.DayTabRow
 import de.beispiel.meintraining.ui.components.DraggableItem
 import de.beispiel.meintraining.ui.components.ExerciseRow
+import de.beispiel.meintraining.ui.components.MilestoneBanner
+import de.beispiel.meintraining.ui.components.MilestoneMessage
 import de.beispiel.meintraining.ui.components.cardioUnits
 import de.beispiel.meintraining.ui.components.dayLabel
 import de.beispiel.meintraining.ui.components.draggableItem
@@ -101,11 +105,13 @@ import de.beispiel.meintraining.ui.theme.SupersetBackground
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.settings.SettingsRoute
 import de.beispiel.meintraining.ui.stats.StatsRoute
+import de.beispiel.meintraining.ui.stats.milestoneTitle
 import de.beispiel.meintraining.ui.timer.RestTimerBar
 import de.beispiel.meintraining.ui.timer.RestTimerRoute
 import de.beispiel.meintraining.ui.tracking.TrackingRoute
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
 import de.beispiel.meintraining.util.LastCardioEntry
+import de.beispiel.meintraining.util.Milestone
 import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.setsThisWeek
 import de.beispiel.meintraining.util.exerciseTitle
@@ -117,6 +123,9 @@ import de.beispiel.meintraining.util.toSetsRepsLabel
 import de.beispiel.meintraining.util.toWeightLabel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+
+/** So viele Meilensteine nennt die Meldung beim Erreichen einzeln, der Rest steht als „und 2 weitere“ da. */
+private const val MILESTONE_BANNER_LINES = 2
 
 /**
  * Hauptscreen. Die Composable hält nur reinen UI-Zustand (Drawer, Listenreihenfolge während
@@ -136,8 +145,13 @@ fun TrainingScreen(
     /** Offenes „Cardio eintragen“, siehe [TrainingViewModel.cardioLogDialog]. */
     cardioLogDialog: CardioLogDialogState?,
     events: Flow<TrainingEvent>,
-    /** Eine volle Runde – der einzige Anlass, zu dem es Konfetti regnet. */
+    /** Eine volle Runde – Konfetti ohne Meldung, der grüne Haken sagt genug. */
     celebrations: Flow<Unit>,
+    /**
+     * Neu erreichte Meilensteine, siehe [TrainingViewModel.milestoneCelebrations] – der zweite
+     * Anlass für Konfetti, dazu eine kurze Meldung oben.
+     */
+    milestoneCelebrations: Flow<List<Milestone>>,
     actions: TrainingActions,
     modifier: Modifier = Modifier
 ) {
@@ -153,6 +167,28 @@ fun TrainingScreen(
     // zuverlässig, auch wenn der vorige noch läuft.
     var celebrationCount by remember { mutableIntStateOf(0) }
     LaunchedEffect(celebrations) { celebrations.collect { celebrationCount++ } }
+
+    // Meilensteine: dasselbe Konfetti und eine Meldung oben – nicht unten bei den Snackbars, wo
+    // sie das „Rückgängig“ der Erhöhung verdrängen würde, die den Meilenstein gebracht hat.
+    // Nur im Vordergrund gesammelt, denn das Sammeln selbst rechnet und merkt (siehe dort):
+    // Was im Hintergrund erreicht wurde, kommt beim Zurückkehren, statt ungesehen zu verpuffen.
+    var milestoneMessage by remember { mutableStateOf<MilestoneMessage?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(milestoneCelebrations, lifecycleOwner) {
+        milestoneCelebrations.flowWithLifecycle(lifecycleOwner.lifecycle).collect { reached ->
+            celebrationCount++
+            milestoneMessage = MilestoneMessage(
+                id = (milestoneMessage?.id ?: 0) + 1,
+                title = resources.getQuantityString(R.plurals.milestone_banner_title, reached.size),
+                lines = reached.take(MILESTONE_BANNER_LINES).map { milestoneTitle(it, resources) } +
+                    listOfNotNull(
+                        (reached.size - MILESTONE_BANNER_LINES).takeIf { it > 0 }?.let { more ->
+                            resources.getQuantityString(R.plurals.milestone_banner_more, more, more)
+                        }
+                    )
+            )
+        }
+    }
 
     val unit = stringResource(R.string.unit_kg)
 
@@ -251,6 +287,7 @@ fun TrainingScreen(
             // auf dem Hauptbildschirm; steht zufällig ein Menübereich offen, regnet es eben dort –
             // das ist immer noch besser als ein verschluckter Anlass.
             Confetti(burstId = celebrationCount)
+            MilestoneBanner(message = milestoneMessage, modifier = Modifier.align(Alignment.TopCenter))
         }
     }
 

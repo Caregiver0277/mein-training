@@ -456,5 +456,11 @@ class BackupRepository(
         // Tage fehlen, und die App stünde ohne Reiter da. Angelegt wird erst jetzt, weil
         // die Anzahl aus der Sicherung stammt.
         trainingRepository.ensureSeeded()
+
+        // Was die Sicherung erreicht hat, gilt still als gefeiert – sonst gäbe es gleich nach dem
+        // Einlesen ein Konfetti-Gewitter. Ganz zuletzt, weil auch Wochenziel und Tageszahl aus der
+        // Sicherung in die Meilensteine eingehen. Was zwischen dem Einspielen und hier schon
+        // gemerkt wurde, schadet nicht: Gefeiert wird ohnehin nur, was heute erreicht wurde.
+        trainingRepository.resetCelebratedMilestones()
     }
 }

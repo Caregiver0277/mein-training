@@ -28,6 +28,9 @@ import de.beispiel.meintraining.util.isTopOfRangeReached
 import de.beispiel.meintraining.util.lastCardioEntry
 import de.beispiel.meintraining.util.lastCardioEntryBefore
 import de.beispiel.meintraining.util.lastUnit
+import de.beispiel.meintraining.util.Milestone
+import de.beispiel.meintraining.util.milestones
+import de.beispiel.meintraining.util.milestonesToCelebrate
 import de.beispiel.meintraining.util.parseOptionalDecimal
 import de.beispiel.meintraining.util.parseOptionalInt
 import de.beispiel.meintraining.util.parseProgressionStep
@@ -39,6 +42,7 @@ import de.beispiel.meintraining.util.toLocalDate
 import de.beispiel.meintraining.util.todaysCardioLog
 import de.beispiel.meintraining.util.todaysUnit
 import de.beispiel.meintraining.util.weightHistory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -48,9 +52,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.shareIn
@@ -153,6 +159,32 @@ class TrainingViewModel(
      */
     private val celebrationChannel = Channel<Unit>(Channel.CONFLATED)
     val celebrations: Flow<Unit> = celebrationChannel.receiveAsFlow()
+
+    /**
+     * Neu erreichte Meilensteine – Konfetti und eine kurze Meldung oben (siehe [milestones]).
+     *
+     * Nicht an den einzelnen Stellen ausgelöst, an denen etwas erreicht werden kann – Haken,
+     * Pfeil, Sheet, „Cardio eintragen“, ein nachgetragenes Training –, sondern aus dem Bestand
+     * selbst: Jede Änderung rechnet die erreichten Meilensteine neu, und was davon noch nicht
+     * gemerkt war, wird gemerkt und – wenn es heute erreicht wurde – gefeiert (siehe
+     * [milestonesToCelebrate]). So vergisst keine neue Stelle das Feiern.
+     *
+     * Kalt und ohne eigenes Abonnement: Gerechnet wird nur, solange der Bildschirm sammelt, und
+     * der sammelt nur im Vordergrund. Was im Hintergrund erreicht wurde, kommt beim Zurückkehren.
+     * Gerechnet wird abseits des Hauptthreads – es geht durch den ganzen Verlauf.
+     *
+     * Gemerkt wird schon beim Erreichen, nicht erst nach dem Feiern. Nimmt „Rückgängig“ die
+     * Erhöhung zurück, bleibt der Meilenstein deshalb gefeiert, und die nächste Erhöhung auf
+     * dasselbe Gewicht bekommt kein zweites Konfetti.
+     */
+    val milestoneCelebrations: Flow<List<Milestone>> =
+        combine(repository.observeMilestoneData(), currentDate.flow) { data, today ->
+            val reached = milestones(data, today).reached
+            val fresh = repository.markMilestonesCelebrated(reached.mapTo(HashSet()) { it.milestone.id })
+            milestonesToCelebrate(reached, fresh, today)
+        }
+            .flowOn(Dispatchers.Default)
+            .filter { it.isNotEmpty() }
 
     /**
      * Soll der Bildschirm anbleiben? Nicht Teil von [uiState]: Das betrifft das Fenster der

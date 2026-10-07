@@ -26,10 +26,11 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Kurzer Konfetti-Regen aus der Bildmitte – der Applaus für eine volle Runde.
+ * Kurzer Konfetti-Regen aus der Bildmitte – der Applaus für eine volle Runde und für einen
+ * erreichten Meilenstein.
  *
- * Er kommt genau einmal, wenn das letzte offene Training der Runde abgehakt wird, dauert zwei
- * Sekunden und hält niemanden auf: Die Schnipsel fangen nichts ab, was darunter liegt, weil
+ * Er kommt genau einmal, wenn das letzte offene Training der Runde abgehakt oder ein Meilenstein
+ * erreicht wird (siehe `MilestoneBanner`), dauert zwei Sekunden und hält niemanden auf: Die Schnipsel fangen nichts ab, was darunter liegt, weil
  * eine [Canvas] keine Berührungen entgegennimmt.
  *
  * [burstId] zählt die Anlässe hoch statt ein `Boolean` zu setzen, aus demselben Grund wie beim

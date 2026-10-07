@@ -385,6 +385,45 @@ class SettingsStore(context: Context) {
     }
 
     /**
+     * Die schon gefeierten Meilensteine (siehe [de.beispiel.meintraining.util.Milestone.id]), damit
+     * keiner zweimal Konfetti bekommt.
+     *
+     * Nicht in [snapshot] und damit nicht in der Sicherung: Gefeiert wird auf diesem Gerät. Nach
+     * dem Einlesen einer Sicherung stehen hier ohnehin die Meilensteine ihres Bestands (siehe
+     * `TrainingRepository.resetCelebratedMilestones`).
+     *
+     * Fehlt der Eintrag ganz, hat diese Fassung noch nie gerechnet – erster Start nach dem Update
+     * oder nach „Alle Daten löschen“. Dann wird alles bereits Erreichte still gemerkt, siehe
+     * [markMilestonesCelebrated].
+     */
+    suspend fun markMilestonesCelebrated(ids: Set<String>): Set<String> {
+        var fresh = emptySet<String>()
+        // In einem Schreibvorgang gelesen und geschrieben: Zwei Aufrufe kurz nacheinander – etwa
+        // der Haken und gleich darauf das Einlesen einer Sicherung – sehen so nie beide denselben
+        // alten Stand, und nichts wird doppelt als neu gemeldet.
+        store.edit { prefs ->
+            val known = prefs[KEY_CELEBRATED_MILESTONES]
+            fresh = if (known == null) emptySet() else ids - known
+            if (known == null || fresh.isNotEmpty()) prefs[KEY_CELEBRATED_MILESTONES] = known.orEmpty() + ids
+        }
+        return fresh
+    }
+
+    /** Ersetzt die gefeierten Meilensteine – siehe [markMilestonesCelebrated]. */
+    suspend fun setCelebratedMilestones(ids: Set<String>) {
+        store.edit { prefs -> prefs[KEY_CELEBRATED_MILESTONES] = ids }
+    }
+
+    /** Schreibt die gefeierten Meilensteine um; schreibt nur, wenn sich etwas ändert. */
+    suspend fun updateCelebratedMilestones(transform: (Set<String>) -> Set<String>) {
+        store.edit { prefs ->
+            val known = prefs[KEY_CELEBRATED_MILESTONES] ?: return@edit
+            val updated = transform(known)
+            if (updated != known) prefs[KEY_CELEBRATED_MILESTONES] = updated
+        }
+    }
+
+    /**
      * Verwirft alle Einstellungen; danach gelten überall wieder die Vorgabewerte.
      *
      * Auch die Angaben zur Sicherung sind damit weg. Der Zeitplan der automatischen Sicherung
@@ -415,6 +454,7 @@ class SettingsStore(context: Context) {
         val KEY_BACKUP_ENABLED = booleanPreferencesKey("backup_enabled")
         val KEY_BACKUP_LAST_AT = longPreferencesKey("backup_last_at")
         val KEY_BACKUP_LAST_ERROR = stringPreferencesKey("backup_last_error")
+        val KEY_CELEBRATED_MILESTONES = stringSetPreferencesKey("celebrated_milestones")
 
         val MARKER_KEYS = MarkerKeys("workout_marker")
         val CONSUMED_KEYS = MarkerKeys("workout_marker_consumed")

@@ -12,6 +12,7 @@ import de.beispiel.meintraining.data.model.CardioValues
 import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.model.IntensityUnit
 import de.beispiel.meintraining.data.model.WorkoutSession
+import de.beispiel.meintraining.util.milestones
 import de.beispiel.meintraining.util.toLocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -59,6 +60,7 @@ class TrainingRepositoryTest {
         runBlocking {
             settingsStore.setHiddenExerciseNames(emptySet())
             settingsStore.setWorkoutMarkers(current = null, consumed = null)
+            settingsStore.setCelebratedMilestones(emptySet())
         }
     }
 
@@ -67,6 +69,7 @@ class TrainingRepositoryTest {
         runBlocking {
             settingsStore.setHiddenExerciseNames(emptySet())
             settingsStore.setWorkoutMarkers(current = null, consumed = null)
+            settingsStore.setCelebratedMilestones(emptySet())
         }
         database.close()
     }
@@ -761,7 +764,70 @@ class TrainingRepositoryTest {
         settingsStore.setLastDayAdvance(0L)
     }
 
+    // --- Meilensteine -------------------------------------------------------
+
+    /** Was erreicht ist, wird beim ersten Merken gemeldet – beim zweiten nicht mehr. */
+    @Test
+    fun einMeilensteinWirdNurEinmalAlsNeuGemeldet() = runBlocking {
+        anlegen(name = "Bankdrücken", weightKg = 47.5, stepKg = 2.5)
+        val change = repository.progressWeight("Bankdrücken")!!
+
+        assertEquals(setOf("gewicht:50:Bankdrücken"), merken())
+        assertEquals(emptySet<String>(), merken())
+        // Zurückgenommen und wieder erhöht: kein zweites Mal.
+        assertTrue(repository.revertWeight("Bankdrücken", change.previousKg, change.newKg, change.logId))
+        repository.progressWeight("Bankdrücken")!!
+        assertEquals(emptySet<String>(), merken())
+    }
+
+    /** Umbenennen zieht die gefeierten Gewichte mit – sonst kämen sie unter dem neuen Namen noch einmal. */
+    @Test
+    fun umbenennenNimmtDieGefeiertenMeilensteineMit() = runBlocking {
+        val id = anlegen(name = "Bankdrücken", weightKg = 47.5, stepKg = 2.5)
+        repository.progressWeight("Bankdrücken")!!
+        merken()
+
+        umbenennen(id = id, von = "Bankdrücken", nach = "Bankdrücken KH", weightKg = 50.0)
+
+        assertEquals(emptySet<String>(), merken())
+        assertEquals(setOf("gewicht:50:Bankdrücken"), repository.markMilestonesCelebrated(setOf("gewicht:50:Bankdrücken")))
+    }
+
+    /** „Überall löschen“ nimmt die Gewichts-Meilensteine der Übung heraus, die übrigen bleiben. */
+    @Test
+    fun ueberallLoeschenNimmtDieGewichtsMeilensteineHeraus() = runBlocking {
+        anlegen(name = "Dips", weightKg = 47.5, stepKg = 2.5)
+        repository.progressWeight("Dips")!!
+        merken()
+        repository.markMilestonesCelebrated(setOf("trainings:10"))
+
+        repository.deleteExercisesEverywhere(listOf("Dips"))
+
+        assertEquals(setOf("gewicht:50:Dips"), repository.markMilestonesCelebrated(setOf("gewicht:50:Dips", "trainings:10")))
+    }
+
+    /**
+     * Nach dem Einlesen einer Sicherung gilt genau als gefeiert, was der Bestand erreicht hat:
+     * Was vorher gefeiert war, aber nicht mehr erreicht ist, kommt wieder.
+     */
+    @Test
+    fun zuruecksetzenMerktGenauDasErreichte() = runBlocking {
+        anlegen(name = "Kniebeuge", weightKg = 47.5, stepKg = 2.5)
+        repository.progressWeight("Kniebeuge")!!
+        repository.markMilestonesCelebrated(setOf("trainings:500"))
+
+        repository.resetCelebratedMilestones(LocalDate.now())
+
+        assertEquals(emptySet<String>(), merken())
+        assertEquals(setOf("trainings:500"), repository.markMilestonesCelebrated(setOf("trainings:500")))
+    }
+
     // --- Hilfen ------------------------------------------------------------
+
+    /** Rechnet die erreichten Meilensteine aus, merkt sie und liefert die bis eben neuen. */
+    private suspend fun merken(): Set<String> = repository.markMilestonesCelebrated(
+        milestones(repository.observeMilestoneData().first(), LocalDate.now()).reachedIds
+    )
 
     /** Legt eine Übung an und liefert ihre Kennung. */
     private suspend fun anlegen(

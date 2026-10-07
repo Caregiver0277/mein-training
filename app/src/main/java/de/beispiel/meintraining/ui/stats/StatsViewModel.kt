@@ -15,6 +15,8 @@ import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DEFAULT_WEEKLY_GOAL
 import de.beispiel.meintraining.util.DurationSummary
 import de.beispiel.meintraining.util.Heatmap
+import de.beispiel.meintraining.util.MilestoneData
+import de.beispiel.meintraining.util.MilestoneOverview
 import de.beispiel.meintraining.util.RotationEntry
 import de.beispiel.meintraining.util.RotationSummary
 import de.beispiel.meintraining.util.SessionTimes
@@ -29,6 +31,7 @@ import de.beispiel.meintraining.util.currentStrengthWeights
 import de.beispiel.meintraining.util.exerciseGains
 import de.beispiel.meintraining.util.heatmap
 import de.beispiel.meintraining.util.longestWeeklyStreak
+import de.beispiel.meintraining.util.milestones
 import de.beispiel.meintraining.util.repsStillRising
 import de.beispiel.meintraining.util.rotationSummary
 import de.beispiel.meintraining.util.sessionsPerWeek
@@ -60,6 +63,10 @@ data class StatsUiState(
     val firstSession: LocalDate? = null,
     /** Der Kalender der letzten zwölf Monate; `null` nur vor dem ersten Ausrechnen. */
     val heatmap: Heatmap? = null,
+    /** Erreichte und nächste Meilensteine; `null` nur vor dem ersten Ausrechnen. */
+    val milestones: MilestoneOverview? = null,
+    /** Das „heute“ der Rechnung – für Datumsangaben, die das Jahr nur nennen, wenn es ein anderes ist. */
+    val today: LocalDate = LocalDate.now(),
     /** Trainings je Wochentag, beginnend mit Montag. */
     val weekdayCounts: List<Int> = emptyList(),
     val typicalTime: LocalTime? = null,
@@ -215,6 +222,20 @@ class StatsViewModel(
             goalWeeks = weeklyCounts(dates, today),
             firstSession = dates.minOrNull(),
             heatmap = heatmap(dates, today),
+            milestones = milestones(
+                MilestoneData(
+                    sessions = sessions,
+                    weightLogs = logs,
+                    cardioLogs = cardioLogs,
+                    definitions = definitions,
+                    dayCount = plan.dayCount,
+                    rotationCuts = plan.rotationCuts,
+                    weeklyGoal = plan.weeklyGoal
+                ),
+                today,
+                zone
+            ),
+            today = today,
             weekdayCounts = weekdayDistribution(dates),
             typicalTime = typicalTimeOfDay(times),
             totalGainKg = gains.sumOf { it.gainKg },

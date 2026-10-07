@@ -121,6 +121,10 @@ object Dimens {
     val HeatmapMarkStroke = 1.5.dp
     val HeatmapLegendSize = 10.dp
 
+    // Statistiken: Meilensteine
+    val MilestoneBarHeight = 6.dp
+    val MilestoneIconSize = 16.dp
+
     // Deload
     val WeekDotHeight = 32.dp
     val BulletSize = 6.dp

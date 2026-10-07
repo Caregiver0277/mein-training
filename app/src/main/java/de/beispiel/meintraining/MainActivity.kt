@@ -150,6 +150,7 @@ class MainActivity : ComponentActivity() {
                     cardioLogDialog = cardioLogDialog,
                     events = viewModel.events,
                     celebrations = viewModel.celebrations,
+                    milestoneCelebrations = viewModel.milestoneCelebrations,
                     actions = actions
                 )
             }
