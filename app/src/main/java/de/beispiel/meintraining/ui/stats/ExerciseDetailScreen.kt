@@ -90,12 +90,15 @@ private fun StrengthDetailContent(detail: ExerciseDetail.Strength) {
         if (progress.isDecreasing) Hint(stringResource(R.string.stats_detail_down_hint))
         Fact(label = stringResource(R.string.stats_detail_start), value = kgText(progress.fromKg))
         Fact(label = stringResource(R.string.stats_detail_current), value = kgText(progress.toKg))
-        Fact(
-            label = stringResource(R.string.stats_detail_gain),
-            value = listOfNotNull(strengthChange(progress), strengthChangePercent(progress))
-                .joinToString(" · "),
-            highlight = progress.gainKg > 0.0
-        )
+        // Ohne Veränderung sagte die Zeile nur „+0 kg · +0 %“ – das steht schon in Start und Aktuell.
+        if (progress.toKg != progress.fromKg) {
+            Fact(
+                label = stringResource(R.string.stats_detail_gain),
+                value = listOfNotNull(strengthChange(progress), strengthChangePercent(progress))
+                    .joinToString(" · "),
+                highlight = progress.gainKg > 0.0
+            )
+        }
         Fact(
             label = stringResource(
                 if (progress.isDecreasing) R.string.stats_detail_decreases else R.string.stats_detail_increases

@@ -148,8 +148,19 @@ internal fun ForecastCard(forecasts: List<WeightForecast>) {
             style = AppTextStyles.ColumnLabel,
             color = TextSecondary
         )
+        // Zweizeilig statt als Fact: Der Satz rechts ist so lang, dass daneben kein Name mehr
+        // Platz hätte und „Bankdrücken“ mitten im Wort umbräche.
         forecasts.forEach { forecast ->
-            Fact(label = forecast.name, value = forecastValue(forecast))
+            Column(modifier = Modifier.padding(top = Dimens.SectionSpacingSmall)) {
+                Text(
+                    text = forecast.name,
+                    style = AppTextStyles.Body,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(text = forecastValue(forecast), style = AppTextStyles.ExerciseName, color = TextPrimary)
+            }
         }
     }
 }
