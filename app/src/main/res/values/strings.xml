@@ -18,6 +18,9 @@
     <string name="cd_open_menu">Menü öffnen</string>
     <string name="cd_increase_weight">Gewicht erhöhen</string>
     <string name="cd_decrease_weight">Gewicht senken</string>
+    <!-- Der Pfeil einer Cardio-Zeile; %1$s ist der Wert: „Tempo erhöhen“. -->
+    <string name="cd_cardio_increase">%1$s erhöhen</string>
+    <string name="cd_cardio_decrease">%1$s senken</string>
     <string name="action_weight_step_back">Einen Schritt zurück</string>
     <string name="action_log_sets">Sätze protokollieren</string>
     <!-- Zustand des Sätze-Chips mit Protokoll: „2 von 3 Sätzen protokolliert“. -->
@@ -327,6 +330,9 @@
     <!-- Snackbars -->
     <string name="snackbar_weight_increased">Gewicht auf %1$s erhöht</string>
     <string name="snackbar_weight_decreased">Gewicht auf %1$s gesenkt</string>
+    <!-- %1$s ist der Wert („Tempo“, „Dauer“ …), %2$s sein neuer Stand: „Tempo auf 6,5 km/h erhöht“. -->
+    <string name="snackbar_cardio_increased">%1$s auf %2$s erhöht</string>
+    <string name="snackbar_cardio_decreased">%1$s auf %2$s gesenkt</string>
     <string name="snackbar_exercise_deleted">„%1$s“ gelöscht</string>
     <string name="snackbar_cycle_started">Neue Runde begonnen</string>
     <!-- %2$s ist der Name des Ziel-Tages. -->

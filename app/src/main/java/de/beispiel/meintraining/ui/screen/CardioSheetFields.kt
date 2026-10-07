@@ -192,8 +192,11 @@ private fun ArrowStep(cardio: CardioForm, value: CardioValue, onChange: (CardioF
     }
 }
 
-/** Beschriftung eines Werts in der Auswahl des Pfeils; `null` ist „Keinen“. */
-private fun arrowValueLabel(value: CardioValue?, unit: IntensityUnit): Int = when (value) {
+/**
+ * Beschriftung eines Werts in der Auswahl des Pfeils; `null` ist „Keinen“. Dieselben Namen
+ * stehen in der Meldung nach einem Pfeil in der Liste („Tempo auf 6,5 km/h erhöht“).
+ */
+internal fun arrowValueLabel(value: CardioValue?, unit: IntensityUnit): Int = when (value) {
     null -> R.string.cardio_arrow_none
     CardioValue.DURATION -> R.string.cardio_value_duration
     CardioValue.DISTANCE -> R.string.cardio_value_distance

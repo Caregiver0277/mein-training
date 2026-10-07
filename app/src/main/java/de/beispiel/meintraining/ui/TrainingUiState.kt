@@ -12,6 +12,7 @@ import de.beispiel.meintraining.data.model.FIRST_DAY_ID
 import de.beispiel.meintraining.data.model.IntensityUnit
 import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
+import de.beispiel.meintraining.data.repository.CardioChange
 import de.beispiel.meintraining.data.repository.ExerciseTransfer
 import de.beispiel.meintraining.ui.components.SetsProgress
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
@@ -516,6 +517,18 @@ sealed interface TrainingEvent {
         val logId: Long
     ) : TrainingEvent {
         val isDecrease: Boolean get() = newWeightKg < previousWeightKg
+    }
+
+    /**
+     * Der Pfeil einer Cardio-Übung hat ihren gewählten Wert verschoben – an allen Tagen mit
+     * [exerciseName]. [change] trägt alles, was „Rückgängig“ braucht (siehe
+     * [de.beispiel.meintraining.data.repository.TrainingRepository.revertCardio]).
+     */
+    data class CardioChanged(
+        val exerciseName: String,
+        val change: CardioChange
+    ) : TrainingEvent {
+        val isDecrease: Boolean get() = change.new < change.previous
     }
 
     /** Übungen wurden gelöscht; die Kopien erlauben das Wiederherstellen. */

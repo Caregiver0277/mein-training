@@ -801,6 +801,10 @@ class TrainingViewModel(
      * denen sie vorkommt, und in der bei ihr eingestellten Richtung. Ohne gesetztes Gewicht
      * öffnet sich stattdessen das Sheet.
      *
+     * Bei einer Cardio-Übung verschiebt der Pfeil ihren gewählten Wert um ihren Schritt, in ihrer
+     * eigenen Richtung (siehe [TrainingRepository.progressCardio]) – mit Meldung und „Rückgängig“
+     * wie beim Gewicht.
+     *
      * Gerechnet wird im Repository auf dem gespeicherten Stand; die Zeile entscheidet hier nur,
      * ob es überhaupt etwas zu verschieben gibt – siehe [TrainingRepository.progressWeight].
      */
@@ -813,6 +817,10 @@ class TrainingViewModel(
     fun onProgressLongClick(exercise: ExerciseItem) = progress(exercise, reverse = true)
 
     private fun progress(exercise: ExerciseItem, reverse: Boolean) {
+        if (exercise.isCardio) {
+            progressCardio(exercise, reverse)
+            return
+        }
         if (exercise.weightKg == null) {
             onExerciseClick(exercise)
             return
@@ -827,6 +835,18 @@ class TrainingViewModel(
                     logId = change.logId
                 )
             )
+        }
+    }
+
+    /** Ohne Wert für den Pfeil gibt es nichts zu verschieben – dann öffnet sich wie oben das Sheet. */
+    private fun progressCardio(exercise: ExerciseItem, reverse: Boolean) {
+        if (!exercise.cardio.hasArrow) {
+            onExerciseClick(exercise)
+            return
+        }
+        viewModelScope.launch {
+            val change = repository.progressCardio(exercise.name, reverse) ?: return@launch
+            eventChannel.send(TrainingEvent.CardioChanged(exerciseName = exercise.name, change = change))
         }
     }
 
@@ -922,6 +942,8 @@ class TrainingViewModel(
                     changedToKg = event.newWeightKg,
                     logId = event.logId
                 )
+                is TrainingEvent.CardioChanged ->
+                    repository.revertCardio(event.exerciseName, event.change)
                 is TrainingEvent.ExercisesDeleted ->
                     repository.restoreExercises(event.exercises)
                 is TrainingEvent.ExercisesTransferred ->

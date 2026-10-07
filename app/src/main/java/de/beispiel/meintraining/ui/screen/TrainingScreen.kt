@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.ui.screen
 
+import android.content.res.Resources
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -64,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.local.RestTimer
 import de.beispiel.meintraining.data.model.CardioTargets
+import de.beispiel.meintraining.data.model.CardioValue
+import de.beispiel.meintraining.data.model.IntensityUnit
 import de.beispiel.meintraining.data.model.ExerciseItem
 import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.model.TrainingDay
@@ -106,7 +109,9 @@ import de.beispiel.meintraining.util.LastCardioEntry
 import de.beispiel.meintraining.util.WeightHistory
 import de.beispiel.meintraining.util.setsThisWeek
 import de.beispiel.meintraining.util.exerciseTitle
+import de.beispiel.meintraining.util.formatCardioValue
 import de.beispiel.meintraining.util.formatCardioValues
+import de.beispiel.meintraining.util.toDecimalString
 import de.beispiel.meintraining.util.noteLine
 import de.beispiel.meintraining.util.toSetsRepsLabel
 import de.beispiel.meintraining.util.toWeightLabel
@@ -174,6 +179,7 @@ fun TrainingScreen(
                     },
                     event.newWeightKg.toWeightLabel(unit)
                 )
+                is TrainingEvent.CardioChanged -> cardioChangeMessage(event, resources)
                 is TrainingEvent.ExercisesDeleted -> if (event.exercises.size == 1) {
                     resources.getString(
                         R.string.snackbar_exercise_deleted,
@@ -451,7 +457,8 @@ private fun TrainingContent(
                                         cardioUnits,
                                         distanceFirst = true
                                     ),
-                                    isLoggedToday = exercise.id in uiState.cardioLoggedIds
+                                    isLoggedToday = exercise.id in uiState.cardioLoggedIds,
+                                    arrowDescription = cardioArrowDescription(exercise.cardio)
                                 )
                             } else {
                                 null
@@ -467,7 +474,12 @@ private fun TrainingContent(
                             onLongClick = { actions.onExerciseLongClick(exercise) },
                             onProgressClick = { actions.onProgressClick(exercise) },
                             onProgressLongClick = { actions.onProgressLongClick(exercise) },
-                            progressionDown = exercise.progressionDown,
+                            // Cardio hat seine eigene Richtung (siehe CardioTargets.arrowDown).
+                            progressionDown = if (isCardio) {
+                                exercise.cardio.arrowDown
+                            } else {
+                                exercise.progressionDown
+                            },
                             setsProgress = uiState.setLogRows[exercise.id]?.progress,
                             isTopReached = uiState.setLogRows[exercise.id]?.isTopReached == true,
                             onSetsClick = { actions.onSetsClick(exercise) },
@@ -522,6 +534,37 @@ private fun TrainingContent(
             }
         }
     }
+}
+
+/**
+ * „Tempo erhöhen“, „Dauer senken“ – der Pfeil einer Cardio-Zeile für TalkBack; `null`, wenn sie
+ * keinen hat (siehe [CardioTargets.hasArrow]).
+ */
+@Composable
+private fun cardioArrowDescription(targets: CardioTargets): String? {
+    val value = targets.arrowValue?.takeIf { targets.hasArrow } ?: return null
+    return stringResource(
+        if (targets.arrowDown) R.string.cd_cardio_decrease else R.string.cd_cardio_increase,
+        stringResource(arrowValueLabel(value, targets.intensityUnit))
+    )
+}
+
+/**
+ * „Tempo auf 6,5 km/h erhöht“. Eine Stufe steht dabei ohne ihr Wort – „Stufe auf Stufe 9“ wäre
+ * doppelt –, alle anderen Werte mit ihrer Einheit wie im Chip.
+ */
+private fun cardioChangeMessage(event: TrainingEvent.CardioChanged, resources: Resources): String {
+    val change = event.change
+    val amount = if (change.value == CardioValue.INTENSITY && change.unit == IntensityUnit.LEVEL) {
+        change.new.toDecimalString()
+    } else {
+        formatCardioValue(change.value, change.new, change.unit, cardioUnits(resources))
+    }
+    return resources.getString(
+        if (event.isDecrease) R.string.snackbar_cardio_decreased else R.string.snackbar_cardio_increased,
+        resources.getString(arrowValueLabel(change.value, change.unit)),
+        amount
+    )
 }
 
 /**
@@ -862,7 +905,12 @@ private fun TrainingContentPreview() {
                     previewExercise(id = 4, name = "Beispiel Übung 4", position = 3),
                     previewExercise(id = 5, name = "Laufband", position = 4).copy(
                         kind = ExerciseKind.CARDIO,
-                        cardio = CardioTargets(durationMin = 20.0, intensity = 6.0, inclinePercent = 8.0)
+                        cardio = CardioTargets(
+                            durationMin = 20.0,
+                            intensity = 6.0,
+                            inclinePercent = 8.0,
+                            arrowValue = CardioValue.INTENSITY
+                        )
                     )
                 ),
                 cardioLoggedIds = setOf(5)
