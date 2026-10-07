@@ -425,9 +425,15 @@ internal fun Double.roundTo(digits: Int): Double {
     return (this * factor).roundToInt() / factor
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFF10141A, widthDp = 360, heightDp = 900)
+@Preview(showBackground = true, backgroundColor = 0xFF10141A, widthDp = 360, heightDp = 2200)
 @Composable
 private fun StatsScreenPreview() {
+    val today = java.time.LocalDate.now()
+    // Ein Training jeden zweiten Tag, jeder fünfte doppelt – genug, um alle Stufen zu sehen.
+    val dates = (0L until 120L step 2).flatMap { back ->
+        val date = today.minusDays(back)
+        if (back % 10 == 0L) listOf(date, date) else listOf(date)
+    }
     MeinTrainingTheme {
         StatsScreen(
             uiState = StatsUiState(
@@ -435,6 +441,28 @@ private fun StatsScreenPreview() {
                 sessionsPerWeek = 3.4,
                 currentStreak = 5,
                 longestStreak = 8,
+                weeklyGoal = 3,
+                goalWeeks = de.beispiel.meintraining.util.weeklyCounts(dates, today),
+                heatmap = de.beispiel.meintraining.util.heatmap(dates, today),
+                cardio = de.beispiel.meintraining.util.CardioTotals(
+                    weeks = (11 downTo 0).map {
+                        de.beispiel.meintraining.util.CardioWeek(
+                            weekStart = today.minusWeeks(it.toLong()),
+                            minutes = (it % 4) * 30.0,
+                            km = (it % 4) * 4.5
+                        )
+                    },
+                    totalMinutes = 1240.0,
+                    totalKm = 184.5,
+                    sessions = 41
+                ),
+                rotations = de.beispiel.meintraining.util.RotationSummary(
+                    count = 10,
+                    fullCount = 8,
+                    averageDays = 6.4,
+                    mostMissedDayId = 3,
+                    mostMissedCount = 2
+                ),
                 firstSession = java.time.LocalDate.now().minusWeeks(10),
                 weekdayCounts = listOf(8, 2, 7, 1, 9, 4, 3),
                 typicalTime = java.time.LocalTime.of(18, 40),

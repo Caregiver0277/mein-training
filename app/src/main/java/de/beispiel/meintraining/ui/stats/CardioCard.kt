@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import de.beispiel.meintraining.R
@@ -76,7 +77,11 @@ internal fun CardioCard(totals: CardioTotals) {
                 value = cardioText(thisWeek.minutes, thisWeek.km, hasMinutes, hasKm)
             )
             Fact(
-                label = stringResource(R.string.stats_cardio_average, totals.weeks.size),
+                label = pluralStringResource(
+                    R.plurals.stats_cardio_average,
+                    totals.weeks.size,
+                    totals.weeks.size
+                ),
                 value = cardioText(
                     totals.weeks.sumOf { it.minutes } / totals.weeks.size,
                     totals.weeks.sumOf { it.km } / totals.weeks.size,

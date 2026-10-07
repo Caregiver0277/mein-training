@@ -116,7 +116,12 @@ internal fun WeeklyGoalCard(weeks: List<WeekCount>, goal: Int) {
         }
         Fact(
             label = stringResource(R.string.stats_goal_reached),
-            value = stringResource(R.string.stats_goal_reached_value, reached, weeks.size),
+            value = pluralStringResource(
+                R.plurals.stats_goal_reached_value,
+                weeks.size,
+                reached,
+                weeks.size
+            ),
             highlight = reached > 0
         )
     }

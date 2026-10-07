@@ -149,7 +149,11 @@ private fun HeatmapGrid(heatmap: Heatmap, selected: LocalDate?, onDayTapped: (Lo
     val pitch: Dp = Dimens.HeatmapCellSize + Dimens.HeatmapCellGap
     val width = pitch * heatmap.weeks.size - Dimens.HeatmapCellGap
     val height = Dimens.HeatmapMonthRowHeight + pitch * DayOfWeek.entries.size - Dimens.HeatmapCellGap
-    val description = stringResource(R.string.stats_heatmap_description, HEATMAP_MONTHS.toInt())
+    val description = pluralStringResource(
+        R.plurals.stats_heatmap_description,
+        HEATMAP_MONTHS.toInt(),
+        HEATMAP_MONTHS.toInt()
+    )
     // Die Tipp-Erkennung startet nur neu, wenn sich der Kalender ändert – und ruft trotzdem
     // immer die aktuelle Reaktion auf.
     val onTap by rememberUpdatedState(onDayTapped)

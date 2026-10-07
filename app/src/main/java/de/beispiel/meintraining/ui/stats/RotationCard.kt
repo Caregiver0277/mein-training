@@ -46,8 +46,9 @@ internal fun RotationCard(summary: RotationSummary?, dayNames: Map<Int, String>)
         )
         Fact(
             label = stringResource(R.string.stats_rounds_full),
-            value = stringResource(
-                R.string.stats_rounds_full_value,
+            value = pluralStringResource(
+                R.plurals.stats_rounds_full_value,
+                summary.count,
                 (summary.fullShare * 100).roundToInt(),
                 summary.fullCount,
                 summary.count

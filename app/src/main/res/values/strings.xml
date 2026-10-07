@@ -465,7 +465,11 @@
     </plurals>
     <string name="stats_goal_this_week">diese Woche</string>
     <string name="stats_goal_reached">Ziel erreicht</string>
-    <string name="stats_goal_reached_value">%1$d von %2$d Wochen</string>
+    <!-- Etwa „8 von 12 Wochen“; die Mehrzahl richtet sich nach der zweiten Zahl. -->
+    <plurals name="stats_goal_reached_value">
+        <item quantity="one">%1$d von %2$d Woche</item>
+        <item quantity="other">%1$d von %2$d Wochen</item>
+    </plurals>
     <string name="stats_days_decimal">%1$s Tage</string>
     <string name="stats_cardio">Cardio</string>
     <string name="stats_cardio_minutes_per_week">Minuten je Woche</string>
@@ -473,7 +477,10 @@
     <!-- Der höchste Wert über den Balken, etwa „max. 120 min“. -->
     <string name="stats_cardio_max">max. %1$s</string>
     <string name="stats_cardio_this_week">Diese Woche</string>
-    <string name="stats_cardio_average">Ø je Woche (%1$d Wochen)</string>
+    <plurals name="stats_cardio_average">
+        <item quantity="one">Ø je Woche (%1$d Woche)</item>
+        <item quantity="other">Ø je Woche (%1$d Wochen)</item>
+    </plurals>
     <string name="stats_cardio_total">Seit Beginn</string>
     <string name="stats_cardio_sessions">Einheiten</string>
     <!-- Etwa „95 min · 12,4 km“. -->
@@ -484,8 +491,11 @@
     <string name="stats_rounds_finished">Abgeschlossen</string>
     <string name="stats_rounds_duration">Ø Dauer</string>
     <string name="stats_rounds_full">Vollständig</string>
-    <!-- Etwa „80 % (8 von 10)“. -->
-    <string name="stats_rounds_full_value">%1$d&#160;%% (%2$d von %3$d)</string>
+    <!-- Etwa „80 % (8 von 10)“; die Mehrzahl richtet sich nach der dritten Zahl. -->
+    <plurals name="stats_rounds_full_value">
+        <item quantity="one">%1$d&#160;%% (%2$d von %3$d)</item>
+        <item quantity="other">%1$d&#160;%% (%2$d von %3$d)</item>
+    </plurals>
     <string name="stats_rounds_missed">Fehlt am häufigsten</string>
     <!-- Etwa „Beine (2 Runden)“: der Trainingstag und in wie vielen abgebrochenen Runden er fehlte. -->
     <string name="stats_rounds_missed_value">%1$s (%2$s)</string>
@@ -498,7 +508,10 @@
     <!-- Etwa „Mi., 7. Oktober 2026: 2 Trainings“. -->
     <string name="stats_heatmap_day">%1$s: %2$s</string>
     <string name="stats_heatmap_no_session">kein Training</string>
-    <string name="stats_heatmap_description">Trainingskalender der letzten %1$d Monate</string>
+    <plurals name="stats_heatmap_description">
+        <item quantity="one">Trainingskalender des letzten Monats</item>
+        <item quantity="other">Trainingskalender der letzten %1$d Monate</item>
+    </plurals>
     <string name="stats_heatmap_legend_none">0</string>
     <string name="stats_heatmap_legend_one">1</string>
     <string name="stats_heatmap_legend_many">2+</string>
