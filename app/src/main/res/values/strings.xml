@@ -59,6 +59,42 @@
     <string name="hint_progression_step_down">Um diesen Wert senkt der Pfeil das Gewicht.</string>
     <string name="cd_progression_down">Gewicht senken statt erhöhen</string>
     <string name="quick_select_label">Schnellauswahl</string>
+
+    <!-- Cardio im Bearbeiten-Sheet -->
+    <string name="kind_strength">Kraft</string>
+    <string name="kind_cardio">Cardio</string>
+    <string name="field_cardio_duration">Dauer (min)</string>
+    <string name="hint_cardio_duration">Minuten wie 20 oder 7,5 – oder mm:ss wie 7:30.</string>
+    <string name="error_cardio_duration">So nicht lesbar: Minuten wie 7,5 oder mm:ss wie 7:30, die Sekunden zweistellig.</string>
+    <string name="field_cardio_distance">Distanz (km)</string>
+    <string name="field_cardio_incline">Steigung (%)</string>
+    <string name="field_cardio_speed">Tempo (km/h)</string>
+    <string name="field_cardio_level">Stufe</string>
+    <string name="hint_cardio_shared">Alle Zielwerte sind freiwillig und gelten an allen Tagen mit dieser Übung.</string>
+    <string name="cardio_arrow_label">Der Pfeil in der Liste verschiebt</string>
+    <string name="cardio_arrow_none">Keinen Wert</string>
+    <string name="cardio_value_duration">Dauer</string>
+    <string name="cardio_value_distance">Distanz</string>
+    <string name="cardio_value_speed">Tempo</string>
+    <string name="cardio_value_level">Stufe</string>
+    <string name="cardio_value_incline">Steigung</string>
+    <string name="cardio_value_duration_the">Die Dauer</string>
+    <string name="cardio_value_distance_the">Die Distanz</string>
+    <string name="cardio_value_speed_the">Das Tempo</string>
+    <string name="cardio_value_level_the">Die Stufe</string>
+    <string name="cardio_value_incline_the">Die Steigung</string>
+    <!-- „Schritt (km/h)“ – die Einheit des gewählten Werts. -->
+    <string name="field_cardio_step">Schritt (%1$s)</string>
+    <string name="hint_cardio_step">%1$s steigt mit jedem Pfeil um diesen Wert.</string>
+    <string name="hint_cardio_step_down">%1$s sinkt mit jedem Pfeil um diesen Wert.</string>
+    <string name="cd_cardio_arrow_down">Wert senken statt erhöhen</string>
+    <string name="cardio_unit_minutes">min</string>
+    <string name="cardio_unit_km">km</string>
+    <string name="cardio_unit_m">m</string>
+    <string name="cardio_unit_kmh">km/h</string>
+    <string name="cardio_unit_level">Stufe</string>
+    <string name="cardio_step_unit_levels">Stufen</string>
+    <string name="cardio_unit_percent">%</string>
     <string name="error_name_required">Bitte einen Namen eingeben.</string>
 
     <!-- Satz-Protokoll -->

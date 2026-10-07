@@ -57,6 +57,12 @@ object Dimens {
     val UnitToggleWidth = 40.dp
     val UnitToggleHeight = 32.dp
 
+    /** Ein Reiter von „Kraft | Cardio“ neben dem Titel des Bearbeiten-Sheets. */
+    val KindToggleWidth = 72.dp
+
+    /** Ein Reiter von „km/h | Stufe“ neben dem Tempo-Feld. */
+    val IntensityToggleWidth = 56.dp
+
     // Chips – feste Breiten, damit Spaltenkopf und Karte exakt übereinander liegen
     val ChipHeight = 30.dp
     val ChipWeightWidth = 66.dp

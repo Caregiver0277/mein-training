@@ -1,8 +1,13 @@
 package de.beispiel.meintraining.ui
 
+import de.beispiel.meintraining.data.model.CardioTargets
+import de.beispiel.meintraining.data.model.CardioValue
 import de.beispiel.meintraining.data.model.ExerciseDefinition
+import de.beispiel.meintraining.data.model.ExerciseKind
+import de.beispiel.meintraining.data.model.IntensityUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -16,6 +21,18 @@ private val BEKANNT = listOf(
         weightKg = 30.0,
         progressionStepKg = 5.0,
         progressionDown = true
+    ),
+    ExerciseDefinition(
+        name = "Laufband",
+        progressionStepKg = 2.5,
+        kind = ExerciseKind.CARDIO,
+        cardio = CardioTargets(
+            durationMin = 20.0,
+            intensity = 6.0,
+            inclinePercent = 8.0,
+            arrowValue = CardioValue.INTENSITY,
+            arrowStep = 0.1
+        )
     )
 )
 
@@ -170,6 +187,109 @@ class ExerciseFormTest {
         val form = ExerciseForm().tippeName("Curls")
         assertTrue(form.logSets)
         assertFalse(form.tippeName("Curlsx").logSets)
+    }
+
+    // --- Kraft oder Cardio --------------------------------------------------
+
+    /** Ein bekannter Name bringt seine Art mit – und mit ihr die Cardio-Ziele samt Pfeil. */
+    @Test
+    fun einBekannterNameBringtSeineArtMit() {
+        val form = ExerciseForm().tippeName("Laufband")
+        assertTrue(form.isCardio)
+        assertEquals("20", form.cardio.duration)
+        assertEquals("6", form.cardio.intensity)
+        assertEquals("8", form.cardio.incline)
+        assertEquals(CardioValue.INTENSITY, form.cardio.arrowValue)
+        assertEquals("0,1", form.cardio.arrowStep)
+        assertFalse(ExerciseForm(kind = ExerciseKind.CARDIO).tippeName("Rudern").isCardio)
+    }
+
+    /** Ohne Treffer kommt die eigene Wahl zurück, auch die Art. */
+    @Test
+    fun ohneTrefferKommtDieEigeneArtZurueck() {
+        val cardio = ExerciseForm().let { it.withChange(it.copy(kind = ExerciseKind.CARDIO), BEKANNT) }
+        val ueberRudern = cardio.tippeName("Rudern")
+        assertFalse(ueberRudern.isCardio)
+        assertTrue(ueberRudern.tippeName("Rudergerät").isCardio)
+    }
+
+    /**
+     * Ein Wechsel der Art blendet nur Felder um: Gewicht und Sätze bleiben im Formular, und die
+     * Cardio-Werte bleiben stehen, wenn es zurück zu Kraft geht.
+     */
+    @Test
+    fun einWechselDerArtBehaeltDieWerteDerAnderen() {
+        val kraft = bearbeiten("Curls", "12,5").copy(sets = "3")
+        val cardio = kraft.withChange(
+            kraft.copy(kind = ExerciseKind.CARDIO, cardio = CardioForm(duration = "10")),
+            BEKANNT
+        )
+        val zurueck = cardio.withChange(cardio.copy(kind = ExerciseKind.STRENGTH), BEKANNT)
+        assertEquals("12,5", zurueck.weight)
+        assertEquals("3", zurueck.sets)
+        assertEquals("10", zurueck.cardio.duration)
+    }
+
+    /** Eine unlesbare Dauer sperrt das Speichern – aber nur, solange Cardio gewählt ist. */
+    @Test
+    fun eineUnlesbareDauerSperrtNurBeiCardio() {
+        val form = ExerciseForm(name = "Rad", kind = ExerciseKind.CARDIO, cardio = CardioForm(duration = "7:75"))
+        assertFalse(form.canSave)
+        assertTrue(form.copy(cardio = CardioForm(duration = "7:30")).canSave)
+        assertTrue(form.copy(cardio = CardioForm(duration = "")).canSave)
+        assertTrue(form.copy(kind = ExerciseKind.STRENGTH).canSave)
+    }
+
+    /** Ein anderer Wert für den Pfeil beginnt mit dessen Schritt-Vorgabe; derselbe lässt alles stehen. */
+    @Test
+    fun einNeuerPfeilWertBeginntMitSeinerVorgabe() {
+        val dauer = CardioForm().withArrowValue(CardioValue.DURATION)
+        assertEquals("1", dauer.arrowStep)
+        val eigener = dauer.copy(arrowStep = "2")
+        assertEquals("2", eigener.withArrowValue(CardioValue.DURATION).arrowStep)
+        assertEquals("0,5", eigener.withArrowValue(CardioValue.DISTANCE).arrowStep)
+        assertEquals("", eigener.withArrowValue(null).arrowStep)
+    }
+
+    /** km/h ↔ Stufe setzt den Schritt nur zurück, wenn der Pfeil das Tempo steuert. */
+    @Test
+    fun einWechselDerTempoEinheitSetztNurDenTempoSchrittZurueck() {
+        val tempo = CardioForm(arrowValue = CardioValue.INTENSITY, arrowStep = "0,1")
+        assertEquals("1", tempo.withIntensityUnit(IntensityUnit.LEVEL).arrowStep)
+        val dauer = CardioForm(arrowValue = CardioValue.DURATION, arrowStep = "2")
+        val umgestellt = dauer.withIntensityUnit(IntensityUnit.LEVEL)
+        assertEquals("2", umgestellt.arrowStep)
+        assertEquals(IntensityUnit.LEVEL, umgestellt.intensityUnit)
+    }
+
+    /** Was im Formular steht, kommt beim Speichern als dieselben Ziele heraus – und zurück. */
+    @Test
+    fun cardioZieleUeberstehenDenWegDurchsFormular() {
+        val ziele = CardioTargets(
+            durationMin = 7.5,
+            distanceKm = 0.8,
+            intensity = 8.0,
+            intensityUnit = IntensityUnit.LEVEL,
+            inclinePercent = 2.5,
+            arrowValue = CardioValue.DURATION,
+            arrowStep = 0.5,
+            arrowDown = true
+        )
+        val form = ziele.toForm()
+        assertEquals("7:30", form.duration)
+        assertEquals("0:30", form.arrowStep)
+        assertEquals(ziele, form.toTargets())
+    }
+
+    /** Leere Felder heißen „kein Ziel“; ohne Pfeil-Wert gibt es keinen Schritt. */
+    @Test
+    fun leereCardioFelderSindKeinZiel() {
+        val ziele = CardioForm(duration = "20", arrowStep = "3").toTargets()
+        assertEquals(20.0, ziele.durationMin!!, 0.0)
+        assertNull(ziele.distanceKm)
+        assertNull(ziele.intensity)
+        assertNull(ziele.arrowValue)
+        assertNull(ziele.arrowStep)
     }
 
     // --- Übrige Felder -----------------------------------------------------

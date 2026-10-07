@@ -60,7 +60,11 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import de.beispiel.meintraining.R
+import de.beispiel.meintraining.data.model.CardioValue
+import de.beispiel.meintraining.data.model.ExerciseKind
+import de.beispiel.meintraining.ui.CardioForm
 import de.beispiel.meintraining.ui.ExerciseForm
+import de.beispiel.meintraining.ui.components.SegmentToggle
 import de.beispiel.meintraining.ui.components.Sparkline
 import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AccentBlueSurface
@@ -144,13 +148,27 @@ private fun ExerciseEditSheetContent(
             ),
         verticalArrangement = Arrangement.spacedBy(Dimens.SheetFieldSpacing)
     ) {
-        Text(
-            text = stringResource(
-                if (form.isEditMode) R.string.sheet_title_edit else R.string.sheet_title_add
-            ),
-            style = AppTextStyles.Title,
-            color = TextPrimary
-        )
+        // Der Umschalter steht ganz oben neben dem Titel: Er entscheidet, welche Felder folgen.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(
+                    if (form.isEditMode) R.string.sheet_title_edit else R.string.sheet_title_add
+                ),
+                style = AppTextStyles.Title,
+                color = TextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            SegmentToggle(
+                labels = listOf(
+                    stringResource(R.string.kind_strength),
+                    stringResource(R.string.kind_cardio)
+                ),
+                selectedIndex = form.kind.ordinal,
+                onSelect = { onFormChange(form.copy(kind = ExerciseKind.entries[it])) },
+                segmentWidth = Dimens.KindToggleWidth,
+                modifier = Modifier.padding(start = Dimens.SectionSpacingMedium)
+            )
+        }
 
         // Wer auf „+“ drückt, will sofort tippen – der Cursor springt deshalb ins neue Feld.
         // Beim Bearbeiten einer Übung, die schon eine Variation hat, passiert das nicht:
@@ -189,75 +207,16 @@ private fun ExerciseEditSheetContent(
 
         // „Weiter“ auf der Tastatur springt von Feld zu Feld, im letzten schließt „Fertig“ sie –
         // eine Übung lässt sich so in einem Zug eintippen, ohne jedes Feld einzeln anzutippen.
-        SheetTextField(
-            value = form.weight,
-            onValueChange = { onFormChange(form.copy(weight = it)) },
-            label = stringResource(R.string.field_weight),
-            keyboardType = KeyboardType.Decimal,
-            supportingText = stringResource(R.string.hint_weight_shared)
-        )
-        weightHistory?.let { WeightHistoryLine(history = it) }
-
-        SheetTextField(
-            value = form.sets,
-            onValueChange = { onFormChange(form.copy(sets = it)) },
-            label = stringResource(R.string.field_sets),
-            keyboardType = KeyboardType.Number
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.SheetFieldSpacing)) {
-            SheetTextField(
-                value = form.repsMin,
-                onValueChange = { onFormChange(form.copy(repsMin = it)) },
-                label = stringResource(R.string.field_reps_min),
-                keyboardType = KeyboardType.Number,
-                modifier = Modifier.weight(1f)
+        //
+        // Bei Cardio stehen an dieser Stelle die Cardio-Felder. Die Kraft-Felder sind dann nur
+        // ausgeblendet: Ihre Werte bleiben im Formular und kommen beim Zurückschalten wieder.
+        if (form.isCardio) {
+            CardioSheetFields(
+                cardio = form.cardio,
+                onChange = { onFormChange(form.copy(cardio = it)) }
             )
-            SheetTextField(
-                value = form.repsMax,
-                onValueChange = { onFormChange(form.copy(repsMax = it)) },
-                label = stringResource(R.string.field_reps_max),
-                keyboardType = KeyboardType.Number,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        SheetTextField(
-            value = form.progressionStep,
-            onValueChange = { onFormChange(form.copy(progressionStep = it)) },
-            label = stringResource(R.string.field_progression_step),
-            keyboardType = KeyboardType.Decimal,
-            imeAction = ImeAction.Done,
-            supportingText = stringResource(
-                if (form.progressionDown) {
-                    R.string.hint_progression_step_down
-                } else {
-                    R.string.hint_progression_step
-                }
-            )
-        )
-
-        Text(
-            text = stringResource(R.string.quick_select_label),
-            style = AppTextStyles.ColumnLabel,
-            color = TextSecondary
-        )
-        // Die Richtung steht neben der Schnellauswahl und nicht darunter: Schritt und Richtung
-        // beschreiben zusammen eine Bewegung, und der Knopf sitzt damit auf derselben Höhe wie
-        // die Stufen, auf die er sich bezieht.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ProgressionStepChips(
-                value = form.progressionStep,
-                onSelect = { onFormChange(form.copy(progressionStep = it)) },
-                modifier = Modifier.weight(1f)
-            )
-            ProgressionDirectionToggle(
-                down = form.progressionDown,
-                onClick = { onFormChange(form.copy(progressionDown = !form.progressionDown)) }
-            )
+        } else {
+            StrengthFields(form = form, weightHistory = weightHistory, onFormChange = onFormChange)
         }
 
         // Mehrzeilig: Ein Zeilenumbruch ist hier ein Zeilenumbruch und kein „Weiter“. In der
@@ -273,13 +232,16 @@ private fun ExerciseEditSheetContent(
             supportingText = stringResource(R.string.hint_note_shared)
         )
 
-        LogSetsSwitch(
-            checked = form.logSets,
-            // Ohne Sätze-Zahl gibt es in der Liste keinen Chip und damit nichts anzutippen – das
-            // steht dann gleich hier, statt dass der Schalter scheinbar nichts bewirkt.
-            needsSets = (parseOptionalInt(form.sets) ?: 0) < 1,
-            onCheckedChange = { onFormChange(form.copy(logSets = it)) }
-        )
+        // Das Satz-Protokoll gibt es nur für Sätze; eine Cardio-Übung trägt ganze Einheiten ein.
+        if (!form.isCardio) {
+            LogSetsSwitch(
+                checked = form.logSets,
+                // Ohne Sätze-Zahl gibt es in der Liste keinen Chip und damit nichts anzutippen – das
+                // steht dann gleich hier, statt dass der Schalter scheinbar nichts bewirkt.
+                needsSets = (parseOptionalInt(form.sets) ?: 0) < 1,
+                onCheckedChange = { onFormChange(form.copy(logSets = it)) }
+            )
+        }
 
         Row(
             modifier = Modifier
@@ -306,6 +268,86 @@ private fun ExerciseEditSheetContent(
     }
 }
 
+/** Gewicht, Sätze, Wiederholungen und Progressionsschritt – die Felder einer Kraftübung. */
+@Composable
+private fun StrengthFields(
+    form: ExerciseForm,
+    weightHistory: WeightHistory?,
+    onFormChange: (ExerciseForm) -> Unit
+) {
+    SheetTextField(
+        value = form.weight,
+        onValueChange = { onFormChange(form.copy(weight = it)) },
+        label = stringResource(R.string.field_weight),
+        keyboardType = KeyboardType.Decimal,
+        supportingText = stringResource(R.string.hint_weight_shared)
+    )
+    weightHistory?.let { WeightHistoryLine(history = it) }
+
+    SheetTextField(
+        value = form.sets,
+        onValueChange = { onFormChange(form.copy(sets = it)) },
+        label = stringResource(R.string.field_sets),
+        keyboardType = KeyboardType.Number
+    )
+
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.SheetFieldSpacing)) {
+        SheetTextField(
+            value = form.repsMin,
+            onValueChange = { onFormChange(form.copy(repsMin = it)) },
+            label = stringResource(R.string.field_reps_min),
+            keyboardType = KeyboardType.Number,
+            modifier = Modifier.weight(1f)
+        )
+        SheetTextField(
+            value = form.repsMax,
+            onValueChange = { onFormChange(form.copy(repsMax = it)) },
+            label = stringResource(R.string.field_reps_max),
+            keyboardType = KeyboardType.Number,
+            modifier = Modifier.weight(1f)
+        )
+    }
+
+    SheetTextField(
+        value = form.progressionStep,
+        onValueChange = { onFormChange(form.copy(progressionStep = it)) },
+        label = stringResource(R.string.field_progression_step),
+        keyboardType = KeyboardType.Decimal,
+        imeAction = ImeAction.Done,
+        supportingText = stringResource(
+            if (form.progressionDown) {
+                R.string.hint_progression_step_down
+            } else {
+                R.string.hint_progression_step
+            }
+        )
+    )
+
+    Text(
+        text = stringResource(R.string.quick_select_label),
+        style = AppTextStyles.ColumnLabel,
+        color = TextSecondary
+    )
+    // Die Richtung steht neben der Schnellauswahl und nicht darunter: Schritt und Richtung
+    // beschreiben zusammen eine Bewegung, und der Knopf sitzt damit auf derselben Höhe wie
+    // die Stufen, auf die er sich bezieht.
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ProgressionStepChips(
+            value = form.progressionStep,
+            onSelect = { onFormChange(form.copy(progressionStep = it)) },
+            modifier = Modifier.weight(1f)
+        )
+        ProgressionDirectionToggle(
+            down = form.progressionDown,
+            contentDescription = stringResource(R.string.cd_progression_down),
+            onClick = { onFormChange(form.copy(progressionDown = !form.progressionDown)) }
+        )
+    }
+}
+
 /**
  * Schnellauswahl der Progressionsschritte – die Stufe, die gerade gilt, steht blau da.
  *
@@ -317,7 +359,6 @@ private fun ExerciseEditSheetContent(
  * [FlowRow] statt einer Zeile: Bei großer Schriftgröße passen vier Stufen nicht mehr
  * nebeneinander, und abgeschnitten wäre die letzte nicht mehr zu treffen.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProgressionStepChips(
     value: String,
@@ -325,33 +366,64 @@ private fun ProgressionStepChips(
     modifier: Modifier = Modifier
 ) {
     val activeStep = remember(value) { parseProgressionStep(value) }
+    StepChips(
+        suggestions = PROGRESSION_STEP_SUGGESTIONS,
+        activeStep = activeStep,
+        labelOf = { it.toDecimalString() },
+        onSelect = onSelect,
+        modifier = modifier
+    )
+}
 
+/**
+ * Eine Schnellauswahl von Schritten, der gerade geltende ([activeStep]) blau – für den
+ * Progressionsschritt wie für den Schritt eines Cardio-Pfeils. [labelOf] ist zugleich der Text,
+ * den ein Tipp ins Feld setzt.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun StepChips(
+    suggestions: List<Double>,
+    activeStep: Double,
+    labelOf: (Double) -> String,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall),
         verticalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingSmall),
         modifier = modifier
     ) {
-        PROGRESSION_STEP_SUGGESTIONS.forEach { suggestion ->
-            val label = suggestion.toDecimalString()
-            // Die Vorschläge sind allesamt Brüche mit Zweierpotenz im Nenner und damit exakt
-            // darstellbar; der Spielraum fängt trotzdem ab, was über getippte Ziffern
-            // hereinkommt – etwa „0,6250“.
-            val isActive = abs(activeStep - suggestion) < STEP_MATCH_TOLERANCE
-            AssistChip(
-                onClick = { onSelect(label) },
-                label = { Text(text = label, style = AppTextStyles.ChipText) },
-                colors = AssistChipDefaults.assistChipColors(
-                    containerColor = if (isActive) AccentBlueSurface else ChipBackground,
-                    labelColor = if (isActive) AccentBlue else TextPrimary
-                ),
-                border = if (isActive) {
-                    BorderStroke(Dimens.BadgeBorderWidth, AccentBlue)
-                } else {
-                    null
-                }
+        suggestions.forEach { suggestion ->
+            val label = labelOf(suggestion)
+            // Die Vorschläge sind exakt darstellbar oder kommen unverändert aus derselben Liste
+            // zurück; der Spielraum fängt trotzdem ab, was über getippte Ziffern hereinkommt –
+            // etwa „0,6250“.
+            SelectChip(
+                label = label,
+                isActive = abs(activeStep - suggestion) < STEP_MATCH_TOLERANCE,
+                onClick = { onSelect(label) }
             )
         }
     }
+}
+
+/** Ein Chip einer Auswahl im Sheet; der gewählte steht blau umrandet da. */
+@Composable
+internal fun SelectChip(label: String, isActive: Boolean, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(text = label, style = AppTextStyles.ChipText) },
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = if (isActive) AccentBlueSurface else ChipBackground,
+            labelColor = if (isActive) AccentBlue else TextPrimary
+        ),
+        border = if (isActive) {
+            BorderStroke(Dimens.BadgeBorderWidth, AccentBlue)
+        } else {
+            null
+        }
+    )
 }
 
 /**
@@ -404,13 +476,18 @@ private fun LogSetsSwitch(
 
 /**
  * Kleiner Kasten mit Pfeil nach unten, rechts neben der Schnellauswahl: Angetippt steht er blau
- * da und der Pfeil in der Liste senkt das Gewicht, statt es zu erhöhen.
+ * da und der Pfeil in der Liste senkt den Wert – das Gewicht oder den Cardio-Wert –, statt ihn
+ * zu erhöhen.
  *
  * Der Pfeil im Kasten zeigt immer nach unten – er sagt, was der Knopf bewirkt, nicht was gerade
  * gilt. Was gerade gilt, sagt die blaue Markierung, genau wie bei der gewählten Stufe daneben.
  */
 @Composable
-private fun ProgressionDirectionToggle(down: Boolean, onClick: () -> Unit) {
+internal fun ProgressionDirectionToggle(
+    down: Boolean,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .size(Dimens.TouchTargetSize)
@@ -430,7 +507,7 @@ private fun ProgressionDirectionToggle(down: Boolean, onClick: () -> Unit) {
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_arrow_downward),
-            contentDescription = stringResource(R.string.cd_progression_down),
+            contentDescription = contentDescription,
             tint = if (down) AccentBlue else TextPrimary,
             modifier = Modifier.size(Dimens.MenuIconSize)
         )
@@ -596,7 +673,7 @@ private fun WeightHistoryLine(history: WeightHistory) {
 }
 
 @Composable
-private fun SheetTextField(
+internal fun SheetTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
@@ -683,6 +760,36 @@ private fun ExerciseEditSheetContentPreview() {
                 recentWeights = listOf(17.5, 18.125, 18.75, 18.75, 19.375, 20.0)
             ),
             knownExerciseNames = listOf("Trizeps", "Bankdrücken"),
+            onFormChange = {},
+            onVariationToggle = {},
+            onSave = {},
+            onDelete = {},
+            onDismiss = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C222B, widthDp = 360, heightDp = 900)
+@Composable
+private fun ExerciseEditSheetCardioPreview() {
+    MeinTrainingTheme {
+        ExerciseEditSheetContent(
+            form = ExerciseForm(
+                id = 2L,
+                name = "Laufband",
+                kind = ExerciseKind.CARDIO,
+                cardio = CardioForm(
+                    duration = "22:30",
+                    distance = "3,4",
+                    intensity = "6",
+                    incline = "8",
+                    arrowValue = CardioValue.INTENSITY,
+                    arrowStep = "0,5"
+                ),
+                note = "Hände nicht aufs Geländer"
+            ),
+            weightHistory = null,
+            knownExerciseNames = listOf("Laufband", "Rad"),
             onFormChange = {},
             onVariationToggle = {},
             onSave = {},
