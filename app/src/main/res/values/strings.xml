@@ -466,6 +466,21 @@
     <string name="stats_goal_this_week">diese Woche</string>
     <string name="stats_goal_reached">Ziel erreicht</string>
     <string name="stats_goal_reached_value">%1$d von %2$d Wochen</string>
+    <string name="stats_days_decimal">%1$s Tage</string>
+    <string name="stats_rounds">Runden</string>
+    <string name="stats_rounds_none">Noch keine Runde abgeschlossen. Eine Runde ist durch, sobald jeder Tag einmal dran war oder der Pfeil neben dem Haken die nächste beginnt; ab dem Tag darauf steht sie hier.</string>
+    <string name="stats_rounds_finished">Abgeschlossen</string>
+    <string name="stats_rounds_duration">Ø Dauer</string>
+    <string name="stats_rounds_full">Vollständig</string>
+    <!-- Etwa „80 % (8 von 10)“. -->
+    <string name="stats_rounds_full_value">%1$d&#160;%% (%2$d von %3$d)</string>
+    <string name="stats_rounds_missed">Fehlt am häufigsten</string>
+    <!-- Etwa „Beine (2 Runden)“: der Trainingstag und in wie vielen abgebrochenen Runden er fehlte. -->
+    <string name="stats_rounds_missed_value">%1$s (%2$s)</string>
+    <plurals name="stats_rounds_count">
+        <item quantity="one">%1$d Runde</item>
+        <item quantity="other">%1$d Runden</item>
+    </plurals>
     <string name="stats_heatmap">Kalender</string>
     <string name="stats_heatmap_hint">Tippe auf einen Tag, um seine Trainings zu sehen.</string>
     <!-- Etwa „Mi., 7. Oktober 2026: 2 Trainings“. -->

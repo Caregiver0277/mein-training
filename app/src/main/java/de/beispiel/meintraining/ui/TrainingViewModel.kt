@@ -268,8 +268,9 @@ class TrainingViewModel(
                 entriesOldestFirst = entriesOldestFirst,
                 dayCount = dayCount,
                 today = today,
-                // Nur die Runde hört auf die Schnitte. Verlauf, Statistik und Deload-Rechnung
-                // gehen weiter über alles – dort ist nichts zu Ende, nur eine Runde.
+                // Nur die Runden hören auf die Schnitte – hier, im Verlauf und in der
+                // Runden-Statistik. Serien und Deload-Rechnung gehen weiter über alles – dort ist
+                // nichts zu Ende, nur eine Runde.
                 cuts = rotationCuts
             ),
             canReturnToPreviousCycle = canUndoRotationCut(entriesOldestFirst, rotationCuts),

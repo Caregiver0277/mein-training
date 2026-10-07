@@ -108,6 +108,7 @@ fun StatsScreen(uiState: StatsUiState, onBack: () -> Unit, modifier: Modifier = 
             uiState.heatmap?.let { HeatmapCard(it) }
             ProgressCard(uiState)
             if (uiState.stagnating.isNotEmpty()) StagnationCard(uiState.stagnating)
+            RotationCard(uiState.rotations, uiState.dayNames)
             WeekdayCard(uiState)
             RhythmCard(uiState)
             DurationCard(uiState.duration, uiState.dayNames)
@@ -417,7 +418,7 @@ private fun barHeight(count: Int, max: Int) =
     else Dimens.StatsBarMinHeight + (Dimens.WeekdayBarMaxHeight - Dimens.StatsBarMinHeight) *
         (count.toFloat() / max)
 
-private fun Double.roundTo(digits: Int): Double {
+internal fun Double.roundTo(digits: Int): Double {
     var factor = 1.0
     repeat(digits) { factor *= 10 }
     return (this * factor).roundToInt() / factor

@@ -12,6 +12,8 @@ import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DEFAULT_WEEKLY_GOAL
 import de.beispiel.meintraining.util.DurationSummary
 import de.beispiel.meintraining.util.Heatmap
+import de.beispiel.meintraining.util.RotationEntry
+import de.beispiel.meintraining.util.RotationSummary
 import de.beispiel.meintraining.util.SessionTimes
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.WeekCount
@@ -21,6 +23,7 @@ import de.beispiel.meintraining.util.currentStrengthWeights
 import de.beispiel.meintraining.util.exerciseGains
 import de.beispiel.meintraining.util.heatmap
 import de.beispiel.meintraining.util.longestWeeklyStreak
+import de.beispiel.meintraining.util.rotationSummary
 import de.beispiel.meintraining.util.sessionsPerWeek
 import de.beispiel.meintraining.util.stagnatingExercises
 import de.beispiel.meintraining.util.toLocalDate
@@ -57,7 +60,9 @@ data class StatsUiState(
     val heaviestExercise: Pair<String, Double>? = null,
     /** Ø Dauer gesamt und je Trainingstag; `null`, solange keine Dauer bekannt ist. */
     val duration: DurationSummary? = null,
-    /** Namen der Trainingstage für [duration] – auch der hinter einer verkürzten Runde. */
+    /** Bilanz der abgeschlossenen Runden; `null`, solange keine abgeschlossen ist. */
+    val rotations: RotationSummary? = null,
+    /** Namen der Trainingstage für [duration] und [rotations] – auch der hinter einer verkürzten Runde. */
     val dayNames: Map<Int, String> = emptyMap()
 ) {
     val hasSessions: Boolean get() = totalSessions > 0
@@ -71,7 +76,9 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
         val dayCount: Int,
         val hiddenExerciseNames: Set<String>,
         val dayNames: Map<Int, String>,
-        val weeklyGoal: Int
+        val weeklyGoal: Int,
+        /** Die Rundenschnitte – siehe `TrainingRepository.startNextRotation`. */
+        val rotationCuts: List<Long>
     )
 
     val uiState = combine(
@@ -87,14 +94,22 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             repository.dayCount,
             repository.hiddenExerciseNames,
             repository.observeDays(),
-            repository.weeklyGoal
-        ) { today, dayCount, hidden, days, goal ->
-            PlanView(today, dayCount, hidden, days.associate { it.id to it.name }, goal)
+            combine(repository.weeklyGoal, repository.rotationCuts, ::Pair)
+        ) { today, dayCount, hidden, days, (goal, cuts) ->
+            PlanView(today, dayCount, hidden, days.associate { it.id to it.name }, goal, cuts)
         }
     ) { sessions, logs, exercises, definitions, plan ->
         val today = plan.today
         val zone = ZoneId.systemDefault()
         val dates = sessions.map { it.completedAt.toLocalDate() }
+        // Die Sitzungen kommen neueste zuerst, die Runden zählen in Eintragsreihenfolge.
+        val rotationEntries = sessions.asReversed().mapIndexed { index, session ->
+            RotationEntry(
+                dayId = session.dayId,
+                date = dates[sessions.lastIndex - index],
+                completedAt = session.completedAt
+            )
+        }
         val times = sessions.map {
             Instant.ofEpochMilli(it.completedAt).atZone(zone).toLocalTime()
         }
@@ -148,6 +163,7 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             duration = durationSummary(
                 sessions.map { SessionTimes(it.dayId, it.startedAt, it.completedAt) }
             ),
+            rotations = rotationSummary(rotationEntries, plan.dayCount, today, plan.rotationCuts),
             dayNames = plan.dayNames
         )
     }.stateIn(
