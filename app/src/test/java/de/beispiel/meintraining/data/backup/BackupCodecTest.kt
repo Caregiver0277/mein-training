@@ -1,5 +1,8 @@
 package de.beispiel.meintraining.data.backup
 
+import de.beispiel.meintraining.data.model.CardioValue
+import de.beispiel.meintraining.data.model.ExerciseKind
+import de.beispiel.meintraining.data.model.IntensityUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -31,7 +34,22 @@ private fun sampleBackup() = BackupFile(
             note = "Bank Stufe 3\nSchulterblätter zusammen",
             logSets = true
         ),
-        BackupDefinition("Klimmzüge", null, 1.25)
+        BackupDefinition("Klimmzüge", null, 1.25),
+        BackupDefinition(
+            "Laufband",
+            null,
+            2.5,
+            kind = ExerciseKind.CARDIO,
+            cardio = BackupCardio(
+                durationMin = 7.5,
+                distanceKm = 1.2,
+                intensity = 6.5,
+                inclinePercent = 8.0,
+                arrowValue = CardioValue.INTENSITY,
+                arrowStep = 0.1,
+                arrowDown = true
+            )
+        )
     ),
     weightLogs = listOf(BackupWeightLog("Bankdrücken", 57.5, 1_750_000_000_000L)),
     sessions = listOf(
@@ -41,6 +59,10 @@ private fun sampleBackup() = BackupFile(
     setLogs = listOf(
         BackupSetLog("Bankdrücken", "Kurzhantel", 1, 1_752_097_000_000L, setNumber = 1, reps = 6, weightKg = 60.0),
         BackupSetLog("Klimmzüge", null, 2, 1_752_098_000_000L, setNumber = 1, reps = 8)
+    ),
+    cardioLogs = listOf(
+        BackupCardioLog("Laufband", null, 1, 1_752_099_000_000L, durationMin = 22.0, distanceKm = 3.4, intensity = 6.0, intensityUnit = IntensityUnit.KMH),
+        BackupCardioLog("Laufband", "Berg", 2, 1_752_099_500_000L, durationMin = 15.5, inclinePercent = 12.0)
     ),
     settings = BackupSettings(
         appTitle = "PPL",
@@ -104,6 +126,53 @@ class BackupCodecTest {
         assertNull(restored.sessions.single().startedAt)
         assertEquals(emptyList<BackupSetLog>(), restored.setLogs)
         assertTrue(restored.hasContent)
+    }
+
+    /**
+     * Eine Datei der Version 2 – vor Cardio. Jede Übung kommt als Kraftübung mit leeren
+     * Cardio-Zielen an, Cardio-Einheiten gibt es keine.
+     */
+    @Test
+    fun eineDateiDerVersion2BleibtEinlesbar() {
+        val text = """
+            {
+              "version": 2,
+              "createdAt": 5,
+              "days": [{"id": 1, "name": "Tag 1"}],
+              "exercises": [{"id": 3, "dayId": 1, "name": "Kniebeuge", "sets": 3, "position": 0}],
+              "definitions": [{"name": "Kniebeuge", "weightKg": 100.0, "progressionStepKg": 5.0, "progressionDown": false, "note": "Gürtel", "logSets": true}],
+              "setLogs": [{"exerciseName": "Kniebeuge", "dayId": 1, "performedAt": 4, "setNumber": 1, "reps": 5, "weightKg": 100.0}],
+              "settings": {"appTitle": "", "dayCount": 1}
+            }
+        """.trimIndent()
+        val restored = BackupCodec.decode(text)
+        val definition = restored.definitions.single()
+        assertEquals(ExerciseKind.STRENGTH, definition.kind)
+        assertEquals(BackupCardio(), definition.cardio)
+        assertTrue(definition.logSets)
+        assertEquals(emptyList<BackupCardioLog>(), restored.cardioLogs)
+    }
+
+    /** Art, Einheit und Pfeil stehen lesbar in der Datei – mit denselben Namen wie in der Datenbank. */
+    @Test
+    fun cardioStehtLesbarInDerDatei() {
+        val text = BackupCodec.encode(sampleBackup())
+        assertTrue(text.contains("\"kind\": \"CARDIO\""))
+        assertTrue(text.contains("\"arrowValue\": \"INTENSITY\""))
+        assertTrue(text.contains("\"intensityUnit\": \"KMH\""))
+    }
+
+    /** Eine unbekannte Art ist kein Rätselraten, sondern eine kaputte Datei. */
+    @Test
+    fun eineUnbekannteArtWirdAbgelehnt() {
+        val text = """{"version":3,"createdAt":5,"definitions":[{"name":"X","progressionStepKg":2.5,"kind":"YOGA"}]}"""
+        assertRejected<BackupProblem.Invalid>(text)
+    }
+
+    @Test
+    fun cardioEinheitenAlleinSindInhalt() {
+        val onlyCardio = BackupFile(createdAt = 0L, cardioLogs = sampleBackup().cardioLogs)
+        assertTrue(onlyCardio.hasContent)
     }
 
     @Test

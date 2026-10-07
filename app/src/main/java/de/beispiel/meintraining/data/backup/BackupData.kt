@@ -1,5 +1,8 @@
 package de.beispiel.meintraining.data.backup
 
+import de.beispiel.meintraining.data.model.CardioValue
+import de.beispiel.meintraining.data.model.ExerciseKind
+import de.beispiel.meintraining.data.model.IntensityUnit
 import kotlinx.serialization.Serializable
 
 /**
@@ -8,7 +11,8 @@ import kotlinx.serialization.Serializable
  * Die Version steht ganz vorn: Eine Datei aus einer künftigen Fassung der App wird abgelehnt,
  * statt halb eingelesen zu werden. Ältere Fassungen bleiben einlesbar, weil jedes später
  * hinzugekommene Feld eine Vorgabe hat – in Version 1 fehlen Notiz, Protokoll-Schalter,
- * Trainingsbeginn und das Satz-Protokoll, und genau so kommen sie dann auch an. Die Felder heißen wie in der Datenbank, damit die Datei auch
+ * Trainingsbeginn und das Satz-Protokoll, bis Version 2 alles zu Cardio, und genau so kommen sie
+ * dann auch an: leer, ausgeschaltet, als Kraftübung. Die Felder heißen wie in der Datenbank, damit die Datei auch
  * von Hand lesbar bleibt – eine Sicherung, die man nicht anschauen kann, ist wenig wert.
  */
 @Serializable
@@ -23,6 +27,8 @@ data class BackupFile(
     val sessions: List<BackupSession> = emptyList(),
     /** Seit Version 2. */
     val setLogs: List<BackupSetLog> = emptyList(),
+    /** Seit Version 3. */
+    val cardioLogs: List<BackupCardioLog> = emptyList(),
     val settings: BackupSettings = BackupSettings()
 ) {
     /**
@@ -33,7 +39,8 @@ data class BackupFile(
      */
     val hasContent: Boolean
         get() = exercises.isNotEmpty() || definitions.isNotEmpty() ||
-            weightLogs.isNotEmpty() || sessions.isNotEmpty() || setLogs.isNotEmpty()
+            weightLogs.isNotEmpty() || sessions.isNotEmpty() || setLogs.isNotEmpty() ||
+            cardioLogs.isNotEmpty()
 }
 
 @Serializable
@@ -62,7 +69,27 @@ data class BackupDefinition(
     /** Seit Version 2. */
     val note: String? = null,
     /** Seit Version 2; vorher gab es kein Protokoll. */
-    val logSets: Boolean = false
+    val logSets: Boolean = false,
+    /** Seit Version 3; vorher war jede Übung Kraft. */
+    val kind: ExerciseKind = ExerciseKind.STRENGTH,
+    /** Seit Version 3. */
+    val cardio: BackupCardio = BackupCardio()
+)
+
+/**
+ * Die Cardio-Ziele einer Übung samt Pfeil – seit Version 3. Steht auch bei Kraftübungen in der
+ * Datei, denn auch dort bleiben sie für einen Wechsel der Art erhalten.
+ */
+@Serializable
+data class BackupCardio(
+    val durationMin: Double? = null,
+    val distanceKm: Double? = null,
+    val intensity: Double? = null,
+    val intensityUnit: IntensityUnit = IntensityUnit.KMH,
+    val inclinePercent: Double? = null,
+    val arrowValue: CardioValue? = null,
+    val arrowStep: Double? = null,
+    val arrowDown: Boolean = false
 )
 
 @Serializable
@@ -92,6 +119,20 @@ data class BackupSetLog(
     val weightKg: Double? = null
 )
 
+/** Eine eingetragene Cardio-Einheit – seit Version 3. */
+@Serializable
+data class BackupCardioLog(
+    val exerciseName: String,
+    val variation: String? = null,
+    val dayId: Int,
+    val performedAt: Long,
+    val durationMin: Double? = null,
+    val distanceKm: Double? = null,
+    val intensity: Double? = null,
+    val intensityUnit: IntensityUnit? = null,
+    val inclinePercent: Double? = null
+)
+
 /** Die Einstellungen; alles optional, damit ältere Dateien weiterhin passen. */
 @Serializable
 data class BackupSettings(
@@ -107,8 +148,9 @@ data class BackupSettings(
  * Aktuelle Fassung des Dateiformats.
  *
  * 2: Notiz und Protokoll-Schalter an den Übungen, Trainingsbeginn, Satz-Protokoll.
+ * 3: Art der Übung (Kraft oder Cardio), Cardio-Ziele samt Pfeil, Cardio-Einheiten.
  */
-const val BACKUP_VERSION = 2
+const val BACKUP_VERSION = 3
 
 /** Vorgabe und Grenzen für den Abstand der automatischen Sicherung, in Tagen. */
 const val DEFAULT_BACKUP_INTERVAL_DAYS = 7

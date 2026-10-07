@@ -49,7 +49,7 @@ object BackupCodec {
      * in der App nie wieder auf. Beides fiele erst auf, wenn der bisherige Bestand längst
      * ersetzt ist – deshalb hier abbrechen, solange noch nichts geschrieben wurde.
      *
-     * Gewichtsverlauf und Satz-Protokoll werden bewusst nicht geprüft: Sie bleiben auch für
+     * Gewichtsverlauf, Satz-Protokoll und Cardio-Einheiten werden bewusst nicht geprüft: Sie bleiben auch für
      * gelöschte Übungen erhalten, ein Eintrag ohne passende Übung ist also gewollt und kein
      * Schaden.
      */

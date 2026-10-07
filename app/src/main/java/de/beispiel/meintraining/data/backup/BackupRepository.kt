@@ -11,6 +11,8 @@ import de.beispiel.meintraining.data.local.AppDatabase
 import de.beispiel.meintraining.data.local.SettingsSnapshot
 import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.model.Exercise
+import de.beispiel.meintraining.data.model.CardioLog
+import de.beispiel.meintraining.data.model.CardioTargets
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.FIRST_DAY_ID
 import de.beispiel.meintraining.data.model.SetLog
@@ -66,6 +68,7 @@ class BackupRepository(
         val logs = database.weightLogDao().listAll()
         val sessions = database.workoutSessionDao().listAll()
         val setLogs = database.setLogDao().listAll()
+        val cardioLogs = database.cardioLogDao().listAll()
 
         return BackupFile(
             createdAt = now,
@@ -90,7 +93,20 @@ class BackupRepository(
                     progressionStepKg = it.progressionStepKg,
                     progressionDown = it.progressionDown,
                     note = it.note,
-                    logSets = it.logSets
+                    logSets = it.logSets,
+                    kind = it.kind,
+                    cardio = with(it.cardio) {
+                        BackupCardio(
+                            durationMin = durationMin,
+                            distanceKm = distanceKm,
+                            intensity = intensity,
+                            intensityUnit = intensityUnit,
+                            inclinePercent = inclinePercent,
+                            arrowValue = arrowValue,
+                            arrowStep = arrowStep,
+                            arrowDown = arrowDown
+                        )
+                    }
                 )
             },
             weightLogs = logs.map {
@@ -112,6 +128,19 @@ class BackupRepository(
                     setNumber = it.setNumber,
                     reps = it.reps,
                     weightKg = it.weightKg
+                )
+            },
+            cardioLogs = cardioLogs.map {
+                BackupCardioLog(
+                    exerciseName = it.exerciseName,
+                    variation = it.variation,
+                    dayId = it.dayId,
+                    performedAt = it.performedAt,
+                    durationMin = it.durationMin,
+                    distanceKm = it.distanceKm,
+                    intensity = it.intensity,
+                    intensityUnit = it.intensityUnit,
+                    inclinePercent = it.inclinePercent
                 )
             },
             settings = with(settings) {
@@ -302,6 +331,7 @@ class BackupRepository(
         database.withTransaction {
             database.weightLogDao().deleteAll()
             database.setLogDao().deleteAll()
+            database.cardioLogDao().deleteAll()
             database.workoutSessionDao().deleteAll()
             database.exerciseDao().deleteAll()
             database.exerciseDefinitionDao().deleteAll()
@@ -318,7 +348,20 @@ class BackupRepository(
                         progressionStepKg = it.progressionStepKg,
                         progressionDown = it.progressionDown,
                         note = it.note,
-                        logSets = it.logSets
+                        logSets = it.logSets,
+                        kind = it.kind,
+                        cardio = with(it.cardio) {
+                            CardioTargets(
+                                durationMin = durationMin,
+                                distanceKm = distanceKm,
+                                intensity = intensity,
+                                intensityUnit = intensityUnit,
+                                inclinePercent = inclinePercent,
+                                arrowValue = arrowValue,
+                                arrowStep = arrowStep,
+                                arrowDown = arrowDown
+                            )
+                        }
                     )
                 }
             )
@@ -361,6 +404,21 @@ class BackupRepository(
                         setNumber = it.setNumber,
                         reps = it.reps,
                         weightKg = it.weightKg
+                    )
+                }
+            )
+            database.cardioLogDao().insertAll(
+                backup.cardioLogs.map {
+                    CardioLog(
+                        exerciseName = it.exerciseName,
+                        variation = it.variation,
+                        dayId = it.dayId,
+                        performedAt = it.performedAt,
+                        durationMin = it.durationMin,
+                        distanceKm = it.distanceKm,
+                        intensity = it.intensity,
+                        intensityUnit = it.intensityUnit,
+                        inclinePercent = it.inclinePercent
                     )
                 }
             )

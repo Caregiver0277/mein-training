@@ -190,7 +190,7 @@
     <string name="settings_hidden_note">%1$s · ausgeblendet</string>
     <string name="settings_delete_everywhere">Überall löschen</string>
     <string name="settings_delete_title">„%1$s“ überall löschen?</string>
-    <string name="settings_delete_body">Die Übung verschwindet von allen Trainingstagen, aus den Namensvorschlägen und samt Gewichtsverlauf und Satz-Protokoll aus dem Tracking. Das lässt sich nicht rückgängig machen.</string>
+    <string name="settings_delete_body">Die Übung verschwindet von allen Trainingstagen, aus den Namensvorschlägen und samt Gewichtsverlauf, Satz-Protokoll und Cardio-Einheiten aus dem Tracking. Das lässt sich nicht rückgängig machen.</string>
     <string name="settings_select_all">Alle auswählen</string>
 
     <!-- Sicherung -->
@@ -247,7 +247,7 @@
     <string name="settings_delete_all">Alle Daten löschen</string>
     <string name="settings_delete_all_summary">Verlauf, Gewichtsverlauf, Übungen und Einstellungen – alles, was die App gesammelt hat.</string>
     <string name="settings_delete_all_title">Wirklich alle Daten löschen?</string>
-    <string name="settings_delete_all_body">Das löscht endgültig alle abgehakten Trainings, den kompletten Gewichtsverlauf, das Satz-Protokoll, alle Übungen samt Gewichten, die Namen der Trainingstage und alle Einstellungen.\n\nÜbrig bleiben die leeren Trainingstage. Das lässt sich nicht rückgängig machen.</string>
+    <string name="settings_delete_all_body">Das löscht endgültig alle abgehakten Trainings, den kompletten Gewichtsverlauf, das Satz-Protokoll, alle Cardio-Einheiten, alle Übungen samt Gewichten, die Namen der Trainingstage und alle Einstellungen.\n\nÜbrig bleiben die leeren Trainingstage. Das lässt sich nicht rückgängig machen.</string>
     <!-- Das Wort, das zur Bestätigung eingetippt werden muss. Umlaute sind egal: „löschen“ zählt auch. -->
     <string name="settings_delete_all_word">loeschen</string>
     <string name="settings_delete_all_prompt">Tippe zum Bestätigen „%1$s“ ein.</string>
@@ -257,7 +257,7 @@
         <item quantity="one">%1$d Übung überall löschen?</item>
         <item quantity="other">%1$d Übungen überall löschen?</item>
     </plurals>
-    <string name="settings_delete_selected_body">Die ausgewählten Übungen verschwinden von allen Trainingstagen, aus den Namensvorschlägen und samt Gewichtsverlauf und Satz-Protokoll aus dem Tracking. Das lässt sich nicht rückgängig machen.\n\n%1$s</string>
+    <string name="settings_delete_selected_body">Die ausgewählten Übungen verschwinden von allen Trainingstagen, aus den Namensvorschlägen und samt Gewichtsverlauf, Satz-Protokoll und Cardio-Einheiten aus dem Tracking. Das lässt sich nicht rückgängig machen.\n\n%1$s</string>
     <plurals name="settings_only_history">
         <item quantity="one">Nur noch im Verlauf (%1$d Eintrag)</item>
         <item quantity="other">Nur noch im Verlauf (%1$d Einträge)</item>
