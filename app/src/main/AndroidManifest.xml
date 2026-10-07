@@ -21,6 +21,13 @@
         android:name="android.permission.SCHEDULE_EXACT_ALARM"
         android:maxSdkVersion="32" />
 
+    <!--
+        Erinnerungen als lokale Benachrichtigungen (Einstellungen → Erinnerungen). Ab Android 13
+        fragt die App erst, wenn die erste Erinnerung eingeschaltet wird – oder die automatische
+        Sicherung, deren Fehlschlag sonst niemand mitbekäme. Ins Internet geht dabei nichts.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".MeinTrainingApp"
         android:allowBackup="true"
@@ -51,6 +58,19 @@
         <receiver
             android:name=".timer.RestTimerReceiver"
             android:exported="false" />
+
+        <!--
+            Neue Zeitzone oder verstellte Uhr: Der Termin der täglichen Erinnerungen wird neu
+            ausgerechnet. Die Meldungen kommen vom System; andere Apps dürfen ihn nicht anstoßen.
+        -->
+        <receiver
+            android:name=".reminder.ReminderTimeReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
 
         <!--
             Reicht das Bild des Rückblicks an die App weiter, mit der geteilt wird. Nur Dateien

@@ -88,20 +88,44 @@ import de.beispiel.meintraining.util.MAX_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MAX_WEEKLY_GOAL
 import de.beispiel.meintraining.util.MIN_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MIN_WEEKLY_GOAL
+import de.beispiel.meintraining.util.ReminderSettings
+import de.beispiel.meintraining.util.formatClockTime
 import de.beispiel.meintraining.util.toDecimalString
 import kotlin.math.roundToInt
 
-/** Die Ebenen der Einstellungen; die Untermenüs sind eigene Seiten. */
-private enum class SettingsSection { OVERVIEW, DAYS, EXERCISES, BACKUP }
+/**
+ * Die Ebenen der Einstellungen; die Untermenüs sind eigene Seiten. Nicht privat, weil eine
+ * Erinnerung direkt in eine davon führt (siehe [SettingsRoute]).
+ */
+enum class SettingsSection { OVERVIEW, DAYS, EXERCISES, BACKUP, REMINDERS }
 
-/** Hängt die Einstellungen an ihr ViewModel. */
+/**
+ * Hängt die Einstellungen an ihr ViewModel.
+ *
+ * [requestedSection] öffnet von außen ein Untermenü – etwa die Sicherung nach einem Tipp auf
+ * „Sicherung fehlgeschlagen“; [onRequestHandled] meldet, dass es angekommen ist, damit derselbe
+ * Wunsch nicht nach jedem Zurück wieder greift.
+ */
 @Composable
-fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsRoute(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    requestedSection: SettingsSection? = null,
+    onRequestHandled: () -> Unit = {}
+) {
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     // Gesichert wie der Menübereich darüber: Eine Drehung des Geräts führte sonst aus dem
     // Untermenü zurück auf die Übersicht.
-    var section by rememberSaveable { mutableStateOf(SettingsSection.OVERVIEW) }
+    var section by rememberSaveable { mutableStateOf(requestedSection ?: SettingsSection.OVERVIEW) }
+    LaunchedEffect(requestedSection) {
+        requestedSection?.let {
+            section = it
+            onRequestHandled()
+        }
+    }
+    // Hier und nicht erst im Untermenü: Auch die Übersicht zeigt, wenn Benachrichtigungen fehlen.
+    val notifications = rememberNotificationPermission()
 
     // Aus einem Untermenü führt „Zurück“ erst eine Ebene hoch.
     BackHandler(enabled = section != SettingsSection.OVERVIEW) {
@@ -118,6 +142,21 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
             modifier = modifier
         )
         SettingsSection.BACKUP -> BackupRoute(
+            onBack = { section = SettingsSection.OVERVIEW },
+            modifier = modifier
+        )
+        SettingsSection.REMINDERS -> RemindersRoute(
+            settings = uiState.reminders,
+            actions = remember(viewModel) {
+                ReminderActions(
+                    onDeloadToggled = viewModel::onReminderDeloadToggled,
+                    onPauseToggled = viewModel::onReminderPauseToggled,
+                    onBackupToggled = viewModel::onReminderBackupToggled,
+                    onPauseDaysChange = viewModel::onReminderPauseDaysChange,
+                    onTimeChange = viewModel::onReminderTimeChange
+                )
+            },
+            permission = notifications,
             onBack = { section = SettingsSection.OVERVIEW },
             modifier = modifier
         )
@@ -139,6 +178,8 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
             onManageDays = { section = SettingsSection.DAYS },
             onManageExercises = { section = SettingsSection.EXERCISES },
             onManageBackup = { section = SettingsSection.BACKUP },
+            onManageReminders = { section = SettingsSection.REMINDERS },
+            notificationsBlocked = uiState.reminders.anyEnabled && !notifications.allowed,
             onDeleteAllData = viewModel::onDeleteAllData,
             onBack = onBack,
             modifier = modifier
@@ -158,9 +199,12 @@ fun SettingsScreen(
     onManageDays: () -> Unit,
     onManageExercises: () -> Unit,
     onManageBackup: () -> Unit,
+    onManageReminders: () -> Unit,
     onDeleteAllData: () -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Eine Erinnerung ist an, aber Benachrichtigungen kommen nicht an. */
+    notificationsBlocked: Boolean = false
 ) {
     Column(
         modifier = modifier
@@ -267,10 +311,34 @@ fun SettingsScreen(
                 onClick = onManageBackup
             )
 
+            SubmenuRow(
+                title = stringResource(R.string.settings_reminders),
+                subtitle = remindersSummary(uiState.reminders),
+                warning = if (notificationsBlocked) stringResource(R.string.settings_reminders_blocked) else null,
+                onClick = onManageReminders
+            )
+
             DangerZone(onDeleteAllData = onDeleteAllData)
 
             Spacer(modifier = Modifier.height(Dimens.ListBottomPadding))
         }
+    }
+}
+
+/** „Deload, Trainingspause · 18:00 Uhr“ – was an ist, und die Uhrzeit, wenn sie etwas zählt. */
+@Composable
+private fun remindersSummary(reminders: ReminderSettings): String {
+    val names = listOfNotNull(
+        stringResource(R.string.reminder_short_deload).takeIf { reminders.deload },
+        stringResource(R.string.reminder_short_pause).takeIf { reminders.pause },
+        stringResource(R.string.reminder_short_backup).takeIf { reminders.backup }
+    )
+    if (names.isEmpty()) return stringResource(R.string.settings_reminders_off)
+    val joined = names.joinToString(separator = ", ")
+    return if (reminders.needsDailyRun) {
+        stringResource(R.string.settings_reminders_daily, joined, formatClockTime(reminders.time))
+    } else {
+        joined
     }
 }
 
@@ -715,7 +783,7 @@ internal fun SettingsCard(title: String, content: @Composable ColumnScope.() -> 
  * ein Ziel von 48 dp Höhe trifft man auch mit klammen Fingern.
  */
 @Composable
-private fun SwitchRow(
+internal fun SwitchRow(
     label: String,
     hint: String,
     checked: Boolean,
@@ -1073,6 +1141,7 @@ private fun SettingsScreenPreview() {
             onManageDays = {},
             onManageExercises = {},
             onManageBackup = {},
+            onManageReminders = {},
             onDeleteAllData = {},
             onBack = {}
         )

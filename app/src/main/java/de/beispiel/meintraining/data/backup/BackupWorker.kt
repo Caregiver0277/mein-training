@@ -57,6 +57,8 @@ class BackupWorker(
 
     private suspend fun finish(app: MeinTrainingApp, error: String?): Result {
         app.settingsStore.setLastBackupResult(System.currentTimeMillis(), error)
+        // Gescheitert: auch außerhalb der App Bescheid geben, falls „Sicherung fehlgeschlagen“ an ist.
+        if (error != null) app.reminders.notifyBackupFailure()
         return Result.success()
     }
 

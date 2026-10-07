@@ -16,6 +16,7 @@ import de.beispiel.meintraining.data.model.MIN_DAY_COUNT
 import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.repository.TrainingRepository
+import de.beispiel.meintraining.reminder.Reminders
 import de.beispiel.meintraining.timer.RestTimerSound
 import de.beispiel.meintraining.util.DEFAULT_DELOAD_CYCLE_WEEKS
 import de.beispiel.meintraining.util.DEFAULT_WEEKLY_GOAL
@@ -23,6 +24,9 @@ import de.beispiel.meintraining.util.MAX_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MAX_WEEKLY_GOAL
 import de.beispiel.meintraining.util.MIN_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MIN_WEEKLY_GOAL
+import de.beispiel.meintraining.util.MAX_PAUSE_DAYS
+import de.beispiel.meintraining.util.MIN_PAUSE_DAYS
+import de.beispiel.meintraining.util.ReminderSettings
 import de.beispiel.meintraining.util.parseOptionalDecimal
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,7 +78,9 @@ data class SettingsUiState(
     val keepScreenOn: Boolean = false,
     val exercises: List<ManagedExercise> = emptyList(),
     /** Ist die automatische Sicherung an, aber zuletzt gescheitert? */
-    val backupFailing: Boolean = false
+    val backupFailing: Boolean = false,
+    /** Der Bereich „Erinnerungen“. */
+    val reminders: ReminderSettings = ReminderSettings()
 )
 
 @OptIn(FlowPreview::class)
@@ -95,7 +101,9 @@ class SettingsViewModel(
      * Wecker-Empfänger muss ihn lesen, ohne die übrigen Einstellungen zu öffnen – siehe
      * [RestTimerStore.soundEnabled].
      */
-    private val timers: RestTimerStore
+    private val timers: RestTimerStore,
+    /** Schalter der Erinnerungen samt ihrem Auftrag – auch der muss beim Zurücksetzen mit. */
+    private val reminders: Reminders
 ) : ViewModel() {
 
     /**
@@ -137,6 +145,8 @@ class SettingsViewModel(
         settings.copy(keepScreenOn = keepOn)
     }.combine(repository.weeklyGoal) { settings, goal ->
         settings.copy(weeklyGoal = goal)
+    }.combine(reminders.settings) { settings, reminderSettings ->
+        settings.copy(reminders = reminderSettings)
     }
 
     val uiState = combine(
@@ -165,6 +175,7 @@ class SettingsViewModel(
             timerSoundVolume = general.sound.volume,
             keepScreenOn = general.keepScreenOn,
             backupFailing = general.backupFailing,
+            reminders = general.reminders,
             exercises = names.map { name ->
                 ManagedExercise(
                     name = name,
@@ -210,6 +221,9 @@ class SettingsViewModel(
         viewModelScope.launch {
             backups.disableAutoBackup()
             repository.deleteAllData()
+            // Die Einstellungen sind geleert, die Erinnerungen also wieder auf ihren Vorgaben –
+            // Deload und Pause aus. Ihr Auftrag bei WorkManager weiß davon nichts.
+            reminders.reschedule()
         }
     }
 
@@ -296,6 +310,34 @@ class SettingsViewModel(
         viewModelScope.launch { repository.setWeeklyGoal(goal) }
     }
 
+    // --- Erinnerungen -------------------------------------------------------
+    //
+    // Eingeschaltet wird erst nach erteilter Berechtigung – das regelt der Bildschirm (siehe
+    // RemindersScreen); hier kommt nur noch an, was gelten soll.
+
+    fun onReminderDeloadToggled(enabled: Boolean) {
+        viewModelScope.launch { reminders.setDeload(enabled) }
+    }
+
+    fun onReminderPauseToggled(enabled: Boolean) {
+        viewModelScope.launch { reminders.setPause(enabled) }
+    }
+
+    fun onReminderBackupToggled(enabled: Boolean) {
+        viewModelScope.launch { reminders.setBackup(enabled) }
+    }
+
+    /** Wie die Zykluslänge: nur im erlaubten Bereich, sonst bliebe kein Wert eintippbar. */
+    fun onReminderPauseDaysChange(input: String) {
+        val days = input.trim().toIntOrNull() ?: return
+        if (days !in MIN_PAUSE_DAYS..MAX_PAUSE_DAYS) return
+        viewModelScope.launch { reminders.setPauseDays(days) }
+    }
+
+    fun onReminderTimeChange(minuteOfDay: Int) {
+        viewModelScope.launch { reminders.setMinuteOfDay(minuteOfDay) }
+    }
+
     /** Die Werte aus den Einstellungen, gebündelt für den zusammengesetzten Fluss. */
     private data class GeneralSettings(
         val title: String,
@@ -306,7 +348,8 @@ class SettingsViewModel(
         /** Siehe [BackupRepository.autoBackupFailing]. */
         val backupFailing: Boolean = false,
         val keepScreenOn: Boolean = false,
-        val weeklyGoal: Int = DEFAULT_WEEKLY_GOAL
+        val weeklyGoal: Int = DEFAULT_WEEKLY_GOAL,
+        val reminders: ReminderSettings = ReminderSettings()
     )
 
     /** Schalter und Regler des Tons am Pausenende. */
@@ -324,7 +367,8 @@ class SettingsViewModel(
                     appContext = app,
                     repository = app.repository,
                     backups = app.backupRepository,
-                    timers = app.restTimerStore
+                    timers = app.restTimerStore,
+                    reminders = app.reminders
                 )
             }
         }

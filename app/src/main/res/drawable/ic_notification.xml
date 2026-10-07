@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kleines Symbol der Erinnerungen in der Statusleiste: eine Hantel, einfarbig, wie Android es verlangt. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M1.5,10h2v4h-2z M4,7h3v10h-3z M7.5,11h9v2h-9z M17,7h3v10h-3z M20.5,10h2v4h-2z" />
+</vector>

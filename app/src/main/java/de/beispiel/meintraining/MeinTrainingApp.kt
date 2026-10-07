@@ -7,10 +7,19 @@ import de.beispiel.meintraining.data.local.RestTimerStore
 import de.beispiel.meintraining.data.local.SettingsStore
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.data.repository.WorkoutEndWorker
+import de.beispiel.meintraining.reminder.ReminderNotifications
+import de.beispiel.meintraining.reminder.Reminders
 import de.beispiel.meintraining.util.CurrentDate
 
 /** Einfache manuelle Abhängigkeitsverwaltung – für diese App reicht das aus. */
 class MeinTrainingApp : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+        // Der Kanal steht von Anfang an, damit ihn die Systemeinstellungen der App schon zeigen,
+        // bevor die erste Erinnerung kommt.
+        ReminderNotifications.createChannel(this)
+    }
 
     private val database by lazy { AppDatabase.getInstance(this) }
 
@@ -44,5 +53,10 @@ class MeinTrainingApp : Application() {
             // sein; dafür kennt nur das Trainings-Repository die Regeln.
             trainingRepository = repository
         )
+    }
+
+    /** Erinnerungen: Schalter, täglicher Auftrag und Nachrichten. */
+    val reminders: Reminders by lazy {
+        Reminders(context = this, settingsStore = settingsStore, repository = repository)
     }
 }

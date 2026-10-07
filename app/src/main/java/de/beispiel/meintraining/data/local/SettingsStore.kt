@@ -20,7 +20,16 @@ import de.beispiel.meintraining.data.model.FIRST_DAY_ID
 import de.beispiel.meintraining.data.model.MAX_DAY_COUNT
 import de.beispiel.meintraining.data.model.MIN_DAY_COUNT
 import de.beispiel.meintraining.util.DEFAULT_DELOAD_CYCLE_WEEKS
+import de.beispiel.meintraining.util.DEFAULT_PAUSE_DAYS
+import de.beispiel.meintraining.util.DEFAULT_REMINDER_MINUTE
 import de.beispiel.meintraining.util.DEFAULT_WEEKLY_GOAL
+import de.beispiel.meintraining.util.DailyReminders
+import de.beispiel.meintraining.util.MAX_PAUSE_DAYS
+import de.beispiel.meintraining.util.MAX_REMINDER_MINUTE
+import de.beispiel.meintraining.util.MIN_PAUSE_DAYS
+import de.beispiel.meintraining.util.ReminderLog
+import de.beispiel.meintraining.util.ReminderSettings
+import de.beispiel.meintraining.util.backupReminderDue
 import de.beispiel.meintraining.util.MAX_CYCLE_WEEKS
 import de.beispiel.meintraining.util.MAX_WEEKLY_GOAL
 import de.beispiel.meintraining.util.MIN_CYCLE_WEEKS
@@ -33,6 +42,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
+import java.time.LocalDate
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "einstellungen")
 
@@ -56,7 +66,7 @@ data class ConsumedMarker(val sessionId: Long, val marker: WorkoutMarker)
 /**
  * Kleine Einstellungen, die nicht in die Datenbank gehören: gewählter Tag, Rundenlänge und
  * -schnitte, Überschrift, Blocklänge, Wochenziel, Ausblendlisten, „Bildschirm anlassen“, der Merker des
- * laufenden Trainings und die Angaben zur Sicherung.
+ * laufenden Trainings, die Angaben zur Sicherung und die Erinnerungen samt dem, was schon gemeldet ist.
  */
 class SettingsStore(context: Context) {
 
@@ -409,6 +419,113 @@ class SettingsStore(context: Context) {
         return fresh
     }
 
+    // --- Erinnerungen -------------------------------------------------------
+
+    private fun readReminders(prefs: Preferences) = ReminderSettings(
+        deload = prefs[KEY_REMINDER_DELOAD] ?: false,
+        pause = prefs[KEY_REMINDER_PAUSE] ?: false,
+        pauseDays = (prefs[KEY_REMINDER_PAUSE_DAYS] ?: DEFAULT_PAUSE_DAYS).coerceIn(MIN_PAUSE_DAYS, MAX_PAUSE_DAYS),
+        backup = prefs[KEY_REMINDER_BACKUP] ?: true,
+        minuteOfDay = (prefs[KEY_REMINDER_MINUTE] ?: DEFAULT_REMINDER_MINUTE).coerceIn(0, MAX_REMINDER_MINUTE)
+    )
+
+    /**
+     * Die Schalter und Werte des Bereichs „Erinnerungen“.
+     *
+     * Nicht in [snapshot] und damit nicht in der Sicherungsdatei – wie „Bildschirm anlassen“ eine
+     * Frage des Geräts: Benachrichtigungen erlaubt man je Handy, und wer eine Sicherung auf einem
+     * zweiten Gerät einliest, will dort nicht ungefragt erinnert werden. Beim Handywechsel kommen
+     * die Schalter trotzdem mit, über die Android-Gerätesicherung dieser Datei (der Auftrag nicht,
+     * siehe `Reminders.ensureScheduled`). [clear] setzt sie auf die Vorgaben zurück.
+     */
+    val reminderSettings: Flow<ReminderSettings> = preference(::readReminders)
+
+    suspend fun setReminderDeload(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_REMINDER_DELOAD] = enabled }
+    }
+
+    suspend fun setReminderPause(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_REMINDER_PAUSE] = enabled }
+    }
+
+    suspend fun setReminderPauseDays(days: Int) {
+        store.edit { prefs -> prefs[KEY_REMINDER_PAUSE_DAYS] = days.coerceIn(MIN_PAUSE_DAYS, MAX_PAUSE_DAYS) }
+    }
+
+    suspend fun setReminderBackup(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_REMINDER_BACKUP] = enabled }
+    }
+
+    suspend fun setReminderMinute(minuteOfDay: Int) {
+        store.edit { prefs -> prefs[KEY_REMINDER_MINUTE] = minuteOfDay.coerceIn(0, MAX_REMINDER_MINUTE) }
+    }
+
+    private fun readReminderLog(prefs: Preferences) = ReminderLog(
+        deloadWeekStart = prefs[KEY_REMINDED_DELOAD]?.let(LocalDate::ofEpochDay),
+        pauseAfterSession = prefs[KEY_REMINDED_PAUSE_SESSION]?.let(LocalDate::ofEpochDay),
+        pauseCount = prefs[KEY_REMINDED_PAUSE_COUNT] ?: 0,
+        pauseRemindedOn = prefs[KEY_REMINDED_PAUSE_ON]?.let(LocalDate::ofEpochDay),
+        backupFailureAt = prefs[KEY_REMINDED_BACKUP_AT]
+    )
+
+    private fun writeReminderLog(prefs: MutablePreferences, log: ReminderLog) {
+        prefs.putOrRemove(KEY_REMINDED_DELOAD, log.deloadWeekStart?.toEpochDay())
+        prefs.putOrRemove(KEY_REMINDED_PAUSE_SESSION, log.pauseAfterSession?.toEpochDay())
+        prefs[KEY_REMINDED_PAUSE_COUNT] = log.pauseCount
+        prefs.putOrRemove(KEY_REMINDED_PAUSE_ON, log.pauseRemindedOn?.toEpochDay())
+        prefs.putOrRemove(KEY_REMINDED_BACKUP_AT, log.backupFailureAt)
+    }
+
+    private fun MutablePreferences.putOrRemove(key: Preferences.Key<Long>, value: Long?) {
+        if (value == null) remove(key) else this[key] = value
+    }
+
+    /**
+     * Rechnet den täglichen Lauf aus und merkt sich sein Ergebnis in einem Schreibvorgang.
+     *
+     * Gelesen, entschieden und gemerkt wird in einem Zug: Laufen zwei Aufträge kurz nacheinander –
+     * ein verschobener und der beim Start neu angemeldete –, sieht der zweite schon, was der erste
+     * gemeldet hat, und nichts kommt doppelt. [decide] ist eine reine Rechnung, siehe
+     * [de.beispiel.meintraining.util.dailyReminders].
+     */
+    suspend fun claimDailyReminders(
+        decide: (ReminderSettings, ReminderLog) -> DailyReminders
+    ): DailyReminders {
+        var result: DailyReminders? = null
+        store.edit { prefs ->
+            val log = readReminderLog(prefs)
+            val decided = decide(readReminders(prefs), log)
+            if (decided.log != log) writeReminderLog(prefs, decided.log)
+            result = decided
+        }
+        return result!!
+    }
+
+    /**
+     * Der Grund der zuletzt gescheiterten automatischen Sicherung, falls dazu eine Nachricht fällig
+     * ist (siehe [backupReminderDue]) – und als gemeldet vermerkt. `null`, wenn nichts zu melden ist.
+     */
+    suspend fun claimBackupFailureReminder(): String? {
+        var reason: String? = null
+        store.edit { prefs ->
+            val log = readReminderLog(prefs)
+            val error = prefs[KEY_BACKUP_LAST_ERROR]
+            val at = prefs[KEY_BACKUP_LAST_AT]
+            val due = backupReminderDue(
+                reminderEnabled = readReminders(prefs).backup,
+                autoBackupEnabled = prefs[KEY_BACKUP_ENABLED] ?: false,
+                lastError = error,
+                lastAttemptAt = at,
+                log = log
+            )
+            if (due) {
+                writeReminderLog(prefs, log.copy(backupFailureAt = at))
+                reason = error
+            }
+        }
+        return reason
+    }
+
     /** Ersetzt die gefeierten Meilensteine – siehe [markMilestonesCelebrated]. */
     suspend fun setCelebratedMilestones(ids: Set<String>) {
         store.edit { prefs -> prefs[KEY_CELEBRATED_MILESTONES] = ids }
@@ -428,7 +545,9 @@ class SettingsStore(context: Context) {
      *
      * Auch die Angaben zur Sicherung sind damit weg. Der Zeitplan der automatischen Sicherung
      * lebt außerhalb der Einstellungen weiter – wer hier leert, muss ihn getrennt abbestellen
-     * (siehe [de.beispiel.meintraining.data.backup.BackupRepository.disableAutoBackup]).
+     * (siehe [de.beispiel.meintraining.data.backup.BackupRepository.disableAutoBackup]). Ebenso die
+     * Erinnerungen: Sie stehen danach auf ihren Vorgaben, ihr Auftrag muss neu angepasst werden (siehe
+     * [de.beispiel.meintraining.reminder.Reminders.reschedule]).
      */
     suspend fun clear() {
         store.edit { prefs -> prefs.clear() }
@@ -455,6 +574,18 @@ class SettingsStore(context: Context) {
         val KEY_BACKUP_LAST_AT = longPreferencesKey("backup_last_at")
         val KEY_BACKUP_LAST_ERROR = stringPreferencesKey("backup_last_error")
         val KEY_CELEBRATED_MILESTONES = stringSetPreferencesKey("celebrated_milestones")
+        val KEY_REMINDER_DELOAD = booleanPreferencesKey("reminder_deload")
+        val KEY_REMINDER_PAUSE = booleanPreferencesKey("reminder_pause")
+        val KEY_REMINDER_PAUSE_DAYS = intPreferencesKey("reminder_pause_days")
+        val KEY_REMINDER_BACKUP = booleanPreferencesKey("reminder_backup")
+        val KEY_REMINDER_MINUTE = intPreferencesKey("reminder_minute_of_day")
+
+        /** Was schon gemeldet wurde, siehe [ReminderLog]; Tage als Epochentage. */
+        val KEY_REMINDED_DELOAD = longPreferencesKey("reminded_deload_week")
+        val KEY_REMINDED_PAUSE_SESSION = longPreferencesKey("reminded_pause_session")
+        val KEY_REMINDED_PAUSE_COUNT = intPreferencesKey("reminded_pause_count")
+        val KEY_REMINDED_PAUSE_ON = longPreferencesKey("reminded_pause_on")
+        val KEY_REMINDED_BACKUP_AT = longPreferencesKey("reminded_backup_at")
 
         val MARKER_KEYS = MarkerKeys("workout_marker")
         val CONSUMED_KEYS = MarkerKeys("workout_marker_consumed")

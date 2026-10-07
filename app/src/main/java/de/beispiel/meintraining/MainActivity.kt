@@ -1,5 +1,6 @@
 package de.beispiel.meintraining
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.os.SystemClock
@@ -22,12 +23,20 @@ import de.beispiel.meintraining.ui.TrainingActions
 import de.beispiel.meintraining.ui.TrainingViewModel
 import de.beispiel.meintraining.ui.screen.TrainingScreen
 import de.beispiel.meintraining.ui.theme.MeinTrainingTheme
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 /** Single Activity – die gesamte Oberfläche ist Compose. */
 class MainActivity : ComponentActivity() {
 
     private val viewModel: TrainingViewModel by viewModels { TrainingViewModel.Factory }
+
+    /**
+     * Ziele aus angetippten Erinnerungen, siehe [AppTarget]. Nur das jüngste zählt: Wer zwei
+     * Nachrichten schnell nacheinander antippt, will dorthin, wo er zuletzt hinwollte.
+     */
+    private val openRequests = Channel<AppTarget>(Channel.CONFLATED)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Muss vor super.onCreate stehen: Der Aufruf schaltet das Startbild-Theme der Activity
@@ -67,8 +76,16 @@ class MainActivity : ComponentActivity() {
         // Nach einem Handywechsel wäre sie sonst still tot – siehe ensureAutoBackup.
         if (savedInstanceState == null) {
             lifecycleScope.launch {
-                (application as MeinTrainingApp).backupRepository.ensureAutoBackup()
+                val app = application as MeinTrainingApp
+                app.backupRepository.ensureAutoBackup()
+                // Fehlt der Zugriff auf die Sicherungsdatei, steht das jetzt als Fehler da.
+                app.reminders.notifyBackupFailure()
+                // Dasselbe für die Erinnerungen: Die Schalter kommen beim Handywechsel mit, ihr
+                // Auftrag nicht.
+                app.reminders.ensureScheduled()
             }
+            // Geöffnet über eine Erinnerung: gleich in den passenden Bereich.
+            AppTarget.from(intent)?.let(openRequests::trySend)
         }
 
         // „Bildschirm anlassen“ aus den Einstellungen. Das Flag am Fenster wirkt von sich aus nur,
@@ -151,10 +168,18 @@ class MainActivity : ComponentActivity() {
                     events = viewModel.events,
                     celebrations = viewModel.celebrations,
                     milestoneCelebrations = viewModel.milestoneCelebrations,
+                    openRequests = remember { openRequests.receiveAsFlow() },
                     actions = actions
                 )
             }
         }
+    }
+
+    /** Eine Erinnerung, angetippt, während die App schon läuft. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        AppTarget.from(intent)?.let(openRequests::trySend)
     }
 
     private companion object {

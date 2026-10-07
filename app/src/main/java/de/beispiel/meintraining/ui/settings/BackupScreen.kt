@@ -90,12 +90,28 @@ fun BackupRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         ActivityResultContracts.OpenDocument()
     ) { uri -> pendingImport = uri }
 
+    // „Sicherung fehlgeschlagen“ ist ab Werk an, ohne Berechtigung aber wirkungslos. Gefragt wird
+    // deshalb auch hier, beim Einschalten der automatischen Sicherung – dem Moment, in dem eine
+    // Nachricht über ihr Scheitern einen Sinn bekommt.
+    val notifications = rememberNotificationPermission()
+    val reminderDenied = stringResource(R.string.backup_reminder_denied)
+    val onAutoBackupToggled: (Boolean) -> Unit = { enabled ->
+        viewModel.onAutoBackupToggled(enabled)
+        if (enabled && uiState.failureReminder && !notifications.allowed) {
+            notifications.request { result ->
+                if (result != PermissionResult.GRANTED) {
+                    Toast.makeText(context, reminderDenied, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     BackupScreen(
         uiState = uiState,
         onExport = { exportLauncher.launch(defaultName) },
         onChooseTarget = { targetLauncher.launch(defaultName) },
         onImport = { importLauncher.launch(arrayOf(MIME_TYPE, "application/octet-stream", "*/*")) },
-        onAutoBackupToggled = viewModel::onAutoBackupToggled,
+        onAutoBackupToggled = onAutoBackupToggled,
         onIntervalChanged = viewModel::onIntervalChanged,
         onBack = onBack,
         modifier = modifier

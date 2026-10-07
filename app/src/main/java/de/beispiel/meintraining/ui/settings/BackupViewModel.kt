@@ -40,7 +40,9 @@ data class BackupUiState(
     val targetName: String? = null,
     val lastBackupAt: Long? = null,
     val lastBackupError: String? = null,
-    val busy: Boolean = false
+    val busy: Boolean = false,
+    /** Ist „Sicherung fehlgeschlagen“ unter den Erinnerungen an? */
+    val failureReminder: Boolean = true
 ) {
     /** Ohne Ziel läuft nichts automatisch – der Schalter bleibt dann wirkungslos. */
     val canEnableAutoBackup: Boolean get() = targetName != null
@@ -83,6 +85,8 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
             lastBackupError = lastError,
             busy = isBusy
         )
+    }.combine(settings.reminderSettings) { state, reminders ->
+        state.copy(failureReminder = reminders.backup)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),

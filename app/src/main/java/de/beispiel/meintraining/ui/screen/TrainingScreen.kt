@@ -64,6 +64,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.flowWithLifecycle
+import de.beispiel.meintraining.AppTarget
 import de.beispiel.meintraining.R
 import de.beispiel.meintraining.data.local.RestTimer
 import de.beispiel.meintraining.data.model.CardioTargets
@@ -104,6 +105,7 @@ import de.beispiel.meintraining.ui.theme.ScreenBackground
 import de.beispiel.meintraining.ui.theme.SupersetBackground
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.settings.SettingsRoute
+import de.beispiel.meintraining.ui.settings.SettingsSection
 import de.beispiel.meintraining.ui.stats.StatsRoute
 import de.beispiel.meintraining.ui.stats.milestoneTitle
 import de.beispiel.meintraining.ui.timer.RestTimerBar
@@ -152,6 +154,8 @@ fun TrainingScreen(
      * Anlass für Konfetti, dazu eine kurze Meldung oben.
      */
     milestoneCelebrations: Flow<List<Milestone>>,
+    /** Ziele aus angetippten Erinnerungen, siehe [AppTarget]. */
+    openRequests: Flow<AppTarget>,
     actions: TrainingActions,
     modifier: Modifier = Modifier
 ) {
@@ -162,6 +166,22 @@ fun TrainingScreen(
     val resources = LocalResources.current
 
     var menuDestination by rememberSaveable { mutableStateOf<MenuDestination?>(null) }
+    // Ein Untermenü der Einstellungen, in das eine Erinnerung führen will – bis es dort ankommt.
+    var settingsRequest by remember { mutableStateOf<SettingsSection?>(null) }
+
+    // Eine angetippte Erinnerung führt in ihren Bereich, auch wenn gerade ein anderer offen ist.
+    LaunchedEffect(openRequests) {
+        openRequests.collect { target ->
+            when (target) {
+                AppTarget.PLAN -> menuDestination = null
+                AppTarget.DELOAD -> menuDestination = MenuDestination.DELOAD
+                AppTarget.BACKUP -> {
+                    menuDestination = MenuDestination.SETTINGS
+                    settingsRequest = SettingsSection.BACKUP
+                }
+            }
+        }
+    }
 
     // Gezählt statt geschaltet: Jede volle Runde ist eine neue Zahl und startet den Regen
     // zuverlässig, auch wenn der vorige noch läuft.
@@ -277,8 +297,11 @@ fun TrainingScreen(
                     status = uiState.deload,
                     onBack = { menuDestination = null }
                 )
-                MenuDestination.SETTINGS ->
-                    SettingsRoute(onBack = { menuDestination = null })
+                MenuDestination.SETTINGS -> SettingsRoute(
+                    onBack = { menuDestination = null },
+                    requestedSection = settingsRequest,
+                    onRequestHandled = { settingsRequest = null }
+                )
                 MenuDestination.ABOUT ->
                     AboutScreen(onBack = { menuDestination = null })
             }

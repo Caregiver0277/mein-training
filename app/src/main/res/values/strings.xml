@@ -267,6 +267,53 @@
     <string name="settings_backup">Sicherung</string>
     <string name="settings_backup_summary">Alle Daten in eine Datei sichern und wieder einlesen.</string>
     <string name="settings_backup_failed">Die letzte automatische Sicherung ist fehlgeschlagen.</string>
+
+    <!-- Erinnerungen (Einstellungen) -->
+    <string name="settings_reminders">Erinnerungen</string>
+    <string name="settings_reminders_off">Alle ausgeschaltet.</string>
+    <string name="settings_reminders_daily">%1$s · %2$s Uhr</string>
+    <string name="settings_reminders_blocked">Benachrichtigungen sind nicht erlaubt.</string>
+    <string name="reminder_short_deload">Deload</string>
+    <string name="reminder_short_pause">Trainingspause</string>
+    <string name="reminder_short_backup">Sicherung</string>
+    <string name="reminders_intro">Benachrichtigungen auf diesem Handy – ohne Internet und ohne Konto. Ein Tipp auf eine Nachricht öffnet den passenden Bereich.</string>
+    <string name="reminders_daily_title">Täglich</string>
+    <string name="reminders_time">Uhrzeit</string>
+    <string name="reminders_time_value">%1$s Uhr</string>
+    <string name="reminders_time_hint">Für „Deload-Woche beginnt“ und „Trainingspause“. Android kann die Nachricht ein paar Minuten verschieben.</string>
+    <string name="reminders_time_dialog_title">Uhrzeit der Erinnerungen</string>
+    <string name="reminders_deload">Deload-Woche beginnt</string>
+    <string name="reminders_deload_hint">Am ersten Tag der Deload-Woche: „Ab heute Deload – die Sätze sind halbiert.“</string>
+    <string name="reminders_pause">Trainingspause</string>
+    <string name="reminders_pause_hint">Nach einigen Tagen ohne Training, mit dem Tag, der dran ist. Höchstens einmal am Tag; nach drei Erinnerungen ist Ruhe bis zum nächsten Training.</string>
+    <string name="reminders_pause_days">Nach Tagen ohne Training</string>
+    <!-- Der Bereich wird nur genannt, er zählt keine Tage – deshalb keine Mehrzahlform. -->
+    <string name="reminders_pause_days_hint" tools:ignore="PluralsCandidate">%1$d bis %2$d Tage.</string>
+    <string name="reminders_backup_title">Sicherung</string>
+    <string name="reminders_backup">Sicherung fehlgeschlagen</string>
+    <string name="reminders_backup_hint">Sobald die automatische Sicherung scheitert oder der Zugriff auf die Sicherungsdatei fehlt.</string>
+    <string name="reminders_blocked">Benachrichtigungen sind für diese App nicht erlaubt – eingeschaltete Erinnerungen kommen nicht an.</string>
+    <string name="reminders_denied">Ohne Erlaubnis für Benachrichtigungen kann die App nicht erinnern – der Schalter bleibt deshalb aus.</string>
+    <string name="reminders_denied_for_good">Android fragt nicht mehr nach. Erlauben lassen sich Benachrichtigungen jetzt nur noch in den Einstellungen der App.</string>
+    <string name="reminders_allow">Erlauben</string>
+    <string name="reminders_open_settings">Benachrichtigungs-Einstellungen öffnen</string>
+    <string name="backup_reminder_denied">Benachrichtigungen sind nicht erlaubt – eine gescheiterte Sicherung siehst du nur hier in der App.</string>
+
+    <!-- Erinnerungen (Benachrichtigungen) -->
+    <string name="reminder_channel_name">Erinnerungen</string>
+    <string name="reminder_channel_description">Deload-Woche, Trainingspause und gescheiterte Sicherung.</string>
+    <string name="reminder_deload_title">Deload-Woche</string>
+    <string name="reminder_deload_text">Ab heute Deload – die Sätze sind halbiert.</string>
+    <string name="reminder_pause_title">Trainingspause</string>
+    <plurals name="reminder_pause_text">
+        <item quantity="one">Seit %1$d Tag kein Training – heute wäre Tag %2$d dran.</item>
+        <item quantity="other">Seit %1$d Tagen kein Training – heute wäre Tag %2$d dran.</item>
+    </plurals>
+    <plurals name="reminder_pause_text_named">
+        <item quantity="one">Seit %1$d Tag kein Training – heute wäre Tag %2$d (%3$s) dran.</item>
+        <item quantity="other">Seit %1$d Tagen kein Training – heute wäre Tag %2$d (%3$s) dran.</item>
+    </plurals>
+    <string name="reminder_backup_title">Sicherung fehlgeschlagen</string>
     <string name="backup_manual_title">Von Hand</string>
     <string name="backup_export">Jetzt sichern …</string>
     <string name="backup_export_hint">Schreibt alle Daten in eine Datei deiner Wahl – auch in Google Drive, wenn du es im Speicherdialog auswählst.</string>
@@ -715,8 +762,9 @@
     <string name="about_guide_milestones">Meilensteine gibt es für 10, 25, 50, 100 … Trainings, Ziel-Serien von 4 bis 52 Wochen, 1, 10, 25, 50 … volle Runden, erstmals 50, 60 … 100 kg („dreistellig“) und mehr bei einer Kraftübung mit Pfeil nach oben – gezählt ab dem Startgewicht –, einen Gesamtzuwachs von 25, 50, 100 … kg und Cardio von 10 bis 250 km und 100 bis 1000 Minuten. Wird einer erreicht, etwa beim Abhaken, mit dem Pfeil oder mit einer Cardio-Einheit, regnet es Konfetti, und oben steht kurz, welcher es war; das „Rückgängig“ unten bleibt dabei erreichbar. Jeder kommt nur einmal, auch wenn die Erhöhung zurückgenommen wird. Die Statistik zeigt unter „Meilensteine“ die nächsten mit Balken und die erreichten mit Datum.</string>
     <string name="about_guide_review">Ganz unten in der Statistik öffnet „Rückblick“ einen Monat oder ein Jahr auf einer Seite: Trainings, Trainingszeit, Gewichtszuwachs und die Übung mit dem größten, Cardio-Minuten und -Kilometer, den häufigsten Wochentag, die beste Ziel-Serie, die erreichten Meilensteine und den Kalender des Zeitraums. Oben wählst du „Monat | Jahr“ und blätterst mit den Pfeilen. „Teilen“ macht aus der Karte ein Bild und öffnet das Teilen-Menü von Android – das Bild entsteht auf dem Handy, ins Internet geht dabei nichts.</string>
     <string name="about_guide_keep_screen_on">Unter Einstellungen → Allgemein hält „Bildschirm anlassen“ das Display an, solange die App offen ist.</string>
+    <string name="about_guide_reminders">Unter Einstellungen → Erinnerungen schickt die App auf Wunsch Benachrichtigungen: „Deload-Woche beginnt“ am ersten Tag der Deload-Woche und „Trainingspause“ nach einigen Tagen ohne Training (2 bis 14, Vorgabe 4) – mit dem Tag, der dran ist, höchstens einmal am Tag und nach drei Erinnerungen erst nach dem nächsten Training wieder. Beide kommen zur eingestellten Uhrzeit (Vorgabe 18:00). „Sicherung fehlgeschlagen“ ist ab Werk an und meldet sich, sobald die automatische Sicherung scheitert. Ein Tipp auf die Nachricht öffnet den Deload-Bereich, die Sicherung oder den Trainingsplan. Die Erlaubnis für Benachrichtigungen fragt die App erst beim Einschalten.</string>
     <string name="about_guide_manage">Unter „Übungen verwalten“ lässt sich eine Übung an allen Tagen ausblenden – oder überall endgültig löschen.</string>
     <string name="about_data_title">Deine Daten</string>
-    <string name="about_data_body">Die App kommt ohne Konto und ohne Internet aus – sie hat nicht einmal die Berechtigung dafür. Deine Daten liegen auf diesem Gerät und, falls eingeschaltet, in der Android-Gerätesicherung. Eine eigene Sicherungsdatei, auf Wunsch automatisch und auch in Google Drive, legst du unter Einstellungen → Sicherung an.</string>
+    <string name="about_data_body">Die App kommt ohne Konto und ohne Internet aus – sie hat nicht einmal die Berechtigung dafür. Deine Daten liegen auf diesem Gerät und, falls eingeschaltet, in der Android-Gerätesicherung. Eine eigene Sicherungsdatei, auf Wunsch automatisch und auch in Google Drive, legst du unter Einstellungen → Sicherung an. Erinnerungen sind reine Benachrichtigungen auf dem Handy: Sie entstehen dort und gehen an keinen Server.</string>
 
 </resources>

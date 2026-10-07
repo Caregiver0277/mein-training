@@ -589,6 +589,28 @@ class TrainingRepository(
         cuts = settingsStore.rotationCuts.first()
     )
 
+    /**
+     * Was der tägliche Lauf der Erinnerungen braucht (siehe
+     * [de.beispiel.meintraining.reminder.Reminders.runDaily]). Der Tag, der dran ist, kommt aus
+     * derselben Rechnung wie die automatische Tagesauswahl – sonst nennte die Erinnerung einen
+     * anderen Tag als die App beim Öffnen.
+     */
+    suspend fun reminderFacts(today: LocalDate = LocalDate.now()): ReminderFacts {
+        val entries = rotationEntries()
+        val dueDay = dueDayId(
+            entriesOldestFirst = entries,
+            dayCount = settingsStore.dayCount.first(),
+            today = today,
+            cuts = settingsStore.rotationCuts.first()
+        )
+        return ReminderFacts(
+            sessionDates = entries.map { it.date },
+            cycleWeeks = settingsStore.deloadCycleWeeks.first(),
+            dueDayId = dueDay,
+            dueDayName = dayDao.listAll().firstOrNull { it.id == dueDay }?.name.orEmpty()
+        )
+    }
+
     /** Der ganze Verlauf als Rundeneinträge, ältester zuerst – so, wie [rotations] ihn braucht. */
     private suspend fun rotationEntries(): List<RotationEntry> = sessionDao.listAll().map { session ->
         RotationEntry(
@@ -1334,6 +1356,16 @@ class TrainingRepository(
         ensureDaysExist(settingsStore.dayCount.first())
     }
 }
+
+/** Die Trainingsdaten für die Erinnerungen – siehe [TrainingRepository.reminderFacts]. */
+data class ReminderFacts(
+    /** Tage der abgehakten Trainings, älteste zuerst. */
+    val sessionDates: List<LocalDate>,
+    val cycleWeeks: Int,
+    val dueDayId: Int,
+    /** Name des Tages, wie er gespeichert ist; leer, wenn er keinen hat. */
+    val dueDayName: String
+)
 
 /** Wo eine Übung stand: Tag, Position und Superset – siehe [TrainingRepository.undoTransfer]. */
 data class ExercisePlace(val id: Long, val dayId: Int, val position: Int, val supersetId: Long?)
