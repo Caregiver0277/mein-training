@@ -208,7 +208,6 @@
     <string name="tracking_legend_no_base">%1$s (beginnt bei 0 kg, kein Prozentwert)</string>
 
     <!-- Tracking unter „Cardio“ -->
-    <string name="tracking_kind_label">Kraft oder Cardio</string>
     <string name="tracking_value_label">Wert</string>
     <string name="cd_tracking_unit_value">Werte zeigen</string>
     <string name="tracking_cardio_duration">Dauer</string>
