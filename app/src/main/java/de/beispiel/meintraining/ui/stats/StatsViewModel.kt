@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
+import de.beispiel.meintraining.R
+import de.beispiel.meintraining.data.model.IntensityUnit
 import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.CardioTotals
@@ -18,6 +20,8 @@ import de.beispiel.meintraining.util.RotationSummary
 import de.beispiel.meintraining.util.SessionTimes
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.WeekCount
+import de.beispiel.meintraining.util.WeightForecast
+import de.beispiel.meintraining.util.cardioProgress
 import de.beispiel.meintraining.util.cardioTotals
 import de.beispiel.meintraining.util.currentWeeklyStreak
 import de.beispiel.meintraining.util.durationSummary
@@ -33,6 +37,8 @@ import de.beispiel.meintraining.util.toLocalDate
 import de.beispiel.meintraining.util.typicalTimeOfDay
 import de.beispiel.meintraining.util.weekdayDistribution
 import de.beispiel.meintraining.util.weeklyCounts
+import de.beispiel.meintraining.util.weightForecast
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -65,6 +71,13 @@ data class StatsUiState(
     val duration: DurationSummary? = null,
     /** Minuten und Kilometer der Cardio-Einheiten; `null` ohne eine einzige. */
     val cardio: CardioTotals? = null,
+    /**
+     * Fortschritt je Übung im Plan, in der Reihenfolge des Plans: Kraftübungen mit Gewichtsverlauf
+     * und Cardio-Übungen mit eingetragenen Einheiten.
+     */
+    val progress: List<ProgressEntry> = emptyList(),
+    /** „Nächste Marken“: die Prognosen, die nächste zuerst. */
+    val forecasts: List<WeightForecast> = emptyList(),
     /** Bilanz der abgeschlossenen Runden; `null`, solange keine abgeschlossen ist. */
     val rotations: RotationSummary? = null,
     /** Namen der Trainingstage für [duration] und [rotations] – auch der hinter einer verkürzten Runde. */
@@ -73,7 +86,15 @@ data class StatsUiState(
     val hasSessions: Boolean get() = totalSessions > 0
 }
 
-class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) : ViewModel() {
+/**
+ * [cardioUnitLabel] liefert „km/h“ und „Stufe“ für die Kurven auf der Detailseite einer
+ * Cardio-Übung, die beide Einheiten kennt – wie im Tracking (siehe `cardioCurves`).
+ */
+class StatsViewModel(
+    private val repository: TrainingRepository,
+    private val currentDate: CurrentDate,
+    private val cardioUnitLabel: (IntensityUnit) -> String = { it.name }
+) : ViewModel() {
 
     /** Was vom Plan gerade läuft – und das Datum, an dem sich alle Zeitangaben ausrichten. */
     private data class PlanView(
@@ -155,6 +176,36 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             val since = lastChanged[definition.name] ?: Long.MIN_VALUE
             definition.name.takeIf { repsStillRising(sets, weight, since, zone) }
         }
+
+        // Fortschritt je Übung: jede Übung des Plans einmal, an ihrer ersten Stelle im Plan.
+        val definitionsByName = definitions.associateBy { it.name }
+        val logsByName = logs.groupBy { it.exerciseName }
+        val cardioByExercise = cardioLogs.groupBy { it.exerciseName to it.variation }
+        val progress = planned
+            .sortedWith(compareBy({ it.dayId }, { it.position }))
+            .map { ProgressKey(it.name, if (it.isCardio) it.variation else null, it.isCardio) }
+            .distinct()
+            .mapNotNull { key ->
+                if (key.isCardio) {
+                    val definition = definitionsByName[key.name] ?: return@mapNotNull null
+                    val entries = cardioByExercise[key.name to key.variation].orEmpty()
+                    cardioProgress(key.name, key.variation, entries, definition.cardio)
+                        ?.let { ProgressEntry.Cardio(it) }
+                } else {
+                    strengthEntry(
+                        name = key.name,
+                        logsOldestFirst = logsByName[key.name].orEmpty(),
+                        isDecreasing = key.name in decreasing,
+                        today = today,
+                        zone = zone
+                    )
+                }
+            }
+        // Nur Kraftübungen mit Pfeil nach oben – bei Pfeil nach unten gibt es keine Marke nach oben.
+        val forecasts = progress.filterIsInstance<ProgressEntry.Strength>()
+            .filterNot { it.progress.isDecreasing }
+            .mapNotNull { weightForecast(it.progress.name, logsByName[it.progress.name].orEmpty(), today, zone) }
+            .sortedBy { it.date }
         StatsUiState(
             totalSessions = sessions.size,
             sessionsPerWeek = sessionsPerWeek(dates, today),
@@ -184,6 +235,8 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
                 sessions.map { SessionTimes(it.dayId, it.startedAt, it.completedAt) }
             ),
             cardio = cardioTotals(cardioLogs, today),
+            progress = progress,
+            forecasts = forecasts.take(TOP_ENTRIES),
             rotations = rotationSummary(rotationEntries, plan.dayCount, today, plan.rotationCuts),
             dayNames = plan.dayNames
         )
@@ -193,6 +246,30 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
         initialValue = StatsUiState()
     )
 
+    /**
+     * Die Detailseite einer Übung aus „Fortschritt je Übung“; `null`, solange nichts zu zeigen
+     * ist. Ein eigener Fluss je Übung statt eines Teils von [uiState]: Gerechnet wird nur, solange
+     * die Seite offen ist, und nur für diese eine Übung.
+     */
+    fun detail(key: ProgressKey): Flow<ExerciseDetail?> = combine(
+        repository.observeWeightLogs(),
+        repository.observeSetLogs(),
+        repository.observeCardioLogs(),
+        repository.observeDefinitions(),
+        currentDate.flow
+    ) { logs, setLogs, cardioLogs, definitions, today ->
+        exerciseDetail(
+            key = key,
+            weightLogs = logs,
+            setLogs = setLogs,
+            cardioLogs = cardioLogs,
+            definitions = definitions,
+            today = today,
+            now = System.currentTimeMillis(),
+            cardioUnitLabel = cardioUnitLabel
+        )
+    }
+
     companion object {
         private const val TOP_ENTRIES = 5
         private const val STOP_TIMEOUT_MILLIS = 5_000L
@@ -201,7 +278,14 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as MeinTrainingApp
-                StatsViewModel(app.repository, app.currentDate)
+                StatsViewModel(app.repository, app.currentDate) { unit ->
+                    app.getString(
+                        when (unit) {
+                            IntensityUnit.KMH -> R.string.cardio_unit_kmh
+                            IntensityUnit.LEVEL -> R.string.cardio_unit_level
+                        }
+                    )
+                }
             }
         }
     }

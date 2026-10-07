@@ -515,6 +515,76 @@
     <string name="stats_heatmap_legend_none">0</string>
     <string name="stats_heatmap_legend_one">1</string>
     <string name="stats_heatmap_legend_many">2+</string>
+    <!-- Statistik: Fortschritt je Übung, Detailseite und Prognose -->
+    <string name="stats_progress_exercises">Fortschritt je Übung</string>
+    <string name="stats_progress_exercises_hint">Vom ersten Eintrag bis heute. Tippe auf eine Übung für ihren Verlauf.</string>
+    <!-- Start → aktuell, etwa „60 → 72,5 kg“. -->
+    <string name="stats_progress_range">%1$s → %2$s</string>
+    <string name="stats_percent_value">%1$s %%</string>
+    <plurals name="stats_progress_increases">
+        <item quantity="one">%1$d Steigerung</item>
+        <item quantity="other">%1$d Steigerungen</item>
+    </plurals>
+    <plurals name="stats_progress_decreases">
+        <item quantity="one">%1$d Senkung</item>
+        <item quantity="other">%1$d Senkungen</item>
+    </plurals>
+    <string name="stats_progress_no_increase">noch keine Steigerung</string>
+    <string name="stats_progress_no_decrease">noch keine Senkung</string>
+    <!-- Etwa „im Schnitt alle 11 Tage +2,5 kg“. -->
+    <plurals name="stats_progress_tempo">
+        <item quantity="one">im Schnitt jeden Tag %2$s</item>
+        <item quantity="other">im Schnitt alle %1$d Tage %2$s</item>
+    </plurals>
+    <string name="stats_progress_since_today">zuletzt heute</string>
+    <plurals name="stats_progress_since_days">
+        <item quantity="one">zuletzt vor %1$d Tag</item>
+        <item quantity="other">zuletzt vor %1$d Tagen</item>
+    </plurals>
+    <plurals name="stats_progress_entries">
+        <item quantity="one">%1$d Einheit</item>
+        <item quantity="other">%1$d Einheiten</item>
+    </plurals>
+    <string name="stats_progress_open">Verlauf von %1$s öffnen</string>
+    <string name="stats_forecast_title">Nächste Marken</string>
+    <string name="stats_forecast_hint">Grobe Schätzung: das Tempo der letzten 90 Tage, einfach fortgeschrieben. Echtes Training verläuft selten so gerade.</string>
+    <!-- Etwa „100 kg etwa im März 2027“. -->
+    <string name="stats_forecast_value">%1$s etwa im %2$s</string>
+    <string name="stats_forecast_sentence">In diesem Tempo: %1$s etwa im %2$s</string>
+    <string name="stats_forecast_none">Noch keine Prognose. Dafür braucht es mindestens drei Steigerungen über vier Wochen und ein Tempo, mit dem die nächste runde Marke in höchstens zwei Jahren erreicht ist.</string>
+    <string name="stats_detail_weight">Gewichtsverlauf</string>
+    <string name="stats_detail_weight_empty">Noch kein Gewicht aufgezeichnet.</string>
+    <string name="stats_detail_start">Start</string>
+    <string name="stats_detail_current">Aktuell</string>
+    <string name="stats_detail_gain">Veränderung</string>
+    <string name="stats_detail_increases">Steigerungen</string>
+    <string name="stats_detail_decreases">Senkungen</string>
+    <string name="stats_detail_tempo">Tempo</string>
+    <string name="stats_detail_last_increase">Letzte Steigerung</string>
+    <string name="stats_detail_last_decrease">Letzte Senkung</string>
+    <string name="stats_detail_down_hint">Der Pfeil dieser Übung zeigt nach unten: Weniger Gewicht ist hier der Fortschritt.</string>
+    <string name="stats_detail_forecast">Prognose</string>
+    <string name="stats_detail_one_rep_max">Geschätztes 1RM</string>
+    <string name="stats_detail_one_rep_max_hint">Nach Epley aus den Sätzen bis 12 Wiederholungen, je Tag der beste.</string>
+    <string name="stats_detail_one_rep_max_none">Noch kein Satz mit Gewicht und bis zu 12 Wiederholungen.</string>
+    <string name="stats_detail_best_one_rep_max">Bestes 1RM</string>
+    <string name="stats_detail_best_set">Bester Satz</string>
+    <!-- Ein Satz, etwa „85 kg × 10“. -->
+    <string name="stats_detail_set_value">%1$s × %2$d</string>
+    <!-- Ein Wert und sein Datum, etwa „85 kg · 2. Okt“. -->
+    <string name="stats_detail_value_date">%1$s · %2$s</string>
+    <string name="stats_detail_records">Rekorde</string>
+    <string name="stats_detail_records_hint">Das schwerste Gewicht je Wiederholungszahl – steht für mehr Wiederholungen dasselbe oder mehr, ist die kleinere Zahl keiner mehr.</string>
+    <plurals name="stats_detail_reps">
+        <item quantity="one">%1$d Wiederholung</item>
+        <item quantity="other">%1$d Wiederholungen</item>
+    </plurals>
+    <string name="stats_detail_volume">Volumen je Woche</string>
+    <string name="stats_detail_volume_hint">Wiederholungen × Gewicht, über alle protokollierten Sätze.</string>
+    <string name="stats_detail_this_week">Diese Woche</string>
+    <string name="stats_detail_cardio_chart">Verlauf</string>
+    <string name="stats_detail_last_entry">Letzte Einheit</string>
+    <string name="stats_detail_empty">Für diese Übung gibt es keinen Verlauf mehr.</string>
 
     <!-- Deload -->
     <string name="deload_badge">Deload-Woche</string>

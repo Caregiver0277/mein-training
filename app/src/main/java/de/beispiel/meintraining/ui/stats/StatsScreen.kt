@@ -1,5 +1,7 @@
 package de.beispiel.meintraining.ui.stats
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,18 +49,56 @@ import de.beispiel.meintraining.util.STAGNATION_SESSIONS
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.formatFullDate
 import de.beispiel.meintraining.util.toDecimalString
+import kotlinx.coroutines.flow.map
 import java.time.DayOfWeek
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
 
-/** Hängt den Statistik-Screen an sein ViewModel. */
+/**
+ * Hängt den Statistik-Screen an sein ViewModel – samt der Detailseite einer Übung, die ein Tipp in
+ * „Fortschritt je Übung“ öffnet.
+ *
+ * Welche Übung offen ist, steht hier und nicht im ViewModel: Es lebt so lange wie die Activity,
+ * und wer die Statistik verlässt und wieder öffnet, soll auf der Übersicht landen, nicht auf der
+ * Übung von vorhin. Gesichert wird die Wahl trotzdem, damit das Drehen sie nicht schließt.
+ */
 @Composable
 fun StatsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: StatsViewModel = viewModel(factory = StatsViewModel.Factory)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    StatsScreen(uiState = uiState, onBack = onBack, modifier = modifier)
+    var selected by rememberSaveable(stateSaver = ProgressKey.Saver) { mutableStateOf<ProgressKey?>(null) }
+    // Hier statt in StatsScreen: Die Übersicht verlässt die Komposition, solange eine Übung offen
+    // ist, und stünde beim Zurückkommen sonst wieder ganz oben – weit weg von der Übung.
+    val scrollState = rememberScrollState()
+
+    // „Zurück“ schließt erst die Übung, dann die Statistik.
+    BackHandler(enabled = selected != null) { selected = null }
+
+    val key = selected
+    if (key == null) {
+        StatsScreen(
+            uiState = uiState,
+            onBack = onBack,
+            onExerciseClick = { selected = it },
+            scrollState = scrollState,
+            modifier = modifier
+        )
+    } else {
+        val detail by remember(key) { viewModel.detail(key).map { DetailState(it) } }
+            .collectAsStateWithLifecycle(initialValue = null)
+        ExerciseDetailScreen(
+            title = key.title,
+            detail = detail?.detail,
+            isLoading = detail == null,
+            onBack = { selected = null },
+            modifier = modifier
+        )
+    }
 }
+
+/** Ein ausgerechnetes Ergebnis – `null` davor heißt „lädt noch“, nicht „nichts da“. */
+private class DetailState(val detail: ExerciseDetail?)
 
 /**
  * Die Statistikseite, von oben nach unten vom Überblick ins Einzelne:
@@ -63,8 +107,8 @@ fun StatsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
  * 2. Wochenziel – die letzten zwölf Wochen gegen das Ziel.
  * 3. Kalender – die Heatmap der letzten zwölf Monate.
  * 4. Meilensteine – erreichte und nächste (noch nicht gebaut).
- * 5. Fortschritt – Gesamtzuwachs und schwerste Übung; Fortschritt je Übung und die „Nächsten
- *    Marken“ kommen darunter (noch nicht gebaut).
+ * 5. Fortschritt – Gesamtzuwachs und schwerste Übung, darunter „Fortschritt je Übung“ (ein Tipp
+ *    öffnet die Detailseite) und die „Nächsten Marken“ der Prognose.
  * 6. Festgefahren – die Kehrseite des Fortschritts, deshalb gleich dahinter.
  * 7. Cardio – Minuten und Kilometer je Woche.
  * 8. Runden – wie die Runden ausgehen.
@@ -77,7 +121,13 @@ fun StatsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
  * in der ihres Inhalts.
  */
 @Composable
-fun StatsScreen(uiState: StatsUiState, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun StatsScreen(
+    uiState: StatsUiState,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    onExerciseClick: (ProgressKey) -> Unit = {},
+    scrollState: ScrollState = rememberScrollState()
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -99,7 +149,7 @@ fun StatsScreen(uiState: StatsUiState, onBack: () -> Unit, modifier: Modifier = 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
         ) {
             // Reihenfolge siehe oben.
@@ -107,6 +157,8 @@ fun StatsScreen(uiState: StatsUiState, onBack: () -> Unit, modifier: Modifier = 
             WeeklyGoalCard(uiState.goalWeeks, uiState.weeklyGoal)
             uiState.heatmap?.let { HeatmapCard(it) }
             ProgressCard(uiState)
+            if (uiState.progress.isNotEmpty()) ExerciseProgressCard(uiState.progress, onExerciseClick)
+            if (uiState.forecasts.isNotEmpty()) ForecastCard(uiState.forecasts)
             if (uiState.stagnating.isNotEmpty()) StagnationCard(uiState.stagnating)
             uiState.cardio?.let { CardioCard(it) }
             RotationCard(uiState.rotations, uiState.dayNames)
@@ -468,6 +520,45 @@ private fun StatsScreenPreview() {
                 typicalTime = java.time.LocalTime.of(18, 40),
                 totalGainKg = 47.5,
                 stagnating = listOf(StagnatingExercise("Nordic curl", 20.0, 7, 43)),
+                progress = listOf(
+                    ProgressEntry.Strength(
+                        progress = de.beispiel.meintraining.util.StrengthProgress(
+                            name = "Bankdrücken",
+                            fromKg = 60.0,
+                            toKg = 72.5,
+                            isDecreasing = false,
+                            increases = 5,
+                            increasedKg = 12.5,
+                            firstAt = 0L,
+                            lastIncreaseAt = 0L
+                        ),
+                        tempo = de.beispiel.meintraining.util.ProgressTempo(11.0, 2.5),
+                        daysSinceIncrease = 9
+                    ),
+                    ProgressEntry.Cardio(
+                        de.beispiel.meintraining.util.CardioProgress(
+                            name = "Laufband",
+                            variation = null,
+                            value = de.beispiel.meintraining.data.model.CardioValue.DURATION,
+                            unit = null,
+                            isDecreasing = false,
+                            from = 20.0,
+                            to = 30.0,
+                            entries = 12,
+                            firstAt = 0L,
+                            lastAt = 0L
+                        )
+                    )
+                ),
+                forecasts = listOf(
+                    de.beispiel.meintraining.util.WeightForecast(
+                        name = "Bankdrücken",
+                        currentKg = 72.5,
+                        targetKg = 80.0,
+                        date = today.plusMonths(4),
+                        kgPerWeek = 0.5
+                    )
+                ),
                 exerciseCount = 38,
                 heaviestExercise = "Adductor/Abductor" to 85.0,
                 duration = DurationSummary(

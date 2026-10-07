@@ -66,6 +66,9 @@ object Dimens {
     /** Ein Reiter von „km/h | Stufe“ neben dem Tempo-Feld. */
     val IntensityToggleWidth = 56.dp
 
+    /** Ein Reiter von „Dauer | Distanz | Tempo | Steigung“ auf der Detailseite einer Cardio-Übung. */
+    val CardioValueToggleWidth = 72.dp
+
     // Chips – feste Breiten, damit Spaltenkopf und Karte exakt übereinander liegen
     val ChipHeight = 30.dp
     val ChipWeightWidth = 66.dp

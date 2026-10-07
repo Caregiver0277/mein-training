@@ -104,10 +104,11 @@ internal fun CardioCard(totals: CardioTotals) {
 
 /**
  * Ein Balken je Woche, ohne Zahlen darüber – bei Minuten wären sie für zwölf Spalten zu breit.
- * Den Maßstab gibt der höchste Wert rechts über den Balken an.
+ * Den Maßstab gibt der höchste Wert rechts über den Balken an. Auch das Volumen je Woche auf der
+ * Detailseite einer Übung zeichnet sich so.
  */
 @Composable
-private fun WeekBars(label: String, values: List<Double>, maxLabel: @Composable (Double) -> String) {
+internal fun WeekBars(label: String, values: List<Double>, maxLabel: @Composable (Double) -> String) {
     val max = values.maxOrNull() ?: 0.0
     Row(
         modifier = Modifier
