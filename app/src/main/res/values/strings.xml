@@ -591,7 +591,10 @@
     <string name="stats_milestones_next">Als Nächstes</string>
     <string name="stats_milestones_reached">Erreicht</string>
     <string name="stats_milestones_none">Noch keiner erreicht. Der erste kommt mit dem zehnten Training.</string>
-    <string name="stats_milestones_show_all">Alle %1$d zeigen</string>
+    <plurals name="stats_milestones_show_all">
+        <item quantity="one">%1$d zeigen</item>
+        <item quantity="other">Alle %1$d zeigen</item>
+    </plurals>
     <string name="stats_milestones_show_less">Weniger zeigen</string>
     <!-- Stand und Ziel unter einem Balken, etwa „36 von 50“. -->
     <string name="stats_milestones_progress">%1$s von %2$s</string>
@@ -622,6 +625,35 @@
         <item quantity="one">und %1$d weiterer</item>
         <item quantity="other">und %1$d weitere</item>
     </plurals>
+
+    <!-- Rückblick: ein Monat oder ein Jahr auf einer Seite, als Bild zu teilen -->
+    <string name="review_title">Rückblick</string>
+    <string name="review_entry_hint">Ein Monat oder ein Jahr auf einen Blick – auch als Bild zum Teilen.</string>
+    <string name="review_entry_open">Rückblick öffnen</string>
+    <string name="review_month">Monat</string>
+    <string name="review_year">Jahr</string>
+    <string name="review_previous">Zeitraum davor</string>
+    <string name="review_next">Zeitraum danach</string>
+    <string name="review_empty">In diesem Zeitraum wurde nichts eingetragen.</string>
+    <string name="review_sessions">Trainings</string>
+    <string name="review_time">Trainingszeit</string>
+    <string name="review_gain">Zuwachs</string>
+    <string name="review_none">–</string>
+    <!-- Trainingszeit ab einer Stunde, etwa „12,5 h“. -->
+    <string name="review_hours">%1$s h</string>
+    <string name="review_gain_value">+%1$s kg</string>
+    <string name="review_top_gain">Größter Zuwachs</string>
+    <string name="review_top_gain_value">%1$s +%2$s kg</string>
+    <string name="review_weekday">Häufigster Tag</string>
+    <!-- Etwa „Dienstag (5×)“. -->
+    <string name="review_weekday_value">%1$s (%2$d×)</string>
+    <string name="review_streak">Beste Ziel-Serie</string>
+    <string name="review_cardio_minutes">Cardio-Zeit</string>
+    <string name="review_cardio_km">Cardio-Strecke</string>
+    <string name="review_milestones">Meilensteine</string>
+    <string name="review_share">Teilen</string>
+    <string name="review_share_chooser">Rückblick teilen</string>
+    <string name="review_share_failed">Das Bild ließ sich nicht erstellen.</string>
 
     <!-- Deload -->
     <string name="deload_badge">Deload-Woche</string>
@@ -681,6 +713,7 @@
     <string name="about_guide_tracking">Im Tracking wählt die Liste oben rechts die Übungen aus. Lang auf eine davon drücken zeigt ihre einzelnen Datenpunkte. Jeder Punkt ist eine Gewichtsänderung; blasse Linienstücke ohne Punkt zeigen den Stand, der von vorher weiter gilt. Tippen oder Ziehen auf dem Graphen zeigt Übung, Gewicht und Datum des nächsten Punkts; Tippen daneben blendet das wieder aus. Oben rechts schaltet „kg | %“ auf die Veränderung in Prozent seit Beginn des Zeitraums – so lassen sich leichte und schwere Übungen vergleichen; bei Übungen mit Pfeil nach unten zählt eine Senkung als Plus. Mit „Kraft | Cardio“ zeigt der Graph stattdessen die Cardio-Einheiten: Darunter wählst du Dauer, Distanz, Tempo/Stufe oder Steigung, jede Übung ist eine Kurve aus ihren Einheiten. In Prozent zählt dort eine Senkung nur für den Wert als Plus, den der Pfeil der Übung nach unten steuert.</string>
     <string name="about_guide_stats">In der Statistik zeigt der Kalender die letzten zwölf Monate; seitlich wischen führt zurück, ein Tipp auf einen Tag nennt Datum und Trainings. Das Wochenziel stellst du unter Einstellungen → Allgemein ein (Vorgabe: 3 Trainings). Die Ziel-Serie zählt die Wochen in Folge, in denen du es erreicht hast – die laufende Woche bricht sie nicht, solange sie noch offen ist. „Runden“ zieht Bilanz über die abgeschlossenen Runden; nach dem Einlesen einer Sicherung oder mit einer geänderten Zahl der Trainingstage teilt sie vergangene Runden neu auf. Eine Übung mit Satz-Protokoll gilt nicht als festgefahren, solange ihre Wiederholungen beim aktuellen Gewicht noch steigen. „Fortschritt je Übung“ zeigt jede Übung im Plan mit Start → aktuell, Steigerungen, Tempo und der Zeit seit der letzten Steigerung – bei Pfeil nach unten zählt die Senkung, bei Cardio der Wert, den der Pfeil verschiebt. Ein Tipp auf eine Übung öffnet ihren Verlauf; mit Satz-Protokoll stehen dort auch das geschätzte 1RM, der beste Satz, die Rekorde je Wiederholungszahl und das Volumen je Woche. „Nächste Marken“ schätzt grob, wann eine Übung mit Pfeil nach oben die nächste runde Marke erreicht: aus dem Tempo der letzten 90 Tage, ab drei Steigerungen über vier Wochen.</string>
     <string name="about_guide_milestones">Meilensteine gibt es für 10, 25, 50, 100 … Trainings, Ziel-Serien von 4 bis 52 Wochen, 1, 10, 25, 50 … volle Runden, erstmals 50, 60 … 100 kg („dreistellig“) und mehr bei einer Kraftübung mit Pfeil nach oben – gezählt ab dem Startgewicht –, einen Gesamtzuwachs von 25, 50, 100 … kg und Cardio von 10 bis 250 km und 100 bis 1000 Minuten. Wird einer erreicht, etwa beim Abhaken, mit dem Pfeil oder mit einer Cardio-Einheit, regnet es Konfetti, und oben steht kurz, welcher es war; das „Rückgängig“ unten bleibt dabei erreichbar. Jeder kommt nur einmal, auch wenn die Erhöhung zurückgenommen wird. Die Statistik zeigt unter „Meilensteine“ die nächsten mit Balken und die erreichten mit Datum.</string>
+    <string name="about_guide_review">Ganz unten in der Statistik öffnet „Rückblick“ einen Monat oder ein Jahr auf einer Seite: Trainings, Trainingszeit, Gewichtszuwachs und die Übung mit dem größten, Cardio-Minuten und -Kilometer, den häufigsten Wochentag, die beste Ziel-Serie, die erreichten Meilensteine und den Kalender des Zeitraums. Oben wählst du „Monat | Jahr“ und blätterst mit den Pfeilen. „Teilen“ macht aus der Karte ein Bild und öffnet das Teilen-Menü von Android – das Bild entsteht auf dem Handy, ins Internet geht dabei nichts.</string>
     <string name="about_guide_keep_screen_on">Unter Einstellungen → Allgemein hält „Bildschirm anlassen“ das Display an, solange die App offen ist.</string>
     <string name="about_guide_manage">Unter „Übungen verwalten“ lässt sich eine Übung an allen Tagen ausblenden – oder überall endgültig löschen.</string>
     <string name="about_data_title">Deine Daten</string>

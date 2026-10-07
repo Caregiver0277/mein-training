@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import de.beispiel.meintraining.R
@@ -74,7 +75,7 @@ internal fun MilestonesCard(overview: MilestoneOverview, today: LocalDate) {
                 text = if (expanded) {
                     stringResource(R.string.stats_milestones_show_less)
                 } else {
-                    stringResource(R.string.stats_milestones_show_all, overview.reached.size)
+                    pluralStringResource(R.plurals.stats_milestones_show_all, overview.reached.size, overview.reached.size)
                 },
                 style = AppTextStyles.ColumnLabel,
                 color = AccentBlue,

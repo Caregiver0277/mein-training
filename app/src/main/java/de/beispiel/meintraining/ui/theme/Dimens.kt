@@ -125,6 +125,10 @@ object Dimens {
     val MilestoneBarHeight = 6.dp
     val MilestoneIconSize = 16.dp
 
+    // Statistiken: Rückblick – der Kalender füllt die Breite der Karte, im Monat bis zu dieser Größe.
+    val ReviewHeatmapMaxCell = 28.dp
+    val ReviewHeatmapGap = 2.dp
+
     // Deload
     val WeekDotHeight = 32.dp
     val BulletSize = 6.dp

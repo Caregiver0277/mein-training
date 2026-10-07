@@ -51,6 +51,21 @@
         <receiver
             android:name=".timer.RestTimerReceiver"
             android:exported="false" />
+
+        <!--
+            Reicht das Bild des Rückblicks an die App weiter, mit der geteilt wird. Nur Dateien
+            aus dem Zwischenspeicher (res/xml/share_paths.xml), nur lesend und nur für diesen
+            einen Vorgang freigegeben – eine Berechtigung braucht die App dafür nicht.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
     </application>
 
 </manifest>

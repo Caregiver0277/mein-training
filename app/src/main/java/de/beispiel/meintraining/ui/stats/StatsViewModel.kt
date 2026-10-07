@@ -17,6 +17,7 @@ import de.beispiel.meintraining.util.DurationSummary
 import de.beispiel.meintraining.util.Heatmap
 import de.beispiel.meintraining.util.MilestoneData
 import de.beispiel.meintraining.util.MilestoneOverview
+import de.beispiel.meintraining.util.ReviewPeriod
 import de.beispiel.meintraining.util.RotationEntry
 import de.beispiel.meintraining.util.RotationSummary
 import de.beispiel.meintraining.util.SessionTimes
@@ -33,6 +34,7 @@ import de.beispiel.meintraining.util.heatmap
 import de.beispiel.meintraining.util.longestWeeklyStreak
 import de.beispiel.meintraining.util.milestones
 import de.beispiel.meintraining.util.repsStillRising
+import de.beispiel.meintraining.util.review
 import de.beispiel.meintraining.util.rotationSummary
 import de.beispiel.meintraining.util.sessionsPerWeek
 import de.beispiel.meintraining.util.stagnatingExercises
@@ -288,6 +290,40 @@ class StatsViewModel(
             today = today,
             now = System.currentTimeMillis(),
             cardioUnitLabel = cardioUnitLabel
+        )
+    }
+
+    /**
+     * Der Rückblick auf [period] – wie [detail] ein eigener Fluss, der nur rechnet, solange die
+     * Seite offen ist.
+     *
+     * Die Meilensteine des Zeitraums kommen aus derselben Rechnung wie auf der Statistikseite;
+     * dafür braucht es ohnehin den ganzen Bestand, nicht nur den Zeitraum.
+     */
+    fun reviewPage(period: ReviewPeriod): Flow<ReviewPage> = combine(
+        repository.observeMilestoneData(),
+        currentDate.flow
+    ) { data, today ->
+        val zone = ZoneId.systemDefault()
+        ReviewPage(
+            review = review(
+                period = period,
+                sessions = data.sessions,
+                weightLogsOldestFirst = data.weightLogs,
+                cardioLogs = data.cardioLogs,
+                definitions = data.definitions,
+                weeklyGoal = data.weeklyGoal,
+                reached = milestones(data, today, zone).reached,
+                today = today,
+                zone = zone
+            ),
+            // Der erste Tag mit irgendetwas darin – davor gibt es nichts zurückzublättern.
+            firstDate = listOfNotNull(
+                data.sessions.minOfOrNull { it.completedAt },
+                data.weightLogs.firstOrNull()?.recordedAt,
+                data.cardioLogs.minOfOrNull { it.performedAt }
+            ).minOrNull()?.toLocalDate(zone),
+            today = today
         )
     }
 

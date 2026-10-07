@@ -187,7 +187,7 @@ fun cardioTotals(
 }
 
 /** Die Wochen (als ihr Montag), in denen mindestens [goal] Trainings stehen. */
-private fun weeksReachingGoal(dates: List<LocalDate>, goal: Int): Set<LocalDate> =
+internal fun weeksReachingGoal(dates: List<LocalDate>, goal: Int): Set<LocalDate> =
     dates.groupingBy { it.weekStart() }.eachCount()
         .filterValues { it >= goal.coerceAtLeast(1) }
         .keys

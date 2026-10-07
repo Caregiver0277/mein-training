@@ -3,6 +3,7 @@ package de.beispiel.meintraining.ui.stats
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +14,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,22 +53,29 @@ import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.DurationSummary
 import de.beispiel.meintraining.util.STAGNATION_SESSIONS
 import de.beispiel.meintraining.util.StagnatingExercise
+import de.beispiel.meintraining.util.ReviewPeriod
 import de.beispiel.meintraining.util.formatFullDate
 import de.beispiel.meintraining.util.toDecimalString
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import java.time.DayOfWeek
+import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
  * Hängt den Statistik-Screen an sein ViewModel – samt der Detailseite einer Übung, die ein Tipp in
- * „Fortschritt je Übung“ öffnet.
+ * „Fortschritt je Übung“ öffnet, und dem Rückblick.
  *
  * Welche Übung offen ist, steht hier und nicht im ViewModel: Es lebt so lange wie die Activity,
  * und wer die Statistik verlässt und wieder öffnet, soll auf der Übersicht landen, nicht auf der
- * Übung von vorhin. Gesichert wird die Wahl trotzdem, damit das Drehen sie nicht schließt.
+ * Übung von vorhin. Gesichert wird die Wahl trotzdem, damit das Drehen sie nicht schließt. Für den
+ * Zeitraum des Rückblicks gilt dasselbe.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @Composable
 fun StatsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: StatsViewModel = viewModel(factory = StatsViewModel.Factory)
@@ -72,15 +85,34 @@ fun StatsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     // ist, und stünde beim Zurückkommen sonst wieder ganz oben – weit weg von der Übung.
     val scrollState = rememberScrollState()
 
-    // „Zurück“ schließt erst die Übung, dann die Statistik.
+    var reviewPeriod by rememberSaveable(stateSaver = ReviewPeriodSaver) { mutableStateOf<ReviewPeriod?>(null) }
+
+    // „Zurück“ schließt erst die Übung oder den Rückblick, dann die Statistik.
     BackHandler(enabled = selected != null) { selected = null }
+    BackHandler(enabled = reviewPeriod != null) { reviewPeriod = null }
 
     val key = selected
-    if (key == null) {
+    val period = reviewPeriod
+    if (period != null) {
+        // Ein Fluss für die ganze Zeit auf der Seite statt einer je Zeitraum: Beim Blättern bleibt
+        // so der vorige Rückblick stehen, bis der neue gerechnet ist, statt kurz zu verschwinden.
+        val pages = remember {
+            snapshotFlow { reviewPeriod }.filterNotNull().flatMapLatest(viewModel::reviewPage)
+        }
+        val page by pages.collectAsStateWithLifecycle(initialValue = null)
+        ReviewScreen(
+            period = period,
+            page = page,
+            onPeriodChange = { reviewPeriod = it },
+            onBack = { reviewPeriod = null },
+            modifier = modifier
+        )
+    } else if (key == null) {
         StatsScreen(
             uiState = uiState,
             onBack = onBack,
             onExerciseClick = { selected = it },
+            onReviewClick = { reviewPeriod = ReviewPeriod.Month(YearMonth.from(uiState.today)) },
             scrollState = scrollState,
             modifier = modifier
         )
@@ -113,7 +145,7 @@ private class DetailState(val detail: ExerciseDetail?)
  * 7. Cardio – Minuten und Kilometer je Woche.
  * 8. Runden – wie die Runden ausgehen.
  * 9. Rhythmus – Wochentage, typische Uhrzeit und längste Serie, Trainingsdauer.
- * 10. Rückblick – der Einstieg in die Monats- und Jahresübersicht (noch nicht gebaut).
+ * 10. Rückblick – der Einstieg in die Monats- und Jahresübersicht.
  *
  * Jeder Abschnitt ist eine eigene Karte; was keine Daten hat, lässt seine Karte weg oder sagt in
  * einem Satz, woher sie kommen. Neue Karten kommen an ihre Stelle in dieser Reihenfolge, statt
@@ -126,6 +158,7 @@ fun StatsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onExerciseClick: (ProgressKey) -> Unit = {},
+    onReviewClick: () -> Unit = {},
     scrollState: ScrollState = rememberScrollState()
 ) {
     Column(
@@ -166,6 +199,7 @@ fun StatsScreen(
             WeekdayCard(uiState)
             RhythmCard(uiState)
             DurationCard(uiState.duration, uiState.dayNames)
+            ReviewEntryCard(onReviewClick)
             Spacer(modifier = Modifier.height(Dimens.ListBottomPadding))
         }
     }
@@ -407,6 +441,37 @@ private fun StagnationCard(entries: List<StagnatingExercise>) {
                     color = TextSecondary
                 )
             }
+        }
+    }
+}
+
+/** Der Einstieg in den Rückblick – ganz unten, nach allem, worauf er zurückblickt. */
+@Composable
+private fun ReviewEntryCard(onClick: () -> Unit) {
+    StatsCard(title = stringResource(R.string.review_title)) {
+        Text(
+            text = stringResource(R.string.review_entry_hint),
+            style = AppTextStyles.ColumnLabel,
+            color = TextSecondary
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = Dimens.TouchTargetSize)
+                .clickable(onClick = onClick),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.review_entry_open),
+                style = AppTextStyles.ExerciseName,
+                color = AccentBlue,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = AccentBlue
+            )
         }
     }
 }

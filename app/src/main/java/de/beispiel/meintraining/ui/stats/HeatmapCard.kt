@@ -239,7 +239,7 @@ private fun HeatmapLegend() {
     }
 }
 
-private fun heatmapColor(count: Int): Color = when {
+internal fun heatmapColor(count: Int): Color = when {
     count <= 0 -> ChipBackground
     count == 1 -> HeatmapOneSession
     else -> AccentGreen

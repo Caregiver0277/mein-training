@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Was der FileProvider weitergeben darf: nur der Ordner fürs Teilen im Zwischenspeicher. -->
+<paths>
+    <cache-path
+        name="geteilt"
+        path="geteilt/" />
+</paths>
