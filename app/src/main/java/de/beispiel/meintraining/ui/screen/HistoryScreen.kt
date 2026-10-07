@@ -40,9 +40,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.beispiel.meintraining.R
+import de.beispiel.meintraining.data.model.CardioLog
 import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WorkoutSession
+import de.beispiel.meintraining.ui.components.cardioUnits
 import de.beispiel.meintraining.ui.components.dayLabel
 import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AccentGreen
@@ -56,6 +58,8 @@ import de.beispiel.meintraining.ui.theme.MenuButtonIcon
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.ExerciseSets
+import de.beispiel.meintraining.util.cardioOfSession
+import de.beispiel.meintraining.util.formatCardioValues
 import de.beispiel.meintraining.util.durationMinutes
 import de.beispiel.meintraining.util.exerciseTitle
 import de.beispiel.meintraining.util.formatSetSeries
@@ -73,9 +77,11 @@ fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val setLogs by viewModel.setLogs.collectAsStateWithLifecycle()
+    val cardioLogs by viewModel.cardioLogs.collectAsStateWithLifecycle()
     HistoryScreen(
         cycles = uiState.cycles,
         setLogs = setLogs,
+        cardioLogs = cardioLogs,
         days = uiState.days,
         selectableDays = uiState.selectableDays,
         today = uiState.today,
@@ -104,8 +110,8 @@ fun HistoryRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
  * dieselbe Zählweise wie unter „Statistiken“, wo „Trainings“ seit jeher die Einträge meint.
  *
  * Das „+“ in der Kopfzeile trägt ein vergessenes Training nach, der lange Druck auf eine Zeile
- * nimmt genau dieses eine wieder heraus. Ein Tippen zeigt das Training im Einzelnen: Dauer und
- * die protokollierten Sätze, nur zum Lesen.
+ * nimmt genau dieses eine wieder heraus. Ein Tippen zeigt das Training im Einzelnen: Dauer, die
+ * protokollierten Sätze und die eingetragenen Cardio-Einheiten, nur zum Lesen.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -114,6 +120,8 @@ fun HistoryScreen(
     cycles: List<HistoryCycle>,
     /** Das Satz-Protokoll, ältester Satz zuerst – für die Ansicht eines Eintrags. */
     setLogs: List<SetLog>,
+    /** Die Cardio-Einheiten, älteste zuerst – ebenfalls für die Ansicht eines Eintrags. */
+    cardioLogs: List<CardioLog>,
     days: List<TrainingDay>,
     /** Die Tage, die beim Nachtragen zur Wahl stehen – siehe [HistoryUiState.selectableDays]. */
     selectableDays: List<TrainingDay>,
@@ -239,6 +247,9 @@ fun HistoryScreen(
             sets = remember(setLogs, entry) {
                 setsOfSession(setLogs, entry.session.dayId, entry.date)
             },
+            cardio = remember(cardioLogs, entry) {
+                cardioOfSession(cardioLogs, entry.session.dayId, entry.date)
+            },
             onDismiss = { opened = null }
         )
     }
@@ -283,15 +294,18 @@ fun HistoryScreen(
 
 /**
  * Ein Training im Einzelnen, nur zum Lesen: Tag und Uhrzeit, die Dauer und was an diesem Tag für
- * diesen Trainingstag protokolliert wurde – je Übung eine Zeile wie im Satz-Protokoll.
+ * diesen Trainingstag protokolliert wurde – je Übung eine Zeile wie im Satz-Protokoll, darunter
+ * die Cardio-Einheiten mit ihren Werten wie im Chip der Liste.
  */
 @Composable
 private fun SessionDetailDialog(
     entry: HistoryEntry,
     dayName: String,
     sets: List<ExerciseSets>,
+    cardio: List<CardioLog>,
     onDismiss: () -> Unit
 ) {
+    val cardioUnits = cardioUnits()
     val resources = LocalResources.current
     val weightLabel: (Double) -> String = { weight ->
         resources.getString(R.string.set_log_kg, weight.toDecimalString())
@@ -326,7 +340,7 @@ private fun SessionDetailDialog(
                     style = AppTextStyles.Body
                 )
                 Spacer(modifier = Modifier.height(Dimens.SectionSpacingSmall))
-                if (sets.isEmpty()) {
+                if (sets.isEmpty() && cardio.isEmpty()) {
                     Text(text = stringResource(R.string.history_detail_no_sets), style = AppTextStyles.Body)
                 }
                 sets.forEach { exercise ->
@@ -340,6 +354,18 @@ private fun SessionDetailDialog(
                         text = formatSetSeries(exercise.sets, weightLabel),
                         style = AppTextStyles.Body
                     )
+                }
+                cardio.forEach { log ->
+                    Text(
+                        text = exerciseTitle(log.exerciseName, log.variation),
+                        style = AppTextStyles.ExerciseName,
+                        color = TextPrimary,
+                        modifier = Modifier.padding(top = Dimens.SectionSpacingSmall / 2)
+                    )
+                    // Ohne Werte gibt es keine Einheit (siehe logCardio); leer bliebe nur der Name.
+                    formatCardioValues(log.values, cardioUnits)?.let { values ->
+                        Text(text = values, style = AppTextStyles.Body)
+                    }
                 }
             }
         },
@@ -550,6 +576,7 @@ private fun HistoryScreenPreview() {
                 )
             ),
             setLogs = emptyList(),
+            cardioLogs = emptyList(),
             days = (1..4).map { TrainingDay(id = it, name = "Tag $it") },
             selectableDays = (1..4).map { TrainingDay(id = it, name = "Tag $it") },
             today = LocalDate.now(),

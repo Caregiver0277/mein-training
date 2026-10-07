@@ -250,6 +250,20 @@ class CardioTest {
     }
 
     @Test
+    fun imVerlaufDieEinheitenDiesesTrainings() {
+        val zone = ZoneOffset.UTC
+        fun am(tag: Int, stunde: Int) =
+            LocalDate.of(2026, 10, tag).atTime(stunde, 0).toInstant(zone).toEpochMilli()
+        val logs = listOf(
+            CardioLog(id = 1, exerciseName = "Rad", dayId = 1, performedAt = am(6, 18), durationMin = 20.0),
+            CardioLog(id = 2, exerciseName = "Laufband", dayId = 2, performedAt = am(7, 7), durationMin = 15.0),
+            CardioLog(id = 3, exerciseName = "Rad", dayId = 2, performedAt = am(7, 8), durationMin = 25.0)
+        )
+        assertEquals(listOf(2L, 3L), cardioOfSession(logs, dayId = 2, date = LocalDate.of(2026, 10, 7), zone = zone).map { it.id })
+        assertTrue(cardioOfSession(logs, dayId = 1, date = LocalDate.of(2026, 10, 7), zone = zone).isEmpty())
+    }
+
+    @Test
     fun nachUebungUndVariationZerlegt() {
         val logs = listOf(
             CardioLog(exerciseName = "Rad", variation = "locker", dayId = 1, performedAt = 1, durationMin = 30.0),

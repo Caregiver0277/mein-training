@@ -391,7 +391,7 @@
     <string name="history_show_details">Einzelheiten zeigen</string>
     <string name="history_detail_duration">Dauer: %1$d min</string>
     <string name="history_detail_duration_unknown">Dauer: nicht gemessen</string>
-    <string name="history_detail_no_sets">An diesem Tag sind für diesen Trainingstag keine Sätze protokolliert.</string>
+    <string name="history_detail_no_sets">An diesem Tag sind für diesen Trainingstag keine Sätze protokolliert und keine Cardio-Einheiten eingetragen.</string>
     <string name="history_delete_title">Eintrag löschen?</string>
     <string name="history_delete_body">„%1$s“ vom %2$s wird aus dem Verlauf entfernt. Das beeinflusst auch die Deload-Berechnung.</string>
 

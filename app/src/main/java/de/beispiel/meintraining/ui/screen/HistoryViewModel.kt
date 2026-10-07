@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
+import de.beispiel.meintraining.data.model.CardioLog
 import de.beispiel.meintraining.data.model.SetLog
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.model.WorkoutSession
@@ -104,6 +105,10 @@ class HistoryViewModel(
      * wenn ein Satz dazukommt.
      */
     val setLogs: StateFlow<List<SetLog>> = repository.observeSetLogs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
+
+    /** Die Cardio-Einheiten für dieselbe Ansicht, aus demselben Grund getrennt. */
+    val cardioLogs: StateFlow<List<CardioLog>> = repository.observeCardioLogs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), emptyList())
 
     /** Entfernt einen versehentlich abgehakten Eintrag aus dem Verlauf. */

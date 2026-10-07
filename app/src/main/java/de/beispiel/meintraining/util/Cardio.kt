@@ -284,6 +284,18 @@ fun todaysCardioLog(
 }
 
 /**
+ * Die Cardio-Einheiten eines Trainings im Verlauf: was an [date] für Trainingstag [dayId]
+ * eingetragen wurde, in der Reihenfolge des Eintragens – gefasst wie die Sätze nach Kalendertag
+ * (siehe `setsOfSession`).
+ */
+fun cardioOfSession(
+    logsOldestFirst: List<CardioLog>,
+    dayId: Int,
+    date: LocalDate,
+    zone: ZoneId = ZoneId.systemDefault()
+): List<CardioLog> = logsOldestFirst.filter { it.dayId == dayId && it.performedAt.toLocalDate(zone) == date }
+
+/**
  * „Letztes Mal“ über dem Dialog „Cardio eintragen“: die jüngste Einheit dieser Übung außer der,
  * die der Dialog gerade bearbeitet ([current]) – sonst stünde beim Korrigieren die eigene
  * Eingabe von eben als letztes Mal da. Eine Einheit an einem anderen Trainingstag von heute
