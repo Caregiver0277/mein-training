@@ -20,8 +20,11 @@ import de.beispiel.meintraining.data.model.FIRST_DAY_ID
 import de.beispiel.meintraining.data.model.MAX_DAY_COUNT
 import de.beispiel.meintraining.data.model.MIN_DAY_COUNT
 import de.beispiel.meintraining.util.DEFAULT_DELOAD_CYCLE_WEEKS
+import de.beispiel.meintraining.util.DEFAULT_WEEKLY_GOAL
 import de.beispiel.meintraining.util.MAX_CYCLE_WEEKS
+import de.beispiel.meintraining.util.MAX_WEEKLY_GOAL
 import de.beispiel.meintraining.util.MIN_CYCLE_WEEKS
+import de.beispiel.meintraining.util.MIN_WEEKLY_GOAL
 import de.beispiel.meintraining.util.NO_ROTATION_CUT
 import de.beispiel.meintraining.util.WorkoutMarker
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +40,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 data class SettingsSnapshot(
     val appTitle: String,
     val deloadCycleWeeks: Int,
+    val weeklyGoal: Int,
     val dayCount: Int,
     val selectedDayId: Int,
     val hiddenTrackingNames: Set<String>,
@@ -51,7 +55,7 @@ data class ConsumedMarker(val sessionId: Long, val marker: WorkoutMarker)
 
 /**
  * Kleine Einstellungen, die nicht in die Datenbank gehören: gewählter Tag, Rundenlänge und
- * -schnitte, Überschrift, Blocklänge, Ausblendlisten, „Bildschirm anlassen“, der Merker des
+ * -schnitte, Überschrift, Blocklänge, Wochenziel, Ausblendlisten, „Bildschirm anlassen“, der Merker des
  * laufenden Trainings und die Angaben zur Sicherung.
  */
 class SettingsStore(context: Context) {
@@ -89,6 +93,7 @@ class SettingsStore(context: Context) {
         SettingsSnapshot(
             appTitle = readAppTitle(prefs),
             deloadCycleWeeks = readDeloadWeeks(prefs),
+            weeklyGoal = readWeeklyGoal(prefs),
             dayCount = readDayCount(prefs),
             selectedDayId = readSelectedDay(prefs),
             hiddenTrackingNames = readHiddenTracking(prefs),
@@ -204,6 +209,16 @@ class SettingsStore(context: Context) {
 
     suspend fun setDeloadCycleWeeks(weeks: Int) {
         store.edit { prefs -> prefs[KEY_DELOAD_WEEKS] = weeks.coerceIn(MIN_CYCLE_WEEKS, MAX_CYCLE_WEEKS) }
+    }
+
+    private fun readWeeklyGoal(prefs: Preferences): Int =
+        (prefs[KEY_WEEKLY_GOAL] ?: DEFAULT_WEEKLY_GOAL).coerceIn(MIN_WEEKLY_GOAL, MAX_WEEKLY_GOAL)
+
+    /** Trainings pro Woche, die das Wochenziel der Statistik ausmachen. */
+    val weeklyGoal: Flow<Int> = preference(::readWeeklyGoal)
+
+    suspend fun setWeeklyGoal(goal: Int) {
+        store.edit { prefs -> prefs[KEY_WEEKLY_GOAL] = goal.coerceIn(MIN_WEEKLY_GOAL, MAX_WEEKLY_GOAL) }
     }
 
     private fun readDayCount(prefs: Preferences): Int =
@@ -383,6 +398,7 @@ class SettingsStore(context: Context) {
     private companion object {
         val KEY_SELECTED_DAY = intPreferencesKey("selected_day_id")
         val KEY_DELOAD_WEEKS = intPreferencesKey("deload_cycle_weeks")
+        val KEY_WEEKLY_GOAL = intPreferencesKey("weekly_goal")
         val KEY_DAY_COUNT = intPreferencesKey("day_count")
         val KEY_APP_TITLE = stringPreferencesKey("app_title")
         val KEY_KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")

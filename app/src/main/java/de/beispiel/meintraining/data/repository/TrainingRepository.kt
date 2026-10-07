@@ -642,12 +642,17 @@ class TrainingRepository(
     // --- Einstellungen -----------------------------------------------------
 
     val deloadCycleWeeks: Flow<Int> = settingsStore.deloadCycleWeeks
+
+    /** Siehe [SettingsStore.weeklyGoal]. */
+    val weeklyGoal: Flow<Int> = settingsStore.weeklyGoal
     val appTitle: Flow<String> = settingsStore.appTitle
 
     /** Anzahl der Trainingstage in einer Runde. */
     val dayCount: Flow<Int> = settingsStore.dayCount
 
     suspend fun setDeloadCycleWeeks(weeks: Int) = settingsStore.setDeloadCycleWeeks(weeks)
+
+    suspend fun setWeeklyGoal(goal: Int) = settingsStore.setWeeklyGoal(goal)
 
     suspend fun setAppTitle(title: String) = settingsStore.setAppTitle(title)
 

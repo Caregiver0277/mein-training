@@ -85,7 +85,9 @@ import de.beispiel.meintraining.ui.theme.TextDisabled
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
 import de.beispiel.meintraining.util.MAX_CYCLE_WEEKS
+import de.beispiel.meintraining.util.MAX_WEEKLY_GOAL
 import de.beispiel.meintraining.util.MIN_CYCLE_WEEKS
+import de.beispiel.meintraining.util.MIN_WEEKLY_GOAL
 import de.beispiel.meintraining.util.toDecimalString
 import kotlin.math.roundToInt
 
@@ -130,6 +132,7 @@ fun SettingsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
             uiState = uiState,
             onAppTitleChange = viewModel::onAppTitleChange,
             onDeloadCycleChange = viewModel::onDeloadCycleChange,
+            onWeeklyGoalChange = viewModel::onWeeklyGoalChange,
             onKeepScreenOnToggled = viewModel::onKeepScreenOnToggled,
             onTimerSoundToggled = viewModel::onTimerSoundToggled,
             onTimerVolumeChange = viewModel::onTimerVolumeChange,
@@ -148,6 +151,7 @@ fun SettingsScreen(
     uiState: SettingsUiState,
     onAppTitleChange: (String) -> Unit,
     onDeloadCycleChange: (String) -> Unit,
+    onWeeklyGoalChange: (String) -> Unit,
     onKeepScreenOnToggled: (Boolean) -> Unit,
     onTimerSoundToggled: (Boolean) -> Unit,
     onTimerVolumeChange: (Float) -> Unit,
@@ -192,6 +196,18 @@ fun SettingsScreen(
                     keyboardType = KeyboardType.Number,
                     // Eine Zahl außerhalb des erlaubten Bereichs wird nicht gespeichert und
                     // soll deshalb auch nicht im Feld stehen bleiben.
+                    resetOnFocusLoss = true
+                )
+                SettingsField(
+                    value = uiState.weeklyGoal.toString(),
+                    onValueChange = onWeeklyGoalChange,
+                    label = stringResource(R.string.settings_weekly_goal),
+                    supportingText = stringResource(
+                        R.string.settings_weekly_goal_hint,
+                        MIN_WEEKLY_GOAL,
+                        MAX_WEEKLY_GOAL
+                    ),
+                    keyboardType = KeyboardType.Number,
                     resetOnFocusLoss = true
                 )
                 SwitchRow(
@@ -1042,6 +1058,7 @@ private fun SettingsScreenPreview() {
                 dayCount = 4,
                 appTitle = "",
                 deloadCycleWeeks = 6,
+                weeklyGoal = 3,
                 exercises = listOf(
                     ManagedExercise("Bizep curls", 2, 4),
                     ManagedExercise("Laufband", 1, 0, isCardio = true)
@@ -1049,6 +1066,7 @@ private fun SettingsScreenPreview() {
             ),
             onAppTitleChange = {},
             onDeloadCycleChange = {},
+            onWeeklyGoalChange = {},
             onKeepScreenOnToggled = {},
             onTimerSoundToggled = {},
             onTimerVolumeChange = {},

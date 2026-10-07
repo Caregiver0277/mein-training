@@ -99,6 +99,10 @@ object Dimens {
     val StatsLabelWidth = 64.dp
     val StatsValueWidth = 64.dp
 
+    // Statistiken: Wochenziel
+    val GoalBarMaxHeight = 72.dp
+    val GoalLineWidth = 1.dp
+
     // Statistiken: Kalender
     val HeatmapCellSize = 12.dp
     val HeatmapCellGap = 3.dp

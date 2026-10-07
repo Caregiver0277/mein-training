@@ -9,10 +9,12 @@ import de.beispiel.meintraining.MeinTrainingApp
 import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.CurrentDate
+import de.beispiel.meintraining.util.DEFAULT_WEEKLY_GOAL
 import de.beispiel.meintraining.util.DurationSummary
 import de.beispiel.meintraining.util.Heatmap
 import de.beispiel.meintraining.util.SessionTimes
 import de.beispiel.meintraining.util.StagnatingExercise
+import de.beispiel.meintraining.util.WeekCount
 import de.beispiel.meintraining.util.currentWeeklyStreak
 import de.beispiel.meintraining.util.durationSummary
 import de.beispiel.meintraining.util.currentStrengthWeights
@@ -24,6 +26,7 @@ import de.beispiel.meintraining.util.stagnatingExercises
 import de.beispiel.meintraining.util.toLocalDate
 import de.beispiel.meintraining.util.typicalTimeOfDay
 import de.beispiel.meintraining.util.weekdayDistribution
+import de.beispiel.meintraining.util.weeklyCounts
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -36,8 +39,12 @@ import java.time.ZoneId
 data class StatsUiState(
     val totalSessions: Int = 0,
     val sessionsPerWeek: Double = 0.0,
+    /** Ziel-Serie: Wochen in Folge mit erreichtem [weeklyGoal] – siehe `currentWeeklyStreak`. */
     val currentStreak: Int = 0,
     val longestStreak: Int = 0,
+    val weeklyGoal: Int = DEFAULT_WEEKLY_GOAL,
+    /** Trainings je Woche für die Balken des Wochenziels, die laufende Woche zuletzt. */
+    val goalWeeks: List<WeekCount> = emptyList(),
     val firstSession: LocalDate? = null,
     /** Der Kalender der letzten zwölf Monate; `null` nur vor dem ersten Ausrechnen. */
     val heatmap: Heatmap? = null,
@@ -63,7 +70,8 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
         val today: LocalDate,
         val dayCount: Int,
         val hiddenExerciseNames: Set<String>,
-        val dayNames: Map<Int, String>
+        val dayNames: Map<Int, String>,
+        val weeklyGoal: Int
     )
 
     val uiState = combine(
@@ -78,9 +86,10 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             currentDate.flow,
             repository.dayCount,
             repository.hiddenExerciseNames,
-            repository.observeDays()
-        ) { today, dayCount, hidden, days ->
-            PlanView(today, dayCount, hidden, days.associate { it.id to it.name })
+            repository.observeDays(),
+            repository.weeklyGoal
+        ) { today, dayCount, hidden, days, goal ->
+            PlanView(today, dayCount, hidden, days.associate { it.id to it.name }, goal)
         }
     ) { sessions, logs, exercises, definitions, plan ->
         val today = plan.today
@@ -115,8 +124,10 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
         StatsUiState(
             totalSessions = sessions.size,
             sessionsPerWeek = sessionsPerWeek(dates, today),
-            currentStreak = currentWeeklyStreak(dates, today),
-            longestStreak = longestWeeklyStreak(dates),
+            currentStreak = currentWeeklyStreak(dates, today, plan.weeklyGoal),
+            longestStreak = longestWeeklyStreak(dates, plan.weeklyGoal),
+            weeklyGoal = plan.weeklyGoal,
+            goalWeeks = weeklyCounts(dates, today),
             firstSession = dates.minOrNull(),
             heatmap = heatmap(dates, today),
             weekdayCounts = weekdayDistribution(dates),

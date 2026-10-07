@@ -226,6 +226,8 @@
     <string name="settings_app_title_hint">Leer lassen für „MEIN TRAINING“.</string>
     <string name="settings_deload_weeks">Deload alle … Wochen</string>
     <string name="settings_deload_weeks_hint">Die letzte Woche des Blocks ist die Deload-Woche (%1$d–%2$d).</string>
+    <string name="settings_weekly_goal">Wochenziel</string>
+    <string name="settings_weekly_goal_hint">Trainings pro Woche (%1$d–%2$d) – für Ziel-Serie und Wochenbalken in der Statistik.</string>
     <string name="settings_keep_screen_on">Bildschirm anlassen</string>
     <string name="settings_keep_screen_on_hint">Solange die App offen ist, geht der Bildschirm nicht aus – Pausenuhr und Liste bleiben zwischen den Sätzen sichtbar. Kostet etwas Akku.</string>
     <string name="settings_timers">Pausenuhren</string>
@@ -416,12 +418,12 @@
     <string name="stats_empty">Noch keine Zahlen. Hake dein erstes Training ab, dann füllt sich diese Seite.</string>
     <string name="stats_total">Trainings</string>
     <string name="stats_per_week">pro Woche</string>
-    <string name="stats_streak">Wochen&#8209;Serie</string>
+    <string name="stats_streak">Ziel&#8209;Serie</string>
     <string name="stats_weekdays">Wann du trainierst</string>
     <string name="stats_rhythm">Dein Rhythmus</string>
     <string name="stats_typical_time">Typische Uhrzeit</string>
     <string name="stats_time_value">%1$s Uhr</string>
-    <string name="stats_longest_streak">Längste Serie</string>
+    <string name="stats_longest_streak">Längste Ziel-Serie</string>
     <string name="stats_since">Dabei seit</string>
     <string name="stats_exercise_count">Übungen im Plan</string>
     <string name="stats_duration">Trainingsdauer</string>
@@ -456,6 +458,14 @@
         <item quantity="one">%1$d Training</item>
         <item quantity="other">%1$d Trainings</item>
     </plurals>
+    <string name="stats_goal">Wochenziel</string>
+    <plurals name="stats_goal_value">
+        <item quantity="one">%1$d Training pro Woche</item>
+        <item quantity="other">%1$d Trainings pro Woche</item>
+    </plurals>
+    <string name="stats_goal_this_week">diese Woche</string>
+    <string name="stats_goal_reached">Ziel erreicht</string>
+    <string name="stats_goal_reached_value">%1$d von %2$d Wochen</string>
     <string name="stats_heatmap">Kalender</string>
     <string name="stats_heatmap_hint">Tippe auf einen Tag, um seine Trainings zu sehen.</string>
     <!-- Etwa „Mi., 7. Oktober 2026: 2 Trainings“. -->

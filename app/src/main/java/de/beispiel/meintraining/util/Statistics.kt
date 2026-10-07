@@ -24,6 +24,17 @@ private const val SECONDS_PER_DAY = 24 * 60 * 60
 const val STAGNATION_SESSIONS = 6
 
 /**
+ * Das Wochenziel: so viele Trainings pro Woche sollen es sein. Drei sind der übliche Rahmen für
+ * einen Plan über mehrere Tage; mehr als eins am Tag sieht die Einstellung nicht vor.
+ */
+const val DEFAULT_WEEKLY_GOAL = 3
+const val MIN_WEEKLY_GOAL = 1
+const val MAX_WEEKLY_GOAL = 7
+
+/** So viele Wochen zeigt das Wochenziel als Balken. */
+const val GOAL_WEEKS = 12
+
+/**
  * Gewichtsentwicklung einer Übung vom ersten bis zum aktuellen Eintrag.
  *
  * [isDecreasing] heißt: Der Pfeil der Übung zeigt nach unten, die Last ist eine Unterstützung
@@ -74,27 +85,31 @@ fun sessionsInLastDays(dates: List<LocalDate>, today: LocalDate, days: Int): Int
     dates.count { ChronoUnit.DAYS.between(it, today) in 0 until days }
 
 /**
- * Wochen in Folge mit mindestens einem Training, rückwärts gezählt.
+ * Ziel-Serie: Wochen in Folge, in denen das Wochenziel von [goal] Trainings erreicht wurde,
+ * rückwärts gezählt.
  *
  * Die laufende Woche zählt nicht gegen die Serie, solange sie noch offen ist – sonst stünde
- * jeden Montagmorgen eine 0 da.
+ * jeden Montagmorgen eine 0 da. Hat sie das Ziel schon erreicht, zählt sie mit.
+ *
+ * Gemessen wird der ganze Verlauf am *aktuellen* Ziel: Wer es von 3 auf 4 anhebt, sieht seine
+ * Serie so, als hätte immer 4 gegolten. Ein Verlauf der Ziele wäre genauer, hieße aber für eine
+ * Zahl auf der Statistikseite, jede Änderung der Einstellung mitzuschreiben.
  */
-fun currentWeeklyStreak(dates: List<LocalDate>, today: LocalDate): Int {
-    if (dates.isEmpty()) return 0
-    val weeks = dates.map { it.weekStart() }.toSet()
+fun currentWeeklyStreak(dates: List<LocalDate>, today: LocalDate, goal: Int): Int {
+    val reached = weeksReachingGoal(dates, goal)
     var cursor = today.weekStart()
-    if (cursor !in weeks) cursor = cursor.minusWeeks(1)
+    if (cursor !in reached) cursor = cursor.minusWeeks(1)
     var streak = 0
-    while (cursor in weeks) {
+    while (cursor in reached) {
         streak++
         cursor = cursor.minusWeeks(1)
     }
     return streak
 }
 
-/** Die längste jemals erreichte Serie zusammenhängender Trainingswochen. */
-fun longestWeeklyStreak(dates: List<LocalDate>): Int {
-    val weeks = dates.map { it.weekStart() }.distinct().sorted()
+/** Die längste jemals erreichte Ziel-Serie – siehe [currentWeeklyStreak]. */
+fun longestWeeklyStreak(dates: List<LocalDate>, goal: Int): Int {
+    val weeks = weeksReachingGoal(dates, goal).sorted()
     if (weeks.isEmpty()) return 0
     var best = 1
     var current = 1
@@ -104,6 +119,28 @@ fun longestWeeklyStreak(dates: List<LocalDate>): Int {
     }
     return best
 }
+
+/** Eine Woche und ihre Trainings – ein Balken im Wochenziel. */
+data class WeekCount(val weekStart: LocalDate, val count: Int)
+
+/**
+ * Trainings je Woche für die letzten [weeks] Wochen, älteste zuerst; die letzte ist die laufende.
+ * Wochen ohne Training stehen mit 0 darin – eine Lücke soll man sehen.
+ */
+fun weeklyCounts(dates: List<LocalDate>, today: LocalDate, weeks: Int = GOAL_WEEKS): List<WeekCount> {
+    val counts = dates.groupingBy { it.weekStart() }.eachCount()
+    val current = today.weekStart()
+    return (weeks - 1 downTo 0).map { back ->
+        val start = current.minusWeeks(back.toLong())
+        WeekCount(start, counts[start] ?: 0)
+    }
+}
+
+/** Die Wochen (als ihr Montag), in denen mindestens [goal] Trainings stehen. */
+private fun weeksReachingGoal(dates: List<LocalDate>, goal: Int): Set<LocalDate> =
+    dates.groupingBy { it.weekStart() }.eachCount()
+        .filterValues { it >= goal.coerceAtLeast(1) }
+        .keys
 
 /** Anzahl Trainings je Wochentag, beginnend mit Montag. */
 fun weekdayDistribution(dates: List<LocalDate>): List<Int> {

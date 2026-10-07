@@ -36,8 +36,8 @@ class StatisticsTest {
     @Test
     fun ohneTrainingGibtEsKeineFrequenz() {
         assertEquals(0.0, sessionsPerWeek(emptyList(), TODAY), 0.0)
-        assertEquals(0, currentWeeklyStreak(emptyList(), TODAY))
-        assertEquals(0, longestWeeklyStreak(emptyList()))
+        assertEquals(0, currentWeeklyStreak(emptyList(), TODAY, goal = 1))
+        assertEquals(0, longestWeeklyStreak(emptyList(), goal = 1))
     }
 
     @Test
@@ -77,13 +77,13 @@ class StatisticsTest {
     fun serieZaehltZusammenhaengendeWochen() {
         // Je ein Training in dieser und den beiden Vorwochen.
         val dates = listOf(TODAY.minusDays(1), TODAY.minusDays(8), TODAY.minusDays(15))
-        assertEquals(3, currentWeeklyStreak(dates, TODAY))
+        assertEquals(3, currentWeeklyStreak(dates, TODAY, goal = 1))
     }
 
     @Test
     fun eineAusgelasseneWocheBeendetDieSerie() {
         val dates = listOf(TODAY.minusDays(1), TODAY.minusDays(22))
-        assertEquals(1, currentWeeklyStreak(dates, TODAY))
+        assertEquals(1, currentWeeklyStreak(dates, TODAY, goal = 1))
     }
 
     @Test
@@ -91,7 +91,7 @@ class StatisticsTest {
         // Letztes Training in der Vorwoche, diese Woche noch nichts: Serie bleibt bei 1.
         val dates = listOf(TODAY.minusDays(3))
         val monday = TODAY.plusDays(1)
-        assertEquals(1, currentWeeklyStreak(dates, monday))
+        assertEquals(1, currentWeeklyStreak(dates, monday, goal = 1))
     }
 
     @Test
@@ -101,7 +101,58 @@ class StatisticsTest {
             // Lücke
             TODAY.minusWeeks(1)
         )
-        assertEquals(3, longestWeeklyStreak(dates))
+        assertEquals(3, longestWeeklyStreak(dates, goal = 1))
+    }
+
+    // --- Wochenziel ---------------------------------------------------------
+
+    /** [count] Trainings in der Woche, die [weeksBack] Wochen vor der von [TODAY] liegt. */
+    private fun week(weeksBack: Long, count: Int): List<LocalDate> =
+        List(count) { TODAY.minusWeeks(weeksBack).minusDays(it.toLong()) }
+
+    @Test
+    fun dieZielSerieZaehltNurWochenMitErreichtemZiel() {
+        // Diese Woche 3, Vorwoche 4, davor 2 – bei Ziel 3 sind es zwei Wochen.
+        val dates = week(0, 3) + week(1, 4) + week(2, 2) + week(3, 3)
+        assertEquals(2, currentWeeklyStreak(dates, TODAY, goal = 3))
+        assertEquals(4, currentWeeklyStreak(dates, TODAY, goal = 2))
+    }
+
+    @Test
+    fun dieOffeneWocheBrichtDieZielSerieNichtSolangeDasZielFehlt() {
+        // Diese Woche erst 1 von 3: zählt nicht mit, bricht aber auch nichts.
+        val dates = week(0, 1) + week(1, 3) + week(2, 3)
+        assertEquals(2, currentWeeklyStreak(dates, TODAY, goal = 3))
+        // Am Montag darauf ist sie vorbei – und hat das Ziel verfehlt.
+        assertEquals(0, currentWeeklyStreak(dates, TODAY.plusDays(1), goal = 3))
+    }
+
+    @Test
+    fun dieLaengsteZielSerieMisstAmAktuellenZiel() {
+        val dates = week(10, 3) + week(9, 3) + week(8, 3) + week(7, 2) + week(1, 3)
+        assertEquals(3, longestWeeklyStreak(dates, goal = 3))
+        assertEquals(4, longestWeeklyStreak(dates, goal = 2))
+        assertEquals(0, longestWeeklyStreak(dates, goal = 4))
+    }
+
+    @Test
+    fun zweiTrainingsAmSelbenTagZaehlenBeideFuersZiel() {
+        val dates = listOf(TODAY, TODAY)
+        assertEquals(1, currentWeeklyStreak(dates, TODAY, goal = 2))
+    }
+
+    @Test
+    fun dieWochenbalkenReichenZwoelfWochenZurueckBisZurLaufenden() {
+        val dates = week(0, 2) + week(3, 1) + week(12, 5) + listOf(TODAY.plusDays(1))
+        val counts = weeklyCounts(dates, TODAY)
+        assertEquals(GOAL_WEEKS, counts.size)
+        assertEquals(TODAY.with(DayOfWeek.MONDAY), counts.last().weekStart)
+        assertEquals(TODAY.with(DayOfWeek.MONDAY).minusWeeks(11), counts.first().weekStart)
+        assertEquals(2, counts.last().count)
+        assertEquals(1, counts[GOAL_WEEKS - 1 - 3].count)
+        // Die Woche vor zwölf Wochen liegt außerhalb, die Lücken stehen mit 0 darin.
+        assertEquals(3, counts.sumOf { it.count })
+        assertEquals(0, counts[GOAL_WEEKS - 2].count)
     }
 
     // --- Verteilungen ------------------------------------------------------

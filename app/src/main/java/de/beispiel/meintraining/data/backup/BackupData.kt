@@ -11,9 +11,11 @@ import kotlinx.serialization.Serializable
  * Die Version steht ganz vorn: Eine Datei aus einer künftigen Fassung der App wird abgelehnt,
  * statt halb eingelesen zu werden. Ältere Fassungen bleiben einlesbar, weil jedes später
  * hinzugekommene Feld eine Vorgabe hat – in Version 1 fehlen Notiz, Protokoll-Schalter,
- * Trainingsbeginn und das Satz-Protokoll, bis Version 2 alles zu Cardio, und genau so kommen sie
- * dann auch an: leer, ausgeschaltet, als Kraftübung. Die Felder heißen wie in der Datenbank, damit die Datei auch
- * von Hand lesbar bleibt – eine Sicherung, die man nicht anschauen kann, ist wenig wert.
+ * Trainingsbeginn und das Satz-Protokoll, bis Version 2 alles zu Cardio, bis Version 3 das
+ * Wochenziel, und genau so kommen sie dann auch an: leer, ausgeschaltet, als Kraftübung, und das
+ * Wochenziel bleibt, wie es auf dem Gerät steht. Die Felder heißen wie in der Datenbank, damit
+ * die Datei auch von Hand lesbar bleibt – eine Sicherung, die man nicht anschauen kann, ist
+ * wenig wert.
  */
 @Serializable
 data class BackupFile(
@@ -138,6 +140,8 @@ data class BackupCardioLog(
 data class BackupSettings(
     val appTitle: String = "",
     val deloadCycleWeeks: Int? = null,
+    /** Seit Version 4; fehlt es, bleibt das Ziel auf dem Gerät, wie es ist – wie die Blocklänge. */
+    val weeklyGoal: Int? = null,
     val dayCount: Int? = null,
     val selectedDayId: Int? = null,
     val hiddenTrackingNames: List<String> = emptyList(),
@@ -149,8 +153,9 @@ data class BackupSettings(
  *
  * 2: Notiz und Protokoll-Schalter an den Übungen, Trainingsbeginn, Satz-Protokoll.
  * 3: Art der Übung (Kraft oder Cardio), Cardio-Ziele samt Pfeil, Cardio-Einheiten.
+ * 4: Wochenziel in den Einstellungen.
  */
-const val BACKUP_VERSION = 3
+const val BACKUP_VERSION = 4
 
 /** Vorgabe und Grenzen für den Abstand der automatischen Sicherung, in Tagen. */
 const val DEFAULT_BACKUP_INTERVAL_DAYS = 7

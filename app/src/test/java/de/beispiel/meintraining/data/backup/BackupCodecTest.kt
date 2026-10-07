@@ -67,6 +67,7 @@ private fun sampleBackup() = BackupFile(
     settings = BackupSettings(
         appTitle = "PPL",
         deloadCycleWeeks = 6,
+        weeklyGoal = 4,
         dayCount = 2,
         selectedDayId = 2,
         hiddenTrackingNames = listOf("Dehnen")
@@ -151,6 +152,29 @@ class BackupCodecTest {
         assertEquals(BackupCardio(), definition.cardio)
         assertTrue(definition.logSets)
         assertEquals(emptyList<BackupCardioLog>(), restored.cardioLogs)
+    }
+
+    /** Eine Datei der Version 3 – vor dem Wochenziel. Es fehlt und bleibt beim Einlesen, wie es ist. */
+    @Test
+    fun eineDateiDerVersion3BleibtEinlesbar() {
+        val text = """
+            {
+              "version": 3,
+              "createdAt": 5,
+              "days": [{"id": 1, "name": "Tag 1"}],
+              "sessions": [{"dayId": 1, "completedAt": 4}],
+              "settings": {"appTitle": "", "deloadCycleWeeks": 5, "dayCount": 1}
+            }
+        """.trimIndent()
+        val restored = BackupCodec.decode(text)
+        assertNull(restored.settings.weeklyGoal)
+        assertEquals(5, restored.settings.deloadCycleWeeks)
+    }
+
+    @Test
+    fun dasWochenzielStehtLesbarInDerDatei() {
+        val text = BackupCodec.encode(sampleBackup())
+        assertTrue(text.contains("\"weeklyGoal\": 4"))
     }
 
     /** Art, Einheit und Pfeil stehen lesbar in der Datei – mit denselben Namen wie in der Datenbank. */

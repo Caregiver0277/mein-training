@@ -147,6 +147,7 @@ class BackupRepository(
                 BackupSettings(
                     appTitle = appTitle,
                     deloadCycleWeeks = deloadCycleWeeks,
+                    weeklyGoal = weeklyGoal,
                     dayCount = dayCount,
                     selectedDayId = selectedDayId,
                     hiddenTrackingNames = hiddenTrackingNames.toList(),
@@ -427,6 +428,7 @@ class BackupRepository(
         with(backup.settings) {
             settingsStore.setAppTitle(appTitle)
             deloadCycleWeeks?.let { settingsStore.setDeloadCycleWeeks(it) }
+            weeklyGoal?.let { settingsStore.setWeeklyGoal(it) }
             dayCount?.let { settingsStore.setDayCount(it) }
             settingsStore.setHiddenTrackingNames(hiddenTrackingNames.toSet())
             settingsStore.setHiddenExerciseNames(hiddenExerciseNames.toSet())

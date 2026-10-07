@@ -18,8 +18,11 @@ import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.timer.RestTimerSound
 import de.beispiel.meintraining.util.DEFAULT_DELOAD_CYCLE_WEEKS
+import de.beispiel.meintraining.util.DEFAULT_WEEKLY_GOAL
 import de.beispiel.meintraining.util.MAX_CYCLE_WEEKS
+import de.beispiel.meintraining.util.MAX_WEEKLY_GOAL
 import de.beispiel.meintraining.util.MIN_CYCLE_WEEKS
+import de.beispiel.meintraining.util.MIN_WEEKLY_GOAL
 import de.beispiel.meintraining.util.parseOptionalDecimal
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,6 +64,8 @@ data class SettingsUiState(
     val dayCount: Int = DEFAULT_DAY_COUNT,
     val appTitle: String = "",
     val deloadCycleWeeks: Int = DEFAULT_DELOAD_CYCLE_WEEKS,
+    /** Trainings pro Woche – das Wochenziel der Statistik. */
+    val weeklyGoal: Int = DEFAULT_WEEKLY_GOAL,
     /** Klingt am Ende einer Pause ein Ton? Vibriert wird unabhängig davon immer. */
     val timerSoundEnabled: Boolean = true,
     /** Wie laut dieser Ton ist, 0 bis 1. */
@@ -130,6 +135,8 @@ class SettingsViewModel(
         settings.copy(backupFailing = failing)
     }.combine(repository.keepScreenOn) { settings, keepOn ->
         settings.copy(keepScreenOn = keepOn)
+    }.combine(repository.weeklyGoal) { settings, goal ->
+        settings.copy(weeklyGoal = goal)
     }
 
     val uiState = combine(
@@ -153,6 +160,7 @@ class SettingsViewModel(
             dayCount = general.dayCount,
             appTitle = general.title,
             deloadCycleWeeks = general.cycleWeeks,
+            weeklyGoal = general.weeklyGoal,
             timerSoundEnabled = general.sound.enabled,
             timerSoundVolume = general.sound.volume,
             keepScreenOn = general.keepScreenOn,
@@ -281,6 +289,13 @@ class SettingsViewModel(
         viewModelScope.launch { repository.setDeloadCycleWeeks(weeks) }
     }
 
+    /** Wie die Zykluslänge: nur im erlaubten Bereich, sonst bliebe kein Wert eintippbar. */
+    fun onWeeklyGoalChange(input: String) {
+        val goal = input.trim().toIntOrNull() ?: return
+        if (goal !in MIN_WEEKLY_GOAL..MAX_WEEKLY_GOAL) return
+        viewModelScope.launch { repository.setWeeklyGoal(goal) }
+    }
+
     /** Die Werte aus den Einstellungen, gebündelt für den zusammengesetzten Fluss. */
     private data class GeneralSettings(
         val title: String,
@@ -290,7 +305,8 @@ class SettingsViewModel(
         val sound: TimerSound,
         /** Siehe [BackupRepository.autoBackupFailing]. */
         val backupFailing: Boolean = false,
-        val keepScreenOn: Boolean = false
+        val keepScreenOn: Boolean = false,
+        val weeklyGoal: Int = DEFAULT_WEEKLY_GOAL
     )
 
     /** Schalter und Regler des Tons am Pausenende. */

@@ -104,6 +104,7 @@ fun StatsScreen(uiState: StatsUiState, onBack: () -> Unit, modifier: Modifier = 
         ) {
             // Reihenfolge siehe oben.
             HeadlineTiles(uiState)
+            WeeklyGoalCard(uiState.goalWeeks, uiState.weeklyGoal)
             uiState.heatmap?.let { HeatmapCard(it) }
             ProgressCard(uiState)
             if (uiState.stagnating.isNotEmpty()) StagnationCard(uiState.stagnating)
