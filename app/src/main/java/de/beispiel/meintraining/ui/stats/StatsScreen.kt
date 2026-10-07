@@ -108,6 +108,7 @@ fun StatsScreen(uiState: StatsUiState, onBack: () -> Unit, modifier: Modifier = 
             uiState.heatmap?.let { HeatmapCard(it) }
             ProgressCard(uiState)
             if (uiState.stagnating.isNotEmpty()) StagnationCard(uiState.stagnating)
+            uiState.cardio?.let { CardioCard(it) }
             RotationCard(uiState.rotations, uiState.dayNames)
             WeekdayCard(uiState)
             RhythmCard(uiState)

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
 import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.repository.TrainingRepository
+import de.beispiel.meintraining.util.CardioTotals
 import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DEFAULT_WEEKLY_GOAL
 import de.beispiel.meintraining.util.DurationSummary
@@ -17,6 +18,7 @@ import de.beispiel.meintraining.util.RotationSummary
 import de.beispiel.meintraining.util.SessionTimes
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.WeekCount
+import de.beispiel.meintraining.util.cardioTotals
 import de.beispiel.meintraining.util.currentWeeklyStreak
 import de.beispiel.meintraining.util.durationSummary
 import de.beispiel.meintraining.util.currentStrengthWeights
@@ -60,6 +62,8 @@ data class StatsUiState(
     val heaviestExercise: Pair<String, Double>? = null,
     /** Ø Dauer gesamt und je Trainingstag; `null`, solange keine Dauer bekannt ist. */
     val duration: DurationSummary? = null,
+    /** Minuten und Kilometer der Cardio-Einheiten; `null` ohne eine einzige. */
+    val cardio: CardioTotals? = null,
     /** Bilanz der abgeschlossenen Runden; `null`, solange keine abgeschlossen ist. */
     val rotations: RotationSummary? = null,
     /** Namen der Trainingstage für [duration] und [rotations] – auch der hinter einer verkürzten Runde. */
@@ -83,7 +87,13 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
 
     val uiState = combine(
         repository.observeSessions(),
-        repository.observeWeightLogs(),
+        // Was je Übung mitgeschrieben wird: Gewichtsverlauf, Satz-Protokoll, Cardio-Einheiten.
+        combine(
+            repository.observeWeightLogs(),
+            repository.observeSetLogs(),
+            repository.observeCardioLogs(),
+            ::Triple
+        ),
         repository.observeAllExercises(),
         repository.observeDefinitions(),
         combine(
@@ -98,7 +108,7 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
         ) { today, dayCount, hidden, days, (goal, cuts) ->
             PlanView(today, dayCount, hidden, days.associate { it.id to it.name }, goal, cuts)
         }
-    ) { sessions, logs, exercises, definitions, plan ->
+    ) { sessions, (logs, setLogs, cardioLogs), exercises, definitions, plan ->
         val today = plan.today
         val zone = ZoneId.systemDefault()
         val dates = sessions.map { it.completedAt.toLocalDate() }
@@ -163,6 +173,7 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
             duration = durationSummary(
                 sessions.map { SessionTimes(it.dayId, it.startedAt, it.completedAt) }
             ),
+            cardio = cardioTotals(cardioLogs, today),
             rotations = rotationSummary(rotationEntries, plan.dayCount, today, plan.rotationCuts),
             dayNames = plan.dayNames
         )

@@ -1,10 +1,12 @@
 package de.beispiel.meintraining.util
 
+import de.beispiel.meintraining.data.model.CardioLog
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.ExerciseKind
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.PI
 import kotlin.math.abs
@@ -134,6 +136,54 @@ fun weeklyCounts(dates: List<LocalDate>, today: LocalDate, weeks: Int = GOAL_WEE
         val start = current.minusWeeks(back.toLong())
         WeekCount(start, counts[start] ?: 0)
     }
+}
+
+/** Minuten und Kilometer der Cardio-Einheiten einer Woche. */
+data class CardioWeek(val weekStart: LocalDate, val minutes: Double, val km: Double)
+
+/**
+ * Die Cardio-Bilanz: Minuten und Kilometer je Woche für die letzten [weeks] Wochen (älteste
+ * zuerst, die laufende zuletzt) und die Summen seit der ersten Einheit.
+ */
+data class CardioTotals(
+    val weeks: List<CardioWeek>,
+    val totalMinutes: Double,
+    val totalKm: Double,
+    /** Alle eingetragenen Einheiten. */
+    val sessions: Int
+)
+
+/**
+ * Rechnet die Cardio-Einheiten zur Bilanz zusammen; `null` ohne eine einzige.
+ *
+ * Gezählt wird jede eingetragene Einheit, auch die einer Übung, die inzwischen gelöscht, pausiert
+ * oder wieder Kraft ist: Gelaufen ist gelaufen. Ein fehlender Wert zählt als 0 – eine Einheit nur
+ * mit Dauer hat keine Kilometer beigetragen. Die Summen reichen über alles, auch über Einheiten,
+ * die durch einen Zeitzonenwechsel nach heute datiert sind; die Wochen nur bis heute.
+ */
+fun cardioTotals(
+    logs: List<CardioLog>,
+    today: LocalDate,
+    weeks: Int = GOAL_WEEKS,
+    zone: ZoneId = ZoneId.systemDefault()
+): CardioTotals? {
+    if (logs.isEmpty()) return null
+    val byWeek = logs.groupBy { it.performedAt.toLocalDate(zone).weekStart() }
+    val current = today.weekStart()
+    return CardioTotals(
+        weeks = (weeks - 1 downTo 0).map { back ->
+            val start = current.minusWeeks(back.toLong())
+            val inWeek = byWeek[start].orEmpty()
+            CardioWeek(
+                weekStart = start,
+                minutes = inWeek.sumOf { it.durationMin ?: 0.0 },
+                km = inWeek.sumOf { it.distanceKm ?: 0.0 }
+            )
+        },
+        totalMinutes = logs.sumOf { it.durationMin ?: 0.0 },
+        totalKm = logs.sumOf { it.distanceKm ?: 0.0 },
+        sessions = logs.size
+    )
 }
 
 /** Die Wochen (als ihr Montag), in denen mindestens [goal] Trainings stehen. */

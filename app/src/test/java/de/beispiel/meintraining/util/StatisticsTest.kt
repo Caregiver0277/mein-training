@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.util
 
+import de.beispiel.meintraining.data.model.CardioLog
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.ExerciseKind
 import org.junit.Assert.assertEquals
@@ -153,6 +154,41 @@ class StatisticsTest {
         // Die Woche vor zwölf Wochen liegt außerhalb, die Lücken stehen mit 0 darin.
         assertEquals(3, counts.sumOf { it.count })
         assertEquals(0, counts[GOAL_WEEKS - 2].count)
+    }
+
+    // --- Cardio -------------------------------------------------------------
+
+    private fun cardio(date: LocalDate, minutes: Double?, km: Double?) = CardioLog(
+        exerciseName = "Laufband",
+        dayId = 1,
+        performedAt = date.atTime(18, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+        durationMin = minutes,
+        distanceKm = km
+    )
+
+    @Test
+    fun ohneCardioGibtEsKeineCardioBilanz() {
+        assertNull(cardioTotals(emptyList(), TODAY))
+    }
+
+    @Test
+    fun cardioWirdJeWocheUndSeitBeginnSummiert() {
+        val logs = listOf(
+            cardio(TODAY, 30.0, 5.0),
+            cardio(TODAY.minusDays(2), 20.0, null),
+            cardio(TODAY.minusWeeks(2), null, 3.5),
+            // Vor dem Fenster der zwölf Wochen: nur in den Summen.
+            cardio(TODAY.minusWeeks(20), 45.0, 8.0)
+        )
+        val totals = cardioTotals(logs, TODAY)!!
+        assertEquals(GOAL_WEEKS, totals.weeks.size)
+        assertEquals(50.0, totals.weeks.last().minutes, 0.001)
+        assertEquals(5.0, totals.weeks.last().km, 0.001)
+        assertEquals(3.5, totals.weeks[GOAL_WEEKS - 3].km, 0.001)
+        assertEquals(0.0, totals.weeks[GOAL_WEEKS - 2].minutes, 0.001)
+        assertEquals(95.0, totals.totalMinutes, 0.001)
+        assertEquals(16.5, totals.totalKm, 0.001)
+        assertEquals(4, totals.sessions)
     }
 
     // --- Verteilungen ------------------------------------------------------

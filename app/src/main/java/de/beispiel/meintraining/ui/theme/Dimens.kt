@@ -103,6 +103,9 @@ object Dimens {
     val GoalBarMaxHeight = 72.dp
     val GoalLineWidth = 1.dp
 
+    // Statistiken: Cardio
+    val CardioBarMaxHeight = 40.dp
+
     // Statistiken: Kalender
     val HeatmapCellSize = 12.dp
     val HeatmapCellGap = 3.dp

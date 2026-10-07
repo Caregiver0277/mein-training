@@ -467,6 +467,18 @@
     <string name="stats_goal_reached">Ziel erreicht</string>
     <string name="stats_goal_reached_value">%1$d von %2$d Wochen</string>
     <string name="stats_days_decimal">%1$s Tage</string>
+    <string name="stats_cardio">Cardio</string>
+    <string name="stats_cardio_minutes_per_week">Minuten je Woche</string>
+    <string name="stats_cardio_km_per_week">Kilometer je Woche</string>
+    <!-- Der höchste Wert über den Balken, etwa „max. 120 min“. -->
+    <string name="stats_cardio_max">max. %1$s</string>
+    <string name="stats_cardio_this_week">Diese Woche</string>
+    <string name="stats_cardio_average">Ø je Woche (%1$d Wochen)</string>
+    <string name="stats_cardio_total">Seit Beginn</string>
+    <string name="stats_cardio_sessions">Einheiten</string>
+    <!-- Etwa „95 min · 12,4 km“. -->
+    <string name="stats_cardio_pair">%1$s · %2$s</string>
+    <string name="stats_km_value">%1$s km</string>
     <string name="stats_rounds">Runden</string>
     <string name="stats_rounds_none">Noch keine Runde abgeschlossen. Eine Runde ist durch, sobald jeder Tag einmal dran war oder der Pfeil neben dem Haken die nächste beginnt; ab dem Tag darauf steht sie hier.</string>
     <string name="stats_rounds_finished">Abgeschlossen</string>
