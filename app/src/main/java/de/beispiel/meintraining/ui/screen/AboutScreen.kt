@@ -82,6 +82,7 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     items = listOf(
                         stringResource(R.string.about_guide_history),
                         stringResource(R.string.about_guide_tracking),
+                        stringResource(R.string.about_guide_stats),
                         stringResource(R.string.about_guide_manage),
                         stringResource(R.string.about_guide_keep_screen_on)
                     )
