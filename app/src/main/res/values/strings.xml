@@ -72,7 +72,7 @@
     <string name="field_cardio_level">Stufe</string>
     <string name="hint_cardio_shared">Alle Zielwerte sind freiwillig und gelten an allen Tagen mit dieser Übung.</string>
     <string name="cardio_arrow_label">Der Pfeil in der Liste verschiebt</string>
-    <string name="cardio_arrow_none">Keinen Wert</string>
+    <string name="cardio_arrow_none">Keinen</string>
     <string name="cardio_value_duration">Dauer</string>
     <string name="cardio_value_distance">Distanz</string>
     <string name="cardio_value_speed">Tempo</string>

@@ -34,6 +34,12 @@ data class CardioUnits(
 /** Trennt die Werte einer Einheit: „20 min · 6 km/h · 8 %“. */
 private const val VALUE_SEPARATOR = " · "
 
+/**
+ * Zwischen Zahl und Einheit ein geschütztes Leerzeichen: Bricht eine lange Zeile um, dann an den
+ * Trennpunkten – und nicht so, dass das „%“ allein in der nächsten Zeile steht.
+ */
+const val UNIT_SPACE = '\u00A0'
+
 private const val METERS_PER_KM = 1000
 
 // --- Formatieren -------------------------------------------------------------
@@ -58,7 +64,7 @@ fun formatDurationValue(minutes: Double): String {
 
 /** `20.0 → "20 min"`, `7.5 → "7:30 min"`. */
 fun formatDuration(minutes: Double, units: CardioUnits): String =
-    "${formatDurationValue(minutes)} ${units.minutes}"
+    "${formatDurationValue(minutes)}$UNIT_SPACE${units.minutes}"
 
 /**
  * Eine Distanz: ab 1 km in km mit Komma (`3.4 → "3,4 km"`), darunter in Metern
@@ -69,22 +75,22 @@ fun formatDuration(minutes: Double, units: CardioUnits): String =
 fun formatDistance(km: Double, units: CardioUnits): String {
     val meters = (km * METERS_PER_KM).roundToLong().coerceAtLeast(0)
     return if (meters < METERS_PER_KM) {
-        "$meters ${units.meters}"
+        "$meters$UNIT_SPACE${units.meters}"
     } else {
-        "${km.toDecimalString()} ${units.kilometers}"
+        "${km.toDecimalString()}$UNIT_SPACE${units.kilometers}"
     }
 }
 
 /** `6.5, KMH → "6,5 km/h"`, `8.0, LEVEL → "Stufe 8"`. */
 fun formatIntensity(value: Double, unit: IntensityUnit, units: CardioUnits): String =
     when (unit) {
-        IntensityUnit.KMH -> "${value.toDecimalString()} ${units.kmh}"
-        IntensityUnit.LEVEL -> "${units.level} ${value.toDecimalString()}"
+        IntensityUnit.KMH -> "${value.toDecimalString()}$UNIT_SPACE${units.kmh}"
+        IntensityUnit.LEVEL -> "${units.level}$UNIT_SPACE${value.toDecimalString()}"
     }
 
 /** `8.0 → "8 %"`, `2.5 → "2,5 %"`. */
 fun formatIncline(percent: Double, units: CardioUnits): String =
-    "${percent.toDecimalString()} ${units.percent}"
+    "${percent.toDecimalString()}$UNIT_SPACE${units.percent}"
 
 /**
  * Ein einzelner Wert in seiner Schreibweise – für alles, was von genau einem Wert spricht: den

@@ -157,27 +157,25 @@ private fun ExerciseEditSheetContent(
             ),
         verticalArrangement = Arrangement.spacedBy(Dimens.SheetFieldSpacing)
     ) {
-        // Der Umschalter steht ganz oben neben dem Titel: Er entscheidet, welche Felder folgen.
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(
-                    if (form.isEditMode) R.string.sheet_title_edit else R.string.sheet_title_add
-                ),
-                style = AppTextStyles.Title,
-                color = TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            SegmentToggle(
-                labels = listOf(
-                    stringResource(R.string.kind_strength),
-                    stringResource(R.string.kind_cardio)
-                ),
-                selectedIndex = form.kind.ordinal,
-                onSelect = { onFormChange(form.copy(kind = ExerciseKind.entries[it])) },
-                segmentWidth = Dimens.KindToggleWidth,
-                modifier = Modifier.padding(start = Dimens.SectionSpacingMedium)
-            )
-        }
+        Text(
+            text = stringResource(
+                if (form.isEditMode) R.string.sheet_title_edit else R.string.sheet_title_add
+            ),
+            style = AppTextStyles.Title,
+            color = TextPrimary
+        )
+
+        // Der Umschalter steht ganz oben, noch vor dem Namen: Er entscheidet, welche Felder
+        // folgen. Eine eigene Zeile statt neben dem Titel – dort bräche „Übung hinzufügen“ um.
+        SegmentToggle(
+            labels = listOf(
+                stringResource(R.string.kind_strength),
+                stringResource(R.string.kind_cardio)
+            ),
+            selectedIndex = form.kind.ordinal,
+            onSelect = { onFormChange(form.copy(kind = ExerciseKind.entries[it])) },
+            segmentWidth = Dimens.KindToggleWidth
+        )
 
         // Wer auf „+“ drückt, will sofort tippen – der Cursor springt deshalb ins neue Feld.
         // Beim Bearbeiten einer Übung, die schon eine Variation hat, passiert das nicht:

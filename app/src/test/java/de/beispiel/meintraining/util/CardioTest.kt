@@ -28,13 +28,13 @@ class CardioTest {
 
     @Test
     fun ganzeMinutenOhneSekunden() {
-        assertEquals("20 min", formatDuration(20.0, UNITS))
+        assertEquals("20\u00A0min", formatDuration(20.0, UNITS))
         assertEquals("20", formatDurationValue(20.0))
     }
 
     @Test
     fun bruchteileAlsMinutenUndSekunden() {
-        assertEquals("7:30 min", formatDuration(7.5, UNITS))
+        assertEquals("7:30\u00A0min", formatDuration(7.5, UNITS))
         assertEquals("0:45", formatDurationValue(0.75))
         assertEquals("7:05", formatDurationValue(7 + 5 / 60.0))
     }
@@ -81,35 +81,35 @@ class CardioTest {
 
     @Test
     fun distanzAbEinemKilometerInKm() {
-        assertEquals("1 km", formatDistance(1.0, UNITS))
-        assertEquals("3,4 km", formatDistance(3.4, UNITS))
-        assertEquals("5,25 km", formatDistance(5.25, UNITS))
+        assertEquals("1\u00A0km", formatDistance(1.0, UNITS))
+        assertEquals("3,4\u00A0km", formatDistance(3.4, UNITS))
+        assertEquals("5,25\u00A0km", formatDistance(5.25, UNITS))
     }
 
     @Test
     fun distanzUnterEinemKilometerInMetern() {
-        assertEquals("800 m", formatDistance(0.8, UNITS))
-        assertEquals("250 m", formatDistance(0.25, UNITS))
-        assertEquals("0 m", formatDistance(0.0, UNITS))
+        assertEquals("800\u00A0m", formatDistance(0.8, UNITS))
+        assertEquals("250\u00A0m", formatDistance(0.25, UNITS))
+        assertEquals("0\u00A0m", formatDistance(0.0, UNITS))
         // Erst runden, dann entscheiden: knapp unter 1 km ist auf den Meter genau 1 km.
-        assertEquals("1 km", formatDistance(0.9996, UNITS))
+        assertEquals("1\u00A0km", formatDistance(0.9996, UNITS))
     }
 
     @Test
     fun tempoUndStufe() {
-        assertEquals("6,5 km/h", formatIntensity(6.5, IntensityUnit.KMH, UNITS))
-        assertEquals("Stufe 8", formatIntensity(8.0, IntensityUnit.LEVEL, UNITS))
-        assertEquals("8 %", formatIncline(8.0, UNITS))
-        assertEquals("2,5 %", formatIncline(2.5, UNITS))
+        assertEquals("6,5\u00A0km/h", formatIntensity(6.5, IntensityUnit.KMH, UNITS))
+        assertEquals("Stufe\u00A08", formatIntensity(8.0, IntensityUnit.LEVEL, UNITS))
+        assertEquals("8\u00A0%", formatIncline(8.0, UNITS))
+        assertEquals("2,5\u00A0%", formatIncline(2.5, UNITS))
     }
 
     @Test
     fun einzelnerWertInSeinerSchreibweise() {
-        assertEquals("7:30 min", formatCardioValue(CardioValue.DURATION, 7.5, null, UNITS))
-        assertEquals("500 m", formatCardioValue(CardioValue.DISTANCE, 0.5, null, UNITS))
-        assertEquals("Stufe 1", formatCardioValue(CardioValue.INTENSITY, 1.0, IntensityUnit.LEVEL, UNITS))
-        assertEquals("0,1 km/h", formatCardioValue(CardioValue.INTENSITY, 0.1, null, UNITS))
-        assertEquals("0,5 %", formatCardioValue(CardioValue.INCLINE, 0.5, null, UNITS))
+        assertEquals("7:30\u00A0min", formatCardioValue(CardioValue.DURATION, 7.5, null, UNITS))
+        assertEquals("500\u00A0m", formatCardioValue(CardioValue.DISTANCE, 0.5, null, UNITS))
+        assertEquals("Stufe\u00A01", formatCardioValue(CardioValue.INTENSITY, 1.0, IntensityUnit.LEVEL, UNITS))
+        assertEquals("0,1\u00A0km/h", formatCardioValue(CardioValue.INTENSITY, 0.1, null, UNITS))
+        assertEquals("0,5\u00A0%", formatCardioValue(CardioValue.INCLINE, 0.5, null, UNITS))
     }
 
     // --- Eine ganze Einheit ------------------------------------------------
@@ -123,30 +123,30 @@ class CardioTest {
             intensityUnit = IntensityUnit.KMH,
             inclinePercent = 8.0
         )
-        assertEquals("22 min · 3,4 km · 6 km/h · 8 %", formatCardioValues(values, UNITS))
+        assertEquals("22\u00A0min · 3,4\u00A0km · 6\u00A0km/h · 8\u00A0%", formatCardioValues(values, UNITS))
     }
 
     @Test
     fun nurDieGesetztenWerte() {
         val values = CardioValues(durationMin = 20.0, intensity = 6.0, intensityUnit = IntensityUnit.KMH, inclinePercent = 8.0)
-        assertEquals("20 min · 6 km/h · 8 %", formatCardioValues(values, UNITS))
+        assertEquals("20\u00A0min · 6\u00A0km/h · 8\u00A0%", formatCardioValues(values, UNITS))
         assertNull(formatCardioValues(CardioValues(), UNITS))
     }
 
     @Test
     fun beiEinerStreckeStehtDieDistanzVorn() {
         val values = CardioValues(durationMin = 30.0, distanceKm = 5.0)
-        assertEquals("5 km · 30 min", formatCardioValues(values, UNITS, distanceFirst = true))
-        assertEquals("30 min · 5 km", formatCardioValues(values, UNITS))
+        assertEquals("5\u00A0km · 30\u00A0min", formatCardioValues(values, UNITS, distanceFirst = true))
+        assertEquals("30\u00A0min · 5\u00A0km", formatCardioValues(values, UNITS))
     }
 
     @Test
     fun dieEinheitDesTempoZaehltNurMitTempo() {
         val ziele = CardioTargets(durationMin = 20.0, intensityUnit = IntensityUnit.LEVEL)
         assertNull(ziele.values.intensityUnit)
-        assertEquals("20 min", formatCardioValues(ziele.values, UNITS))
+        assertEquals("20\u00A0min", formatCardioValues(ziele.values, UNITS))
         val mitStufe = ziele.copy(intensity = 8.0)
-        assertEquals("20 min · Stufe 8", formatCardioValues(mitStufe.values, UNITS))
+        assertEquals("20\u00A0min · Stufe\u00A08", formatCardioValues(mitStufe.values, UNITS))
     }
 
     // --- Der Pfeil ---------------------------------------------------------
@@ -204,7 +204,7 @@ class CardioTest {
         val letztes = lastCardioEntry(logs, today = LocalDate.of(2026, 10, 7), zone = zone)!!
         assertEquals(3, letztes.daysAgo)
         assertEquals(LocalDate.of(2026, 10, 4), letztes.date)
-        assertEquals("22 min · 3,4 km", formatCardioValues(letztes.values, UNITS))
+        assertEquals("22\u00A0min · 3,4\u00A0km", formatCardioValues(letztes.values, UNITS))
         // Eine zurückgestellte Uhr: nie „vor -1 Tagen“.
         assertEquals(0, lastCardioEntry(logs, today = LocalDate.of(2026, 10, 3), zone = zone)!!.daysAgo)
         assertNull(lastCardioEntry(emptyList(), today = LocalDate.of(2026, 10, 7), zone = zone))
