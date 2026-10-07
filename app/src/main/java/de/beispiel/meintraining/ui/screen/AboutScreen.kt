@@ -63,6 +63,7 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         stringResource(R.string.about_guide_edit),
                         stringResource(R.string.about_guide_progress),
                         stringResource(R.string.about_guide_sets),
+                        stringResource(R.string.about_guide_cardio),
                         stringResource(R.string.about_guide_select),
                         stringResource(R.string.about_guide_check),
                         stringResource(R.string.about_guide_cycle)
