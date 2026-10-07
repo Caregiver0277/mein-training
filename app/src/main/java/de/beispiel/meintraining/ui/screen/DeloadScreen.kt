@@ -256,6 +256,7 @@ private fun RulesCard(cycleWeeks: Int) {
         )
         BulletPoint(text = stringResource(R.string.deload_rule_sets))
         BulletPoint(text = stringResource(R.string.deload_rule_weights))
+        BulletPoint(text = stringResource(R.string.deload_rule_cardio))
         BulletPoint(text = stringResource(R.string.deload_rule_cycle, cycleWeeks))
         BulletPoint(text = stringResource(R.string.deload_rule_rest, REST_RESETS_CYCLE_DAYS.toInt()))
         BulletPoint(text = stringResource(R.string.deload_rule_display))

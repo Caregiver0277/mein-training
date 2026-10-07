@@ -462,6 +462,7 @@
     <string name="deload_rules_title">So wird gerechnet</string>
     <string name="deload_rule_sets">Im Deload werden die Sätze halbiert und aufgerundet: aus 3 werden 2, aus 4 werden 2.</string>
     <string name="deload_rule_weights">Die Gewichte bleiben unverändert.</string>
+    <string name="deload_rule_cardio">Cardio bleibt unverändert: Zielwerte und Pfeil gelten wie in jeder anderen Woche.</string>
     <string name="deload_rule_cycle">Gezählt wird durchgehendes Training, nicht der Kalender: In der %1$d. Trainingswoche eines Blocks ist Deload.</string>
     <!-- Eine feste Zahl weit über 1 (REST_RESETS_CYCLE_DAYS): Die Einzahl kommt nie vor. -->
     <string name="deload_rule_rest" tools:ignore="PluralsCandidate">Ab %1$d Tagen ohne Training zählt die Pause selbst als Deload – der Block beginnt danach von vorn.</string>
