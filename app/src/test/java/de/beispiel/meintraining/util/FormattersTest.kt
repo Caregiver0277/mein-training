@@ -116,4 +116,10 @@ class FormattersTest {
         assertNull(noteLine(""))
         assertNull(noteLine(" \n  "))
     }
+
+    @Test
+    fun monatUndJahrFuerDiePrognose() {
+        assertEquals("März 2027", formatMonthYear(LocalDate.of(2027, 3, 14)))
+        assertEquals("Dezember 2026", formatMonthYear(LocalDate.of(2026, 12, 1)))
+    }
 }

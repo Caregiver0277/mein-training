@@ -47,6 +47,7 @@ fun Double.toDecimalString(): String =
 private val FULL_DATE = DateTimeFormatter.ofPattern("EEE, d. MMMM yyyy", Locale.GERMANY)
 private val SHORT_DATE = DateTimeFormatter.ofPattern("d. MMM", Locale.GERMANY)
 private val CLOCK_TIME = DateTimeFormatter.ofPattern("HH:mm", Locale.GERMANY)
+private val MONTH_YEAR = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.GERMANY)
 
 /** Zeitstempel als Datum in der Zeitzone des Geräts. */
 fun Long.toLocalDate(zone: ZoneId = ZoneId.systemDefault()): LocalDate =
@@ -61,6 +62,9 @@ fun formatClockTime(time: LocalTime): String = CLOCK_TIME.format(time)
 
 /** `"Sa, 2. August 2026"` – für den Verlauf. */
 fun formatFullDate(date: LocalDate): String = FULL_DATE.format(date)
+
+/** `"März 2027"` – für die Prognose, die nicht genauer sein will als auf den Monat. */
+fun formatMonthYear(date: LocalDate): String = MONTH_YEAR.format(date)
 
 /** `"2. Aug"` – wo wenig Platz ist. */
 fun formatShortDate(date: LocalDate): String = SHORT_DATE.format(date)
