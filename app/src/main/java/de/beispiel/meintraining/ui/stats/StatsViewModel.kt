@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import de.beispiel.meintraining.MeinTrainingApp
+import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.util.CurrentDate
 import de.beispiel.meintraining.util.DurationSummary
@@ -13,6 +14,7 @@ import de.beispiel.meintraining.util.SessionTimes
 import de.beispiel.meintraining.util.StagnatingExercise
 import de.beispiel.meintraining.util.currentWeeklyStreak
 import de.beispiel.meintraining.util.durationSummary
+import de.beispiel.meintraining.util.currentStrengthWeights
 import de.beispiel.meintraining.util.exerciseGains
 import de.beispiel.meintraining.util.longestWeeklyStreak
 import de.beispiel.meintraining.util.sessionsPerWeek
@@ -92,17 +94,20 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
         }
         val plannedNames = planned.mapTo(HashSet()) { it.name }
         val decreasing = definitions.filter { it.progressionDown }.mapTo(HashSet()) { it.name }
+        // Cardio bleibt bei Zuwachs, „Festgefahren“ und „Schwerste Übung“ außen vor – auch mit
+        // einem Gewichtsverlauf aus der Zeit, als die Übung noch Kraft war.
+        val cardio = definitions.filter { it.kind == ExerciseKind.CARDIO }.mapTo(HashSet()) { it.name }
 
         // Verlaufseinträge kommen älteste zuerst – genau die Reihenfolge, die der Zuwachs braucht.
-        val gains = exerciseGains(logs.map { it.exerciseName to it.weightKg }, decreasing)
+        val gains = exerciseGains(
+            logs.filter { it.exerciseName !in cardio }.map { it.exerciseName to it.weightKg },
+            decreasing
+        )
         val lastChanged = logs.groupBy { it.exerciseName }
             .mapValues { (_, entries) -> entries.maxOf { it.recordedAt } }
         val plannedDays = planned.groupBy({ it.name }, { it.dayId })
             .mapValues { (_, dayIds) -> dayIds.toSet() }
-        val currentWeights = definitions
-            .filter { it.name in plannedNames }
-            .mapNotNull { definition -> definition.weightKg?.let { definition.name to it } }
-            .toMap()
+        val currentWeights = currentStrengthWeights(definitions, plannedNames)
         StatsUiState(
             totalSessions = sessions.size,
             sessionsPerWeek = sessionsPerWeek(dates, today),

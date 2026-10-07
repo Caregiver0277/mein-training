@@ -1,5 +1,7 @@
 package de.beispiel.meintraining.util
 
+import de.beispiel.meintraining.data.model.ExerciseDefinition
+import de.beispiel.meintraining.data.model.ExerciseKind
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -157,6 +159,22 @@ fun exerciseGains(
         }
         .filter { it.gainKg > 0.0 }
         .sortedByDescending { it.gainKg }
+
+/**
+ * Das eingetragene Gewicht jeder Kraftübung unter [names] – Grundlage für „Festgefahren“ und
+ * „Schwerste Übung“.
+ *
+ * Cardio-Übungen fehlen, auch wenn sie aus ihrer Zeit als Kraftübung noch ein Gewicht tragen:
+ * Sie werden nicht über ein Gewicht gesteigert, stünden sonst bald für immer als festgefahren da
+ * – und ihre Auswertung kommt aus den eingetragenen Einheiten.
+ */
+fun currentStrengthWeights(
+    definitions: List<ExerciseDefinition>,
+    names: Set<String>
+): Map<String, Double> = definitions
+    .filter { it.name in names && it.kind == ExerciseKind.STRENGTH }
+    .mapNotNull { definition -> definition.weightKg?.let { definition.name to it } }
+    .toMap()
 
 /**
  * Übungen, deren Gewicht seit mindestens [minSessions] Trainings steht.

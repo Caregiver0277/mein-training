@@ -1,5 +1,7 @@
 package de.beispiel.meintraining.util
 
+import de.beispiel.meintraining.data.model.ExerciseDefinition
+import de.beispiel.meintraining.data.model.ExerciseKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -13,6 +15,21 @@ import java.time.ZoneId
 private val TODAY: LocalDate = LocalDate.of(2026, 8, 2)
 
 class StatisticsTest {
+
+    @Test
+    fun cardioZaehltNichtBeiDenGewichten() {
+        val definitions = listOf(
+            ExerciseDefinition(name = "Kreuzheben", weightKg = 120.0),
+            // Ein Gewicht aus der Zeit als Kraftübung – trotzdem außen vor.
+            ExerciseDefinition(name = "Rudergerät", weightKg = 200.0, kind = ExerciseKind.CARDIO),
+            ExerciseDefinition(name = "Curls"),
+            ExerciseDefinition(name = "Bankdrücken", weightKg = 80.0)
+        )
+        assertEquals(
+            mapOf("Kreuzheben" to 120.0),
+            currentStrengthWeights(definitions, setOf("Kreuzheben", "Rudergerät", "Curls"))
+        )
+    }
 
     // --- Häufigkeit --------------------------------------------------------
 
