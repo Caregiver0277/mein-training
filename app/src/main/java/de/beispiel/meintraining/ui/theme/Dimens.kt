@@ -55,6 +55,9 @@ object Dimens {
 
     /** Ein Reiter des Umschalters „kg | %“ – schmal, er teilt sich die Kopfzeile. */
     val UnitToggleWidth = 40.dp
+
+    /** „Wert | %“ im Tracking unter Cardio – „Wert“ braucht mehr Platz als „kg“. */
+    val UnitToggleWideWidth = 52.dp
     val UnitToggleHeight = 32.dp
 
     /** Ein Reiter von „Kraft | Cardio“ unter dem Titel des Bearbeiten-Sheets. */

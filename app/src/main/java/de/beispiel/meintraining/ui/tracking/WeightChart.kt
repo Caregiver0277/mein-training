@@ -79,7 +79,12 @@ fun WeightChart(
     ticks: List<AxisTick>,
     emptyText: String,
     modifier: Modifier = Modifier,
-    isPercent: Boolean = false
+    isPercent: Boolean = false,
+    /**
+     * Der Wert eines Punkts als Text samt Einheit, für die Beschriftung am Cursor – unter Cardio
+     * etwa „22:30 min“ oder „Stufe 8“; ohne Angabe Kilogramm.
+     */
+    valueLabel: ((value: Double, line: ChartSeries) -> String)? = null
 ) {
     val measurer = rememberTextMeasurer()
     val axisStyle = AppTextStyles.ColumnLabel.copy(color = TextSecondary)
@@ -128,7 +133,9 @@ fun WeightChart(
         val selectedLine = selection?.let { series.getOrNull(it.seriesIndex) }
         val selectedPoint = selection?.let { selectedLine?.points?.getOrNull(it.pointIndex) }
         val cursorLabel = selectedPoint?.let { point ->
-            val details = cursorDetails(point, isPercent)
+            val value = selectedLine?.let { line -> valueLabel?.invoke(point.weightKg, line) }
+                ?: stringResource(R.string.tracking_value_kg, point.weightKg.toDecimalString())
+            val details = cursorDetails(point, isPercent, value)
             remember(selectedLine, point, details, measurer) {
                 measurer.measure(
                     text = buildAnnotatedString {
@@ -265,22 +272,22 @@ private fun Density.plotArea(width: Float, height: Float, labelInset: Float): Pl
 /**
  * Zweite Zeile der Beschriftung am Cursor: „60 kg · 18. Sept.“, in Prozent
  * „60 kg · +12,5 % · 18. Sept.“. Liegt das Datum nicht im laufenden Jahr, steht das Jahr dabei.
+ * [value] ist der Wert samt Einheit – „60 kg“, unter Cardio „22:30 min“.
  */
 @Composable
-private fun cursorDetails(point: ChartPoint, isPercent: Boolean): String {
-    val weight = point.weightKg.toDecimalString()
+private fun cursorDetails(point: ChartPoint, isPercent: Boolean, value: String): String {
     val date = formatShortDate(point.recordedAt.toLocalDate(), LocalDate.now())
     val percent = point.percent?.let(::roundedPercent)
     return if (isPercent && percent != null) {
         stringResource(
             R.string.tracking_cursor_percent,
-            weight,
+            value,
             // Der Anfang der Kurve ist schlicht „0 %“, ohne Vorzeichen.
             if (percent == 0.0) percent.toDecimalString() else percent.toSignedDecimalString(),
             date
         )
     } else {
-        stringResource(R.string.tracking_cursor_kg, weight, date)
+        stringResource(R.string.tracking_cursor, value, date)
     }
 }
 

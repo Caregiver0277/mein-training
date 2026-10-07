@@ -200,11 +200,26 @@
     <string name="cd_tracking_unit_percent">Veränderung in Prozent zeigen</string>
     <!-- Beschriftung der Y-Achse in der %-Ansicht: „10 %“, „−5 %“. -->
     <string name="tracking_axis_percent">%1$s %%</string>
-    <!-- Beschriftung am Cursor im Tracking-Graphen, unter dem Namen der Übung. -->
-    <string name="tracking_cursor_kg">%1$s kg · %2$s</string>
-    <string name="tracking_cursor_percent">%1$s kg · %2$s %% · %3$s</string>
+    <!-- Beschriftung am Cursor im Tracking-Graphen, unter dem Namen der Übung; %1$s ist der Wert samt Einheit. -->
+    <string name="tracking_value_kg">%1$s kg</string>
+    <string name="tracking_cursor">%1$s · %2$s</string>
+    <string name="tracking_cursor_percent">%1$s · %2$s %% · %3$s</string>
     <!-- Legende in der %-Ansicht für eine Kurve, die bei 0 kg beginnt. -->
     <string name="tracking_legend_no_base">%1$s (beginnt bei 0 kg, kein Prozentwert)</string>
+
+    <!-- Tracking unter „Cardio“ -->
+    <string name="tracking_kind_label">Kraft oder Cardio</string>
+    <string name="tracking_value_label">Wert</string>
+    <string name="cd_tracking_unit_value">Werte zeigen</string>
+    <string name="tracking_cardio_duration">Dauer</string>
+    <string name="tracking_cardio_distance">Distanz</string>
+    <string name="tracking_cardio_intensity">Tempo/Stufe</string>
+    <string name="tracking_cardio_incline">Steigung</string>
+    <string name="tracking_cardio_empty">Noch keine Cardio-Einheiten mit diesem Wert eingetragen.</string>
+    <string name="tracking_cardio_empty_range">In diesem Zeitraum gibt es keine Cardio-Einheiten mit diesem Wert.</string>
+    <string name="tracking_cardio_empty_percent">Alle gewählten Kurven beginnen bei 0 – ohne Bezugswert gibt es keine Prozente.</string>
+    <string name="tracking_cardio_legend_no_base">%1$s (beginnt bei 0, kein Prozentwert)</string>
+    <string name="tracking_cardio_points_hint">Löschen nimmt die ganze Einheit heraus, mit allen ihren Werten.</string>
 
     <!-- Einstellungen -->
     <string name="settings_general">Allgemein</string>

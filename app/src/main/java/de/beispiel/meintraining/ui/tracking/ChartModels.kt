@@ -1,6 +1,7 @@
 package de.beispiel.meintraining.ui.tracking
 
 import de.beispiel.meintraining.data.model.ExerciseItem
+import de.beispiel.meintraining.data.model.IntensityUnit
 import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.util.toDecimalString
 import java.time.Instant
@@ -61,7 +62,12 @@ data class ChartSeries(
      * ohne Punkte in der Liste stehen, damit die Legende sie vermerken kann und die übrigen
      * Kurven ihre Farben aus der kg-Ansicht behalten.
      */
-    val hasNoPercentBase: Boolean = false
+    val hasNoPercentBase: Boolean = false,
+    /**
+     * Bei einer Cardio-Kurve des Tempos: km/h oder Stufe – für die Beschriftung am Cursor. Sonst
+     * `null`.
+     */
+    val intensityUnit: IntensityUnit? = null
 ) {
     /**
      * Die Linie, zerlegt in Stücke gleicher Art: echte Strecken zwischen zwei Änderungen und
@@ -143,6 +149,18 @@ fun timeWindowFor(
     logs: List<WeightLog>,
     now: Long,
     zone: ZoneId = ZoneId.systemDefault()
+): TimeWindow = timeWindowFor(range, manualYear, logs.minOfOrNull { it.recordedAt }, now, zone)
+
+/**
+ * Dasselbe mit dem Zeitpunkt des ältesten Eintrags [firstMillis] statt der Einträge selbst – für
+ * die Cardio-Einheiten, deren Zeitpunkt anders heißt. Ohne Eintrag `null`.
+ */
+fun timeWindowFor(
+    range: TimeRange,
+    manualYear: Int,
+    firstMillis: Long?,
+    now: Long,
+    zone: ZoneId = ZoneId.systemDefault()
 ): TimeWindow = when (range) {
     TimeRange.MONTH_1 -> pastWindow(now, DAYS_PER_MONTH)
     TimeRange.MONTHS_3 -> pastWindow(now, MONTHS_3_DAYS)
@@ -155,7 +173,7 @@ fun timeWindowFor(
         TimeWindow(start, end)
     }
     TimeRange.TOTAL -> {
-        val start = logs.minOfOrNull { it.recordedAt } ?: now
+        val start = firstMillis ?: now
         val end = maxOf(now, start + TOTAL_MIN_SPAN_DAYS.days())
         TimeWindow(start, end + forwardBuffer(end - start))
     }

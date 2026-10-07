@@ -55,7 +55,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.annotation.StringRes
+import androidx.compose.ui.unit.Dp
 import de.beispiel.meintraining.R
+import de.beispiel.meintraining.data.model.CardioValue
+import de.beispiel.meintraining.ui.components.SegmentToggle
+import de.beispiel.meintraining.ui.components.cardioUnits
 import de.beispiel.meintraining.ui.theme.AccentBlue
 import de.beispiel.meintraining.ui.theme.AccentRed
 import de.beispiel.meintraining.ui.theme.AppTextStyles
@@ -69,6 +74,7 @@ import de.beispiel.meintraining.ui.theme.TabInactiveText
 import de.beispiel.meintraining.ui.theme.TextDisabled
 import de.beispiel.meintraining.ui.theme.TextPrimary
 import de.beispiel.meintraining.ui.theme.TextSecondary
+import de.beispiel.meintraining.util.formatCardioValue
 import de.beispiel.meintraining.util.formatFullDate
 import de.beispiel.meintraining.util.toClockTime
 import de.beispiel.meintraining.util.toLocalDate
@@ -89,6 +95,8 @@ fun TrackingRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
         onRangeSelected = viewModel::onRangeSelected,
         onManualYearSelected = viewModel::onManualYearSelected,
         onPercentSelected = viewModel::onPercentSelected,
+        onKindSelected = viewModel::onKindSelected,
+        onCardioValueSelected = viewModel::onCardioValueSelected,
         onPickerOpen = viewModel::onPickerOpen,
         onPickerDismiss = viewModel::onPickerDismiss,
         onExerciseToggled = viewModel::onExerciseToggled,
@@ -107,6 +115,8 @@ fun TrackingScreen(
     onRangeSelected: (TimeRange) -> Unit,
     onManualYearSelected: (Int) -> Unit,
     onPercentSelected: (Boolean) -> Unit,
+    onKindSelected: (TrackingKind) -> Unit,
+    onCardioValueSelected: (CardioValue) -> Unit,
     onPickerOpen: () -> Unit,
     onPickerDismiss: () -> Unit,
     onExerciseToggled: (String) -> Unit,
@@ -116,6 +126,8 @@ fun TrackingScreen(
     onDeletePoint: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isCardio = uiState.kind == TrackingKind.CARDIO
+    val units = cardioUnits()
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -143,7 +155,11 @@ fun TrackingScreen(
                     .weight(1f)
                     .padding(start = Dimens.SectionSpacingSmall)
             )
-            UnitToggle(isPercent = uiState.isPercent, onPercentSelected = onPercentSelected)
+            UnitToggle(
+                isPercent = uiState.isPercent,
+                isCardio = isCardio,
+                onPercentSelected = onPercentSelected
+            )
             IconButton(onClick = onPickerOpen, modifier = Modifier.size(Dimens.TouchTargetSize)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.List,
@@ -153,6 +169,15 @@ fun TrackingScreen(
                 )
             }
         }
+
+        KindSelector(
+            kind = uiState.kind,
+            cardioValue = uiState.cardioValue,
+            onKindSelected = onKindSelected,
+            onCardioValueSelected = onCardioValueSelected
+        )
+
+        Spacer(modifier = Modifier.height(Dimens.SectionSpacingSmall))
 
         RangeSelector(
             selected = uiState.range,
@@ -171,21 +196,33 @@ fun TrackingScreen(
             emptyText = stringResource(
                 when (uiState.emptyReason) {
                     ChartEmptyReason.NOTHING_SELECTED -> R.string.tracking_empty_selection
-                    ChartEmptyReason.NOTHING_IN_RANGE -> R.string.tracking_empty_range
-                    ChartEmptyReason.NO_PERCENT_BASE -> R.string.tracking_empty_percent
-                    else -> R.string.tracking_empty
+                    ChartEmptyReason.NOTHING_IN_RANGE ->
+                        if (isCardio) R.string.tracking_cardio_empty_range else R.string.tracking_empty_range
+                    ChartEmptyReason.NO_PERCENT_BASE ->
+                        if (isCardio) R.string.tracking_cardio_empty_percent else R.string.tracking_empty_percent
+                    else -> if (isCardio) R.string.tracking_cardio_empty else R.string.tracking_empty
                 }
             ),
-            isPercent = uiState.isPercent
+            isPercent = uiState.isPercent,
+            valueLabel = if (isCardio) {
+                { value, line -> formatCardioValue(uiState.cardioValue, value, line.intensityUnit, units) }
+            } else {
+                null
+            }
         )
 
         Spacer(modifier = Modifier.height(Dimens.SectionSpacingMedium))
 
-        Legend(series = uiState.series, modifier = Modifier.verticalScroll(rememberScrollState()))
+        Legend(
+            series = uiState.series,
+            noBaseText = if (isCardio) R.string.tracking_cardio_legend_no_base else R.string.tracking_legend_no_base,
+            modifier = Modifier.verticalScroll(rememberScrollState())
+        )
     }
 
     if (uiState.pickerOpen) {
         ExercisePickerDialog(
+            emptyText = stringResource(if (isCardio) R.string.tracking_cardio_empty else R.string.tracking_empty),
             names = uiState.trackedNames,
             visibleNames = uiState.visibleNames,
             allVisible = uiState.allVisible,
@@ -202,6 +239,7 @@ fun TrackingScreen(
         DataPointsDialog(
             exerciseName = name,
             points = uiState.points,
+            cardioValue = if (isCardio) uiState.cardioValue else null,
             onDeletePoint = onDeletePoint,
             onDismiss = onPointsDismiss
         )
@@ -219,10 +257,13 @@ fun TrackingScreen(
 private fun DataPointsDialog(
     exerciseName: String,
     points: List<TrackedPoint>,
+    /** Unter Cardio der Wert der Kurve; `null` bei den Gewichten. */
+    cardioValue: CardioValue?,
     onDeletePoint: (Long) -> Unit,
     onDismiss: () -> Unit
 ) {
     val unit = stringResource(R.string.unit_kg)
+    val cardioUnits = cardioUnits()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -253,6 +294,13 @@ private fun DataPointsDialog(
                         style = AppTextStyles.ColumnLabel,
                         color = TextSecondary
                     )
+                    if (cardioValue != null) {
+                        Text(
+                            text = stringResource(R.string.tracking_cardio_points_hint),
+                            style = AppTextStyles.ColumnLabel,
+                            color = TextSecondary
+                        )
+                    }
                     points.forEach { point ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -260,7 +308,11 @@ private fun DataPointsDialog(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = point.weightKg.toWeightLabel(unit),
+                                    text = if (cardioValue != null) {
+                                        formatCardioValue(cardioValue, point.weightKg, point.intensityUnit, cardioUnits)
+                                    } else {
+                                        point.weightKg.toWeightLabel(unit)
+                                    },
                                     style = AppTextStyles.Body,
                                     color = TextPrimary
                                 )
@@ -302,17 +354,22 @@ private fun DataPointsDialog(
  * gelesen wird.
  */
 @Composable
-private fun UnitToggle(isPercent: Boolean, onPercentSelected: (Boolean) -> Unit) {
+private fun UnitToggle(isPercent: Boolean, isCardio: Boolean, onPercentSelected: (Boolean) -> Unit) {
     Row(
         modifier = Modifier
             .clip(Dimens.CornerTab)
             .background(ChipBackground)
     ) {
+        // Unter Cardio gibt es nicht die eine Einheit – Minuten, km, km/h, Stufe, Prozent –,
+        // also schlicht „Wert“.
         UnitChip(
-            label = stringResource(R.string.tracking_unit_kg),
-            description = stringResource(R.string.cd_tracking_unit_kg),
+            label = stringResource(if (isCardio) R.string.tracking_value_label else R.string.tracking_unit_kg),
+            description = stringResource(
+                if (isCardio) R.string.cd_tracking_unit_value else R.string.cd_tracking_unit_kg
+            ),
             isSelected = !isPercent,
-            onClick = { onPercentSelected(false) }
+            onClick = { onPercentSelected(false) },
+            width = if (isCardio) Dimens.UnitToggleWideWidth else Dimens.UnitToggleWidth
         )
         UnitChip(
             label = stringResource(R.string.tracking_unit_percent),
@@ -323,12 +380,61 @@ private fun UnitToggle(isPercent: Boolean, onPercentSelected: (Boolean) -> Unit)
     }
 }
 
+/**
+ * Umschalter „Kraft | Cardio“ und unter Cardio die Wahl des Werts, aus dem die Kurven entstehen.
+ * Tempo und Stufe stehen unter einem Reiter; ihre Kurven bleiben trotzdem getrennt (siehe
+ * [cardioCurves]).
+ */
 @Composable
-private fun UnitChip(label: String, description: String, isSelected: Boolean, onClick: () -> Unit) {
+private fun KindSelector(
+    kind: TrackingKind,
+    cardioValue: CardioValue,
+    onKindSelected: (TrackingKind) -> Unit,
+    onCardioValueSelected: (CardioValue) -> Unit
+) {
+    SegmentToggle(
+        labels = listOf(stringResource(R.string.kind_strength), stringResource(R.string.kind_cardio)),
+        selectedIndex = kind.ordinal,
+        onSelect = { onKindSelected(TrackingKind.entries[it]) },
+        segmentWidth = Dimens.KindToggleWidth
+    )
+    if (kind != TrackingKind.CARDIO) return
+    Spacer(modifier = Modifier.height(Dimens.SectionSpacingSmall))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(Dimens.TabSpacing)
+    ) {
+        CardioValue.entries.forEach { value ->
+            RangeChip(
+                label = stringResource(
+                    when (value) {
+                        CardioValue.DURATION -> R.string.tracking_cardio_duration
+                        CardioValue.DISTANCE -> R.string.tracking_cardio_distance
+                        CardioValue.INTENSITY -> R.string.tracking_cardio_intensity
+                        CardioValue.INCLINE -> R.string.tracking_cardio_incline
+                    }
+                ),
+                isSelected = value == cardioValue,
+                onClick = { onCardioValueSelected(value) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun UnitChip(
+    label: String,
+    description: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    width: Dp = Dimens.UnitToggleWidth
+) {
     Box(
         modifier = Modifier
             .height(Dimens.UnitToggleHeight)
-            .width(Dimens.UnitToggleWidth)
+            .width(width)
             .clip(Dimens.CornerTab)
             .background(if (isSelected) TabActiveSurface else ChipBackground)
             .clickable(role = Role.Tab, onClick = onClick)
@@ -442,7 +548,12 @@ private fun RangeChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Legend(series: List<ChartSeries>, modifier: Modifier = Modifier) {
+private fun Legend(
+    series: List<ChartSeries>,
+    /** „… (beginnt bei 0 kg, kein Prozentwert)“ – unter Cardio ohne „kg“. */
+    @StringRes noBaseText: Int,
+    modifier: Modifier = Modifier
+) {
     FlowRow(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Dimens.SectionSpacingLarge),
@@ -475,7 +586,7 @@ private fun Legend(series: List<ChartSeries>, modifier: Modifier = Modifier) {
                 Spacer(modifier = Modifier.width(Dimens.SectionSpacingSmall))
                 Text(
                     text = if (line.hasNoPercentBase) {
-                        stringResource(R.string.tracking_legend_no_base, line.name)
+                        stringResource(noBaseText, line.name)
                     } else {
                         line.name
                     },
@@ -495,6 +606,8 @@ private const val NO_BASE_ALPHA = 0.4f
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ExercisePickerDialog(
+    /** Steht da, wenn es gar keine Kurve gibt. */
+    emptyText: String,
     names: List<String>,
     visibleNames: Set<String>,
     allVisible: Boolean,
@@ -511,7 +624,7 @@ private fun ExercisePickerDialog(
         text = {
             if (names.isEmpty()) {
                 Text(
-                    text = stringResource(R.string.tracking_empty),
+                    text = emptyText,
                     style = AppTextStyles.Body,
                     color = TextSecondary
                 )
