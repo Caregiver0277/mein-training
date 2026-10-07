@@ -20,6 +20,14 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        // Der GitHub-Build bringt den Debug-Schlüssel des PCs mit, damit seine APK
+        // die installierte App ersetzt (siehe .github/workflows/apk.yml).
+        getByName("debug") {
+            System.getenv("DEBUG_KEYSTORE")?.let { storeFile = file(it) }
+        }
+    }
+
     buildTypes {
         release {
             // R8 verkleinert den Build spürbar; Compose und Room bringen ihre eigenen
