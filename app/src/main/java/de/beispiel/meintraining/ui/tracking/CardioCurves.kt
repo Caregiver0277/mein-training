@@ -4,6 +4,7 @@ import de.beispiel.meintraining.data.model.CardioLog
 import de.beispiel.meintraining.data.model.CardioValue
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.IntensityUnit
+import de.beispiel.meintraining.util.amountOf
 import de.beispiel.meintraining.util.exerciseTitle
 
 /** Was der Tracking-Graph zeigt: die Gewichte der Kraftübungen oder die Cardio-Einheiten. */
@@ -98,9 +99,3 @@ fun decreasingCardioNames(
     return curves.filter { it.exerciseName in down }.mapTo(HashSet()) { it.name }
 }
 
-private fun CardioLog.amountOf(value: CardioValue): Double? = when (value) {
-    CardioValue.DURATION -> durationMin
-    CardioValue.DISTANCE -> distanceKm
-    CardioValue.INTENSITY -> intensity
-    CardioValue.INCLINE -> inclinePercent
-}

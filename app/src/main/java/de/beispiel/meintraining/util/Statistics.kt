@@ -298,4 +298,5 @@ fun stagnatingExercises(
     )
 }.sortedWith(compareByDescending<StagnatingExercise> { it.sinceSessions }.thenByDescending { it.sinceDays })
 
-private fun LocalDate.weekStart(): LocalDate = with(DayOfWeek.MONDAY)
+/** Der Montag der Woche, in der das Datum liegt. */
+internal fun LocalDate.weekStart(): LocalDate = with(DayOfWeek.MONDAY)
