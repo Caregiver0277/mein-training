@@ -272,7 +272,9 @@ fun currentStrengthWeights(
  * Übung abgehakt wurde – nur dann wurde sie auch trainiert.
  *
  * Übungen ohne Gewicht oder mit 0 kg fehlen: Bei ihnen gibt es nichts zu steigern, sie stünden
- * sonst für immer in der Liste.
+ * sonst für immer in der Liste. Ebenso fehlen die Übungen in [stillProgressing] – solche mit
+ * Satz-Protokoll, deren Wiederholungen beim aktuellen Gewicht noch steigen (siehe
+ * [repsStillRising]): Sie stehen nicht, sie werden gerade über die Wiederholungen gesteigert.
  */
 fun stagnatingExercises(
     lastChanged: Map<String, Long>,
@@ -280,8 +282,10 @@ fun stagnatingExercises(
     plannedDays: Map<String, Set<Int>>,
     sessions: List<Pair<Int, Long>>,
     today: LocalDate,
-    minSessions: Int = STAGNATION_SESSIONS
+    minSessions: Int = STAGNATION_SESSIONS,
+    stillProgressing: Set<String> = emptySet()
 ): List<StagnatingExercise> = lastChanged.mapNotNull { (name, changedAt) ->
+    if (name in stillProgressing) return@mapNotNull null
     val weight = currentWeights[name]?.takeIf { it > 0.0 } ?: return@mapNotNull null
     val days = plannedDays[name].orEmpty()
     val count = sessions.count { (dayId, completedAt) -> dayId in days && completedAt > changedAt }

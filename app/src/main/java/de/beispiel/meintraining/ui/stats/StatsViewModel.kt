@@ -25,6 +25,7 @@ import de.beispiel.meintraining.util.currentStrengthWeights
 import de.beispiel.meintraining.util.exerciseGains
 import de.beispiel.meintraining.util.heatmap
 import de.beispiel.meintraining.util.longestWeeklyStreak
+import de.beispiel.meintraining.util.repsStillRising
 import de.beispiel.meintraining.util.rotationSummary
 import de.beispiel.meintraining.util.sessionsPerWeek
 import de.beispiel.meintraining.util.stagnatingExercises
@@ -146,6 +147,14 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
         val plannedDays = planned.groupBy({ it.name }, { it.dayId })
             .mapValues { (_, dayIds) -> dayIds.toSet() }
         val currentWeights = currentStrengthWeights(definitions, plannedNames)
+        // Übungen mit Satz-Protokoll, die gerade über die Wiederholungen gesteigert werden.
+        val setsByName = setLogs.groupBy { it.exerciseName }
+        val stillProgressing = definitions.filter { it.logSets }.mapNotNullTo(HashSet()) { definition ->
+            val weight = currentWeights[definition.name] ?: return@mapNotNullTo null
+            val sets = setsByName[definition.name] ?: return@mapNotNullTo null
+            val since = lastChanged[definition.name] ?: Long.MIN_VALUE
+            definition.name.takeIf { repsStillRising(sets, weight, since, zone) }
+        }
         StatsUiState(
             totalSessions = sessions.size,
             sessionsPerWeek = sessionsPerWeek(dates, today),
@@ -163,7 +172,8 @@ class StatsViewModel(repository: TrainingRepository, currentDate: CurrentDate) :
                 currentWeights = currentWeights,
                 plannedDays = plannedDays,
                 sessions = sessions.map { it.dayId to it.completedAt },
-                today = today
+                today = today,
+                stillProgressing = stillProgressing
             ).take(TOP_ENTRIES),
             exerciseCount = planned.size,
             // Die Last einer Übung mit Pfeil nach unten ist Unterstützung, keine Last – die

@@ -136,6 +136,46 @@ fun isTopOfRangeReached(
 private const val WEIGHT_TOLERANCE_KG = 1e-6
 
 /**
+ * So viele der jüngsten Einheiten zählen als „gerade eben“: Bringt eine davon einen neuen
+ * Bestwert, steigen die Wiederholungen noch. Zwei und nicht eine, damit ein einzelner schwacher
+ * Tag nach einem Rekord nicht sofort als Stillstand gilt.
+ */
+private const val RISING_WINDOW_UNITS = 2
+
+/**
+ * Steigen die Wiederholungen beim aktuellen Gewicht noch? Dann ist eine Übung mit Satz-Protokoll
+ * nicht festgefahren, auch wenn ihr Gewicht schon lange steht – sie wird gerade über die
+ * Wiederholungen gesteigert, bis das obere Ende der Spanne erreicht ist.
+ *
+ * [setsOldestFirst] sind die protokollierten Sätze *einer* Übung (alle Variationen und Tage).
+ * Gewertet werden nur Sätze nach [since] – der letzten Gewichtsänderung – mit dem Gewicht
+ * [weightKg]. Je Einheit zählt die Summe ihrer Wiederholungen. Verglichen wird innerhalb
+ * derselben Variation am selben Trainingstag, denn dort gilt derselbe Plan; an einem anderen Tag
+ * kann dieselbe Übung „3 x 4-6“ statt „3 x 8-12“ haben.
+ *
+ * Steigend heißt: Eine der letzten [RISING_WINDOW_UNITS] Einheiten liegt über allen früheren.
+ * Mit nur einer Einheit gibt es nichts zu vergleichen – das ist kein Steigen.
+ */
+fun repsStillRising(
+    setsOldestFirst: List<SetLog>,
+    weightKg: Double,
+    since: Long,
+    zone: ZoneId = ZoneId.systemDefault()
+): Boolean = setsOldestFirst
+    .filter { set ->
+        set.performedAt > since &&
+            set.weightKg?.let { abs(it - weightKg) < WEIGHT_TOLERANCE_KG } == true
+    }
+    .groupBy { it.variation to it.dayId }
+    .values
+    .any { sets ->
+        val totals = setUnits(sets, zone).map { unit -> unit.sets.sumOf { it.reps } }
+        if (totals.size < 2) return@any false
+        val window = minOf(RISING_WINDOW_UNITS, totals.size - 1)
+        totals.takeLast(window).max() > totals.dropLast(window).max()
+    }
+
+/**
  * Womit die Wiederholungen eines Satzes vorbelegt sind: mit demselben Satz vom letzten Mal,
  * sonst dem unteren Ende der Spanne – oder, wo es nur eine Zahl gibt, mit dieser.
  */

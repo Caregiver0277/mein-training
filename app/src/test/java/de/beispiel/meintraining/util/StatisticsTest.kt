@@ -294,6 +294,19 @@ class StatisticsTest {
     ) = stagnatingExercises(lastChanged, currentWeights, plannedDays, sessions, TODAY)
 
     @Test
+    fun steigendeWiederholungenSindNichtFestgefahren() {
+        val result = stagnatingExercises(
+            lastChanged = mapOf("Alt" to at(43), "Curls" to at(43)),
+            currentWeights = mapOf("Alt" to 60.0, "Curls" to 15.0),
+            plannedDays = mapOf("Alt" to setOf(1), "Curls" to setOf(1)),
+            sessions = sessions(1, 42, 35, 28, 21, 14, 9, 2),
+            today = TODAY,
+            stillProgressing = setOf("Curls")
+        )
+        assertEquals(listOf("Alt"), result.map { it.name })
+    }
+
+    @Test
     fun stagnationGreiftErstNachSechsTrainings() {
         val result = stagnating(
             lastChanged = mapOf("Alt" to at(43), "Frisch" to at(10)),

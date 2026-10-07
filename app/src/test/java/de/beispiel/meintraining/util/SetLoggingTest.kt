@@ -266,4 +266,74 @@ class SetLoggingTest {
         )
         assertEquals("15 / 12", formatSetSeries(sets, ::kg))
     }
+
+    // --- Festgefahren: steigen die Wiederholungen noch? ---------------------
+
+    /** Eine Einheit mit drei Sätzen an Tag [dayId], [daysAgo] Tage vor heute. */
+    private fun einheit(daysAgo: Long, vararg reps: Int, dayId: Int = 1, weightKg: Double = 60.0) =
+        reps.mapIndexed { index, r ->
+            satz(HEUTE.minusDays(daysAgo), dayId, number = index + 1, reps = r, weightKg = weightKg)
+        }
+
+    private fun steigend(vararg units: List<SetLog>, since: Long = Long.MIN_VALUE) =
+        repsStillRising(units.flatMap { it }.sortedBy { it.performedAt }, 60.0, since, ZONE)
+
+    @Test
+    fun ohneVergleichSteigtNichts() {
+        assertFalse(steigend())
+        assertFalse(steigend(einheit(3, 10, 10, 10)))
+    }
+
+    @Test
+    fun mehrWiederholungenAlsZuvorSindSteigend() {
+        assertTrue(steigend(einheit(7, 10, 10, 9), einheit(3, 10, 10, 10)))
+    }
+
+    @Test
+    fun gleichbleibendeWiederholungenSindKeinSteigen() {
+        assertFalse(steigend(einheit(14, 10, 10, 10), einheit(7, 10, 10, 10), einheit(3, 10, 10, 10)))
+    }
+
+    @Test
+    fun einSchwacherTagNachDemRekordZaehltNochMit() {
+        // 30, 32, 31: Der Rekord liegt in den letzten beiden Einheiten.
+        assertTrue(steigend(einheit(14, 10, 10, 10), einheit(7, 11, 11, 10), einheit(3, 11, 10, 10)))
+    }
+
+    @Test
+    fun einAlterRekordIstKeinSteigen() {
+        // 30, 33, 31, 31: Seit dem Rekord kam nichts mehr.
+        assertFalse(
+            steigend(
+                einheit(21, 10, 10, 10),
+                einheit(14, 11, 11, 11),
+                einheit(7, 11, 10, 10),
+                einheit(3, 11, 10, 10)
+            )
+        )
+    }
+
+    @Test
+    fun nurDasAktuelleGewichtUndDieZeitSeitDerAenderungZaehlen() {
+        // Bei 55 kg waren es weniger – das ist kein Steigen bei 60 kg.
+        assertFalse(steigend(einheit(7, 8, 8, 8, weightKg = 55.0), einheit(3, 10, 10, 10)))
+        // Vor der letzten Änderung (vor 5 Tagen) Gelaufenes zählt nicht.
+        val since = HEUTE.minusDays(5).atStartOfDay(ZONE).toInstant().toEpochMilli()
+        assertFalse(steigend(einheit(7, 8, 8, 8), einheit(3, 10, 10, 10), since = since))
+    }
+
+    @Test
+    fun verglichenWirdJeTrainingstag() {
+        // Tag 2 hat ein anderes Schema; nur dort steigt es.
+        assertTrue(
+            steigend(
+                einheit(9, 6, 6, 6, dayId = 2),
+                einheit(8, 10, 10, 10),
+                einheit(2, 7, 6, 6, dayId = 2),
+                einheit(1, 10, 10, 10)
+            )
+        )
+        // Zwischen den Tagen gemischt sähe es nach Steigen aus, ist es aber nicht.
+        assertFalse(steigend(einheit(8, 6, 6, 6, dayId = 2), einheit(1, 10, 10, 10)))
+    }
 }
