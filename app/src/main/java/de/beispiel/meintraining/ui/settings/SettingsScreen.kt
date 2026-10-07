@@ -73,6 +73,7 @@ import de.beispiel.meintraining.data.model.MIN_DAY_COUNT
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.ui.screen.SubScreenHeader
 import de.beispiel.meintraining.ui.theme.AccentBlue
+import de.beispiel.meintraining.ui.theme.AccentBlueSurface
 import de.beispiel.meintraining.ui.theme.AccentRed
 import de.beispiel.meintraining.ui.theme.AccentRedSurface
 import de.beispiel.meintraining.ui.theme.AppTextStyles
@@ -897,6 +898,27 @@ internal fun SettingsField(
 }
 
 /**
+ * „Cardio“ als kleines Schild hinter dem Namen – damit sich Cardio-Übungen in der Verwaltung auf
+ * einen Blick von den Kraftübungen unterscheiden. Im Stil des Deload-Schilds auf dem Hauptscreen,
+ * nur in Blau.
+ */
+@Composable
+private fun CardioBadge() {
+    Text(
+        text = stringResource(R.string.kind_cardio),
+        style = AppTextStyles.ColumnLabel,
+        color = AccentBlue,
+        maxLines = 1,
+        modifier = Modifier
+            .padding(start = Dimens.SectionSpacingSmall)
+            .clip(Dimens.CornerChip)
+            .background(AccentBlueSurface)
+            .border(Dimens.BadgeBorderWidth, AccentBlue, Dimens.CornerChip)
+            .padding(horizontal = Dimens.SectionSpacingSmall, vertical = Dimens.SectionSpacingSmall / 2)
+    )
+}
+
+/**
  * Eine Zeile der Übungsverwaltung.
  *
  * Eine ausgeblendete Übung steht ausgegraut da und trägt es in ihrer Zeile: Sonst wäre nicht zu
@@ -942,13 +964,17 @@ private fun ExerciseRow(
             )
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = exercise.name,
-                style = AppTextStyles.ExerciseName,
-                color = if (exercise.isHidden) TextDisabled else TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = exercise.name,
+                    style = AppTextStyles.ExerciseName,
+                    color = if (exercise.isHidden) TextDisabled else TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (exercise.isCardio) CardioBadge()
+            }
             val where = if (exercise.dayCount == 0) {
                 pluralStringResource(
                     R.plurals.settings_only_history,
@@ -1016,7 +1042,10 @@ private fun SettingsScreenPreview() {
                 dayCount = 4,
                 appTitle = "",
                 deloadCycleWeeks = 6,
-                exercises = listOf(ManagedExercise("Bizep curls", 2, 4))
+                exercises = listOf(
+                    ManagedExercise("Bizep curls", 2, 4),
+                    ManagedExercise("Laufband", 1, 0, isCardio = true)
+                )
             ),
             onAppTitleChange = {},
             onDeloadCycleChange = {},

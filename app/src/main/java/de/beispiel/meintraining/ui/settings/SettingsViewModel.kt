@@ -13,6 +13,7 @@ import de.beispiel.meintraining.data.local.RestTimerStore
 import de.beispiel.meintraining.data.model.DEFAULT_DAY_COUNT
 import de.beispiel.meintraining.data.model.MAX_DAY_COUNT
 import de.beispiel.meintraining.data.model.MIN_DAY_COUNT
+import de.beispiel.meintraining.data.model.ExerciseKind
 import de.beispiel.meintraining.data.model.TrainingDay
 import de.beispiel.meintraining.data.repository.TrainingRepository
 import de.beispiel.meintraining.timer.RestTimerSound
@@ -49,7 +50,9 @@ data class ManagedExercise(
     val dayCount: Int,
     val historyEntries: Int,
     /** Ausgeblendet heißt: Sie steht an keinem Trainingstag mehr in der Liste. */
-    val isHidden: Boolean = false
+    val isHidden: Boolean = false,
+    /** Eine Cardio-Übung trägt in der Verwaltung ein Kennzeichen. */
+    val isCardio: Boolean = false
 )
 
 data class SettingsUiState(
@@ -137,6 +140,7 @@ class SettingsViewModel(
         general
     ) { exercises, definitions, logs, days, general ->
         val historyCounts = logs.groupingBy { it.exerciseName }.eachCount()
+        val cardioNames = definitions.filter { it.kind == ExerciseKind.CARDIO }.mapTo(HashSet()) { it.name }
         val dayCounts = exercises.groupBy { it.name }
             .mapValues { (_, entries) -> entries.map { it.dayId }.distinct().size }
 
@@ -158,7 +162,8 @@ class SettingsViewModel(
                     name = name,
                     dayCount = dayCounts[name] ?: 0,
                     historyEntries = historyCounts[name] ?: 0,
-                    isHidden = name in general.hiddenExerciseNames
+                    isHidden = name in general.hiddenExerciseNames,
+                    isCardio = name in cardioNames
                 )
             }
         )
