@@ -1,5 +1,6 @@
 package de.beispiel.meintraining.data.model
 
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import de.beispiel.meintraining.util.DEFAULT_PROGRESSION_STEP_KG
@@ -33,5 +34,16 @@ data class ExerciseDefinition(
      * Werden die Sätze dieser Übung einzeln protokolliert (siehe [SetLog])? Vorgabe: nein – für
      * jede Übung ohne diesen Schalter bleibt alles, wie es war.
      */
-    val logSets: Boolean = false
+    val logSets: Boolean = false,
+    /** Kraft oder Cardio; alle Übungen aus der Zeit vor Cardio sind Kraft. */
+    val kind: ExerciseKind = ExerciseKind.STRENGTH,
+    /**
+     * Zielwerte und Pfeil, falls die Übung Cardio ist – oder es einmal war: Die Werte bleiben
+     * stehen, wenn sie die Art wechselt, genau wie Gewicht und Schritt einer Kraftübung.
+     */
+    @Embedded(prefix = CARDIO_COLUMN_PREFIX)
+    val cardio: CardioTargets = CardioTargets()
 )
+
+/** Vorsatz der Spalten für die [CardioTargets] – an der Definition wie in den Abfragen. */
+const val CARDIO_COLUMN_PREFIX = "cardio_"

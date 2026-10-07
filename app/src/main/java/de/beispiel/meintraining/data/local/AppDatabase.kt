@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import de.beispiel.meintraining.data.model.CardioLog
 import de.beispiel.meintraining.data.model.Exercise
 import de.beispiel.meintraining.data.model.ExerciseDefinition
 import de.beispiel.meintraining.data.model.SetLog
@@ -14,7 +15,7 @@ import de.beispiel.meintraining.data.model.WeightLog
 import de.beispiel.meintraining.data.model.WorkoutSession
 
 /** Aktuelle Schemaversion; steht hier, damit auch die Tests sie benennen können. */
-const val DATABASE_VERSION = 8
+const val DATABASE_VERSION = 9
 
 @Database(
     entities = [
@@ -23,7 +24,8 @@ const val DATABASE_VERSION = 8
         ExerciseDefinition::class,
         WeightLog::class,
         WorkoutSession::class,
-        SetLog::class
+        SetLog::class,
+        CardioLog::class
     ],
     version = DATABASE_VERSION,
     // Das exportierte Schema liegt unter app/schemas und ist die Grundlage künftiger
@@ -43,6 +45,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun workoutSessionDao(): WorkoutSessionDao
 
     abstract fun setLogDao(): SetLogDao
+
+    abstract fun cardioLogDao(): CardioLogDao
 
     companion object {
         private const val DATABASE_NAME = "mein_training.db"
@@ -249,6 +253,59 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Cardio: die Art der Übung, ihre Zielwerte samt Pfeil an der Definition und die Tabelle
+         * der eingetragenen Einheiten.
+         *
+         * Jede bestehende Übung ist Kraft und bleibt es; die Cardio-Werte kommen leer dazu, die
+         * Einheit des Tempos steht auf km/h und der Pfeil auf keinem Wert – für Kraftübungen ändert
+         * sich damit nichts.
+         */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `ExerciseDefinition` " +
+                        "ADD COLUMN `kind` TEXT NOT NULL DEFAULT 'STRENGTH'"
+                )
+                listOf(
+                    "`cardio_durationMin` REAL",
+                    "`cardio_distanceKm` REAL",
+                    "`cardio_intensity` REAL",
+                    "`cardio_intensityUnit` TEXT NOT NULL DEFAULT 'KMH'",
+                    "`cardio_inclinePercent` REAL",
+                    "`cardio_arrowValue` TEXT",
+                    "`cardio_arrowStep` REAL",
+                    "`cardio_arrowDown` INTEGER NOT NULL DEFAULT 0"
+                ).forEach { column ->
+                    db.execSQL("ALTER TABLE `ExerciseDefinition` ADD COLUMN $column")
+                }
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `CardioLog` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `exerciseName` TEXT NOT NULL,
+                        `variation` TEXT,
+                        `dayId` INTEGER NOT NULL,
+                        `performedAt` INTEGER NOT NULL,
+                        `durationMin` REAL,
+                        `distanceKm` REAL,
+                        `intensity` REAL,
+                        `intensityUnit` TEXT,
+                        `inclinePercent` REAL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_CardioLog_exerciseName` " +
+                        "ON `CardioLog` (`exerciseName`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_CardioLog_performedAt` " +
+                        "ON `CardioLog` (`performedAt`)"
+                )
+            }
+        }
+
         /** Alle Migrationen in der Reihenfolge ihrer Versionen – auch für die Tests. */
         val MIGRATIONS: Array<Migration> = arrayOf(
             MIGRATION_1_2,
@@ -257,7 +314,8 @@ abstract class AppDatabase : RoomDatabase() {
             MIGRATION_4_5,
             MIGRATION_5_6,
             MIGRATION_6_7,
-            MIGRATION_7_8
+            MIGRATION_7_8,
+            MIGRATION_8_9
         )
 
         @Volatile

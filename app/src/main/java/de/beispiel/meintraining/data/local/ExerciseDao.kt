@@ -26,7 +26,13 @@ private const val ITEM_COLUMNS = """
     COALESCE(d.progressionStepKg, $DEFAULT_PROGRESSION_STEP_KG) AS progressionStepKg,
     COALESCE(d.progressionDown, 0) AS progressionDown,
     d.note AS note,
-    COALESCE(d.logSets, 0) AS logSets
+    COALESCE(d.logSets, 0) AS logSets,
+    COALESCE(d.kind, 'STRENGTH') AS kind,
+    d.cardio_durationMin AS cardio_durationMin, d.cardio_distanceKm AS cardio_distanceKm,
+    d.cardio_intensity AS cardio_intensity,
+    COALESCE(d.cardio_intensityUnit, 'KMH') AS cardio_intensityUnit,
+    d.cardio_inclinePercent AS cardio_inclinePercent, d.cardio_arrowValue AS cardio_arrowValue,
+    d.cardio_arrowStep AS cardio_arrowStep, COALESCE(d.cardio_arrowDown, 0) AS cardio_arrowDown
 """
 
 @Dao

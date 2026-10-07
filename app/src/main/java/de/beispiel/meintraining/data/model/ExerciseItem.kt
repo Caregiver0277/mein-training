@@ -1,5 +1,7 @@
 package de.beispiel.meintraining.data.model
 
+import androidx.room.Embedded
+
 /**
  * Eine Übung eines Tages zusammen mit ihren geteilten Werten – das Modell, mit dem
  * Oberfläche und ViewModel arbeiten. Entsteht aus [Exercise] und [ExerciseDefinition].
@@ -21,8 +23,15 @@ data class ExerciseItem(
     /** Die Notiz zur Übung; siehe [ExerciseDefinition.note]. */
     val note: String? = null,
     /** Siehe [ExerciseDefinition.logSets]. */
-    val logSets: Boolean = false
+    val logSets: Boolean = false,
+    /** Siehe [ExerciseDefinition.kind]. */
+    val kind: ExerciseKind = ExerciseKind.STRENGTH,
+    /** Siehe [ExerciseDefinition.cardio]. */
+    @Embedded(prefix = CARDIO_COLUMN_PREFIX)
+    val cardio: CardioTargets = CardioTargets()
 ) {
+    val isCardio: Boolean get() = kind == ExerciseKind.CARDIO
+
     fun toExercise() = Exercise(
         id = id,
         dayId = dayId,
@@ -41,6 +50,8 @@ data class ExerciseItem(
         progressionStepKg = progressionStepKg,
         progressionDown = progressionDown,
         note = note,
-        logSets = logSets
+        logSets = logSets,
+        kind = kind,
+        cardio = cardio
     )
 }

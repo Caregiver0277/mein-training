@@ -275,6 +275,59 @@ class MigrationTest {
         }
     }
 
+    /**
+     * Cardio kommt dazu: Jede bestehende Übung ist Kraft, ihre Cardio-Werte sind leer, das Tempo
+     * steht auf km/h und der Pfeil auf keinem Wert. Was die Übung vorher hatte – Gewicht, Schritt,
+     * Richtung, Notiz, Schalter –, bleibt unverändert; die neue Tabelle nimmt eine Einheit an.
+     */
+    @Test
+    fun cardioKommtLeerDazuUndAllesBleibtKraft() {
+        helper.createDatabase(TEST_DB, 8).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO ExerciseDefinition
+                    (name, weightKg, progressionStepKg, progressionDown, note, logSets)
+                VALUES ('Klimmzugmaschine', 30.0, 2.5, 1, 'Knie auf das Polster', 1)
+                """.trimIndent()
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 9, true, *AppDatabase.MIGRATIONS)
+        db.use {
+            it.query(
+                """
+                SELECT weightKg, progressionStepKg, progressionDown, note, logSets, kind,
+                    cardio_durationMin, cardio_distanceKm, cardio_intensity, cardio_intensityUnit,
+                    cardio_inclinePercent, cardio_arrowValue, cardio_arrowStep, cardio_arrowDown
+                FROM ExerciseDefinition
+                """.trimIndent()
+            ).use { cursor ->
+                assertEquals(1, cursor.count)
+                assertTrue(cursor.moveToFirst())
+                assertEquals(30.0, cursor.getDouble(0), TOLERANCE)
+                assertEquals(2.5, cursor.getDouble(1), TOLERANCE)
+                assertEquals(1, cursor.getInt(2))
+                assertEquals("Knie auf das Polster", cursor.getString(3))
+                assertEquals(1, cursor.getInt(4))
+                assertEquals("STRENGTH", cursor.getString(5))
+                listOf(6, 7, 8, 10, 11, 12).forEach { column -> assertTrue(cursor.isNull(column)) }
+                assertEquals("KMH", cursor.getString(9))
+                assertEquals(0, cursor.getInt(13))
+            }
+            it.execSQL(
+                """
+                INSERT INTO CardioLog (exerciseName, variation, dayId, performedAt, durationMin,
+                    distanceKm, intensity, intensityUnit, inclinePercent)
+                VALUES ('Laufband', NULL, 2, 1700000001000, 22.5, 3.4, 6.0, 'KMH', NULL)
+                """.trimIndent()
+            )
+            it.query("SELECT COUNT(*) FROM CardioLog").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1, cursor.getInt(0))
+            }
+        }
+    }
+
     /** Legt die Datenbank so an, wie Version 1 der App sie hinterlassen hat. */
     private fun createVersion1(fill: (SQLiteDatabase) -> Unit) {
         val db = SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(TEST_DB), null)
